@@ -160,6 +160,7 @@
       margin-top: 16px;
       display: none;
       line-height: 1.5;
+      white-space: pre-line;
     }
 
     /* AR scene */
@@ -425,8 +426,31 @@
     });
   }
 
+  function checkWebGL() {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!ctx) return false;
+      const supported = ctx.getParameter(ctx.VERSION);
+      return !!supported;
+    } catch (e) {
+      return false;
+    }
+  }
+
   launchBtn.addEventListener('click', async () => {
     hideError();
+
+    if (!checkWebGL()) {
+      showError(
+        'WebGL is not available on this browser. MindAR requires WebGL to run.\n\n' +
+        'On Firefox for iOS, WebGL may be disabled by default. ' +
+        'Try: Settings → Firefox → Advanced → WebGL → Enable. ' +
+        'Safari on iOS is recommended as an alternative.'
+      );
+      return;
+    }
+
     launchBtn.disabled = true;
     progressContainer.style.display = 'block';
     setProgress(0, 'Loading compiler…');
