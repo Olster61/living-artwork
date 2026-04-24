@@ -315,9 +315,19 @@
 <button class="close-btn" id="close-btn" title="Exit AR">✕</button>
 
 <script>
-  const MINDAR_URL       = 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js';
-  const AFRAME_URL       = 'https://aframe.io/releases/1.4.2/aframe.min.js';
-  const MINDAR_AFRAME_URL= 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js';
+  const MINDAR_URLS = [
+    'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js',
+    'https://unpkg.com/mind-ar@1.2.5/dist/mindar-image.prod.js',
+  ];
+  const AFRAME_URLS = [
+    'https://aframe.io/releases/1.4.2/aframe.min.js',
+    'https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js',
+    'https://unpkg.com/aframe@1.4.2/dist/aframe.min.js',
+  ];
+  const MINDAR_AFRAME_URLS = [
+    'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js',
+    'https://unpkg.com/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js',
+  ];
 
   let targetFile = null, videoFile = null;
   let compiledMindUrl = null, videoObjectUrl = null;
@@ -346,6 +356,20 @@
       s.onerror = () => reject(new Error('Failed to load ' + url));
       document.head.appendChild(s);
     });
+  }
+
+  async function loadScriptWithFallback(urls, label) {
+    let lastErr;
+    for (const url of urls) {
+      try {
+        await loadScript(url);
+        return;
+      } catch (e) {
+        console.warn('CDN failed, trying next:', url, e.message);
+        lastErr = e;
+      }
+    }
+    throw new Error('Could not load ' + label + ' from any CDN. Check your internet connection and try again.');
   }
 
   function showError(msg) { errorBox.textContent = msg; errorBox.style.display = 'block'; }
@@ -409,7 +433,10 @@
 
     try {
       if (!mindarLoaded) {
-        await loadScript(MINDAR_URL);
+        await loadScriptWithFallback(MINDAR_URLS, 'MindAR compiler');
+        if (typeof MINDAR === 'undefined' || !MINDAR.IMAGE || !MINDAR.IMAGE.Compiler) {
+          throw new Error('MindAR loaded but did not initialise correctly. Try a different browser or disable any content blockers.');
+        }
         mindarLoaded = true;
       }
 
@@ -432,8 +459,8 @@
 
       setProgress(96, 'Loading AR framework…');
       if (!aframeLoaded) {
-        await loadScript(AFRAME_URL);
-        await loadScript(MINDAR_AFRAME_URL);
+        await loadScriptWithFallback(AFRAME_URLS, 'A-Frame');
+        await loadScriptWithFallback(MINDAR_AFRAME_URLS, 'MindAR A-Frame');
         aframeLoaded = true;
       }
 
