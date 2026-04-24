@@ -1,22 +1,513 @@
-<!doctype html><html data-build-id="29fc3beb56" data-git-hash="a6ed9292e75e5d5506c7173014a56429fc3beb56" data-build-timestamp="1776823295" data-version="1.0.0" data-env="" data-color-version="v2" lang="en" data-theme="claude" data-mode="light" class="h-screen antialiased scroll-smooth"><head data-ion-ip-country="GB"><link rel="preconnect" href="https://assets-proxy.anthropic.com" crossorigin><link rel="dns-prefetch" href="https://assets-proxy.anthropic.com"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Claude</title><meta name="description" content="Claude is Anthropic's AI, built for problem solvers. Tackle complex challenges, analyze data, write code, and think through your hardest work."><meta name="apple-itunes-app" content="app-id=6473753684"><meta property="og:type" content="website"><meta property="og:site_name" content="Claude"><meta property="og:image" content="https://claude.ai/images/claude_ogimage.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="icon" type="image/svg+xml" href="https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/cd02a42d9-Vq_H3mgS.svg"><link rel="icon" type="image/png" sizes="32x32" href="https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/ce67964e7-CAX1bqSh.png"><link rel="icon" type="image/png" sizes="16x16" href="https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c03e51811-DebilQLI.png"><link rel="shortcut icon" href="/favicon.ico"><link rel="apple-touch-icon" href="https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c129d018a-jJjJELY8.png"><link rel="apple-touch-startup-image" href="/images/claude_app_icon.png"><link rel="manifest" href="/manifest.json"><meta name="mobile-web-app-capable" content="yes"><link rel="preload" href="https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/cc27851ad-CFxw3nG7.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c66fc489e-C-BHYa_K.woff2" as="font" type="font/woff2" crossorigin><script nonce="GsVgOsT09SDl+iVYMgbsaw==">void 0===globalThis.process&&(globalThis.process={env:{},cwd:function(){return"/"}}),void 0===globalThis.global&&(globalThis.global=globalThis)</script><script type="application/ld+json" nonce="GsVgOsT09SDl+iVYMgbsaw==">{
-        "@context": "https://schema.org",
-        "@graph": [
-          {
-            "@type": "WebSite",
-            "name": "Claude",
-            "alternateName": ["Claude.ai", "Claude by Anthropic"],
-            "url": "https://claude.com"
-          },
-          {
-            "@type": "Organization",
-            "name": "Anthropic",
-            "url": "https://www.anthropic.com",
-            "logo": "https://claude.ai/images/claude_ogimage.png",
-            "sameAs": [
-              "https://x.com/AnthropicAI",
-              "https://www.linkedin.com/company/anthropic",
-              "https://www.youtube.com/@anthropic-ai"
-            ]
-          }
-        ]
-      }</script><script nonce="GsVgOsT09SDl+iVYMgbsaw==">!function(){try{performance.mark?.("rq_cache:preload_start");const e="keyval-store",o="keyval",r="react-query-cache",t=new Promise(t=>{if(!window.indexedDB)return void t(void 0);const c=indexedDB.open(e);c.onupgradeneeded=()=>{c.transaction?.abort()},c.onerror=()=>t(void 0),c.onsuccess=()=>{const a=c.result;if(!a.objectStoreNames.contains(o))return a.close(),indexedDB.deleteDatabase(e),void t(void 0);try{const e=a.transaction(o,"readonly").objectStore(o).get(r);e.onerror=()=>{a.close(),t(void 0)},e.onsuccess=()=>{a.close(),window.__PRELOADED_IDB_CACHE_RESULT__=e.result,t(e.result)}}catch{a.close(),t(void 0)}}});window.__PRELOADED_IDB_CACHE__=t,performance.measure?.("rq_cache:preload_exec",{start:"rq_cache:preload_start"})}catch{}}()</script><script type="module" crossorigin src="https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/index-WpYCHAfz.js" nonce="GsVgOsT09SDl+iVYMgbsaw=="></script><link rel="modulepreload" crossorigin href="https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/vendor-C9XSXpoE.js"><link rel="modulepreload" crossorigin href="https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/tree-sitter-BfScwQVn.js"><link rel="stylesheet" crossorigin href="https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c6a992d55-Bpq3Cb4N.css"></head><body class="bg-bg-100 text-text-100 font-ui min-h-screen"><div id="root"></div><script nonce="GsVgOsT09SDl+iVYMgbsaw==">(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.nonce='GsVgOsT09SDl+iVYMgbsaw==';d.innerHTML="window.__CF$cv$params={r:'9f038f95e8c55016',t:'MTc3Njg0OTcxMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='GsVgOsT09SDl+iVYMgbsaw==';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Living Artwork AR</title>
+  <style>
+    :root {
+      --gold: #c9a84c;
+      --gold-light: #f0c060;
+      --gold-dark: #8a6820;
+      --dark: #111;
+      --dark-card: #1e1e1e;
+      --dark-border: #333;
+      --text: #e8e0cc;
+      --text-dim: #777;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--dark);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    h1 {
+      color: var(--gold);
+      font-size: 1.8rem;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .subtitle {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      width: 100%;
+      max-width: 580px;
+      margin-bottom: 20px;
+    }
+
+    .upload-card {
+      background: var(--dark-card);
+      border: 2px dashed var(--dark-border);
+      border-radius: 12px;
+      padding: 28px 16px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+
+    .upload-card:hover { border-color: var(--gold-dark); background: #242424; }
+    .upload-card.has-file { border-style: solid; border-color: var(--gold); }
+
+    .upload-card input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .upload-icon { font-size: 2rem; margin-bottom: 10px; }
+
+    .upload-label {
+      color: var(--gold);
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+    }
+
+    .upload-hint { color: var(--text-dim); font-size: 0.72rem; }
+
+    .upload-filename {
+      color: var(--gold-light);
+      font-size: 0.72rem;
+      margin-top: 8px;
+      word-break: break-all;
+      min-height: 1em;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+      color: #1a1000;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      max-width: 580px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+    .progress-container {
+      width: 100%;
+      max-width: 580px;
+      margin-top: 20px;
+      display: none;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-bottom: 7px;
+    }
+
+    .progress-track {
+      background: #222;
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+      border: 1px solid var(--dark-border);
+    }
+
+    .progress-fill {
+      background: linear-gradient(90deg, var(--gold-dark), var(--gold-light));
+      height: 100%;
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.25s ease;
+    }
+
+    .error-box {
+      background: #1f0a0a;
+      border: 1px solid #7a1f1f;
+      color: #f08080;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.82rem;
+      width: 100%;
+      max-width: 580px;
+      margin-top: 16px;
+      display: none;
+      line-height: 1.5;
+    }
+
+    /* AR scene */
+    #ar-container {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 100;
+    }
+
+    #ar-container a-scene {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Scanning overlay */
+    #scan-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: none;
+      pointer-events: none;
+    }
+
+    .scan-frame {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -60%);
+      width: min(68vw, 280px);
+      height: min(68vw, 280px);
+    }
+
+    .scan-frame::before,
+    .scan-frame::after,
+    .corner-br,
+    .corner-bl {
+      content: '';
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      border-color: var(--gold);
+      border-style: solid;
+    }
+
+    .scan-frame::before { top: 0; left: 0; border-width: 3px 0 0 3px; }
+    .scan-frame::after  { top: 0; right: 0; border-width: 3px 3px 0 0; }
+    .corner-br          { bottom: 0; right: 0; border-width: 0 3px 3px 0; }
+    .corner-bl          { bottom: 0; left: 0; border-width: 0 0 3px 3px; }
+
+    .scan-line {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(68vw, 280px);
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      animation: scanMove 2s ease-in-out infinite;
+      top: calc(50% - min(34vw, 140px));
+    }
+
+    @keyframes scanMove {
+      0%   { top: calc(50% - min(34vw, 140px)); }
+      50%  { top: calc(50% + min(34vw, 140px)); }
+      100% { top: calc(50% - min(34vw, 140px)); }
+    }
+
+    .scan-text {
+      position: absolute;
+      bottom: 28%;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--gold);
+      font-size: 0.82rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      text-shadow: 0 0 12px rgba(201,168,76,0.6);
+      white-space: nowrap;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .close-btn {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 300;
+      background: rgba(0,0,0,0.65);
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: all;
+    }
+  </style>
+</head>
+<body>
+
+<div id="setup-screen">
+  <h1>Living Artwork AR</h1>
+  <p class="subtitle">Upload a target image and video to launch your AR experience</p>
+
+  <div class="upload-grid">
+    <div class="upload-card" id="img-card">
+      <input type="file" id="img-input" accept="image/*">
+      <div class="upload-icon">🖼️</div>
+      <div class="upload-label">Target Image</div>
+      <div class="upload-hint">JPG · PNG · WebP</div>
+      <div class="upload-filename" id="img-name"></div>
+    </div>
+    <div class="upload-card" id="vid-card">
+      <input type="file" id="vid-input" accept="video/mp4,video/*">
+      <div class="upload-icon">🎬</div>
+      <div class="upload-label">AR Video</div>
+      <div class="upload-hint">MP4 recommended</div>
+      <div class="upload-filename" id="vid-name"></div>
+    </div>
+  </div>
+
+  <button class="btn" id="launch-btn" disabled>Compile &amp; Launch AR</button>
+
+  <div class="progress-container" id="progress-container">
+    <div class="progress-label">
+      <span id="progress-status">Compiling image target…</span>
+      <span id="progress-pct">0%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <div class="error-box" id="error-box"></div>
+</div>
+
+<div id="ar-container"></div>
+
+<div id="scan-overlay">
+  <div class="scan-frame">
+    <div class="corner-br"></div>
+    <div class="corner-bl"></div>
+  </div>
+  <div class="scan-line"></div>
+  <div class="scan-text">Point camera at target image</div>
+</div>
+
+<button class="close-btn" id="close-btn" title="Exit AR">✕</button>
+
+<script>
+  const MINDAR_URL       = 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js';
+  const AFRAME_URL       = 'https://aframe.io/releases/1.4.2/aframe.min.js';
+  const MINDAR_AFRAME_URL= 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js';
+
+  let targetFile = null, videoFile = null;
+  let compiledMindUrl = null, videoObjectUrl = null;
+  let mindarLoaded = false, aframeLoaded = false;
+
+  const $ = id => document.getElementById(id);
+  const imgInput = $('img-input'), vidInput = $('vid-input');
+  const imgCard  = $('img-card'),  vidCard  = $('vid-card');
+  const imgName  = $('img-name'),  vidName  = $('vid-name');
+  const launchBtn= $('launch-btn');
+  const progressContainer = $('progress-container');
+  const progressFill   = $('progress-fill');
+  const progressStatus = $('progress-status');
+  const progressPct    = $('progress-pct');
+  const errorBox   = $('error-box');
+  const arContainer= $('ar-container');
+  const scanOverlay= $('scan-overlay');
+  const closeBtn   = $('close-btn');
+  const setupScreen= $('setup-screen');
+
+  function loadScript(url) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = url;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Failed to load ' + url));
+      document.head.appendChild(s);
+    });
+  }
+
+  function showError(msg) { errorBox.textContent = msg; errorBox.style.display = 'block'; }
+  function hideError()    { errorBox.style.display = 'none'; }
+
+  function setProgress(pct, label) {
+    progressFill.style.width = pct + '%';
+    progressPct.textContent  = Math.round(pct) + '%';
+    if (label) progressStatus.textContent = label;
+  }
+
+  function checkReady() { launchBtn.disabled = !(targetFile && videoFile); }
+
+  imgInput.addEventListener('change', e => {
+    targetFile = e.target.files[0] || null;
+    imgName.textContent = targetFile ? targetFile.name : '';
+    imgCard.classList.toggle('has-file', !!targetFile);
+    hideError(); checkReady();
+  });
+
+  vidInput.addEventListener('change', e => {
+    videoFile = e.target.files[0] || null;
+    vidName.textContent = videoFile ? videoFile.name : '';
+    vidCard.classList.toggle('has-file', !!videoFile);
+    hideError(); checkReady();
+  });
+
+  function resizeImage(file, maxPx = 1024) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxPx || height > maxPx) {
+          const scale = maxPx / Math.max(width, height);
+          width  = Math.round(width  * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob(blob => {
+          const out = new Image();
+          const outUrl = URL.createObjectURL(blob);
+          out.onload = () => { URL.revokeObjectURL(outUrl); resolve(out); };
+          out.onerror = reject;
+          out.src = outUrl;
+        }, 'image/jpeg', 0.92);
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  launchBtn.addEventListener('click', async () => {
+    hideError();
+    launchBtn.disabled = true;
+    progressContainer.style.display = 'block';
+    setProgress(0, 'Loading compiler…');
+
+    try {
+      if (!mindarLoaded) {
+        await loadScript(MINDAR_URL);
+        mindarLoaded = true;
+      }
+
+      setProgress(5, 'Resizing image…');
+      const imgEl = await resizeImage(targetFile, 1024);
+
+      setProgress(10, 'Compiling image target…');
+      const compiler = new MINDAR.IMAGE.Compiler();
+      await compiler.compileImageTargets([imgEl], progress => {
+        setProgress(10 + progress * 0.82);
+      });
+
+      setProgress(93, 'Exporting target data…');
+      const buffer = await compiler.exportData();
+      if (compiledMindUrl) URL.revokeObjectURL(compiledMindUrl);
+      compiledMindUrl = URL.createObjectURL(new Blob([buffer]));
+
+      if (videoObjectUrl) URL.revokeObjectURL(videoObjectUrl);
+      videoObjectUrl = URL.createObjectURL(videoFile);
+
+      setProgress(96, 'Loading AR framework…');
+      if (!aframeLoaded) {
+        await loadScript(AFRAME_URL);
+        await loadScript(MINDAR_AFRAME_URL);
+        aframeLoaded = true;
+      }
+
+      setProgress(100, 'Launching…');
+      await new Promise(r => setTimeout(r, 400));
+      launchAR();
+    } catch (err) {
+      showError('Error: ' + (err.message || String(err)));
+      launchBtn.disabled = false;
+      progressContainer.style.display = 'none';
+    }
+  });
+
+  function launchAR() {
+    setupScreen.style.display = 'none';
+    progressContainer.style.display = 'none';
+    arContainer.style.display = 'block';
+
+    arContainer.innerHTML = `
+      <a-scene
+        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no;"
+        color-space="sRGB"
+        renderer="colorManagement: true"
+        vr-mode-ui="enabled: false"
+        device-orientation-permission-ui="enabled: false"
+      >
+        <a-assets>
+          <video id="ar-video"
+            src="${videoObjectUrl}"
+            preload="auto" loop playsinline webkit-playsinline
+            crossorigin="anonymous">
+          </video>
+        </a-assets>
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        <a-entity mindar-image-target="targetIndex: 0">
+          <a-video src="#ar-video"
+            position="0 0 0.001"
+            width="1" height="0.5625">
+          </a-video>
+        </a-entity>
+      </a-scene>
+    `;
+
+    scanOverlay.style.display = 'block';
+    closeBtn.style.display = 'flex';
+
+    // Bind target found/lost after scene initialises
+    setTimeout(() => {
+      const entity = arContainer.querySelector('[mindar-image-target]');
+      const video  = document.getElementById('ar-video');
+      if (entity) {
+        entity.addEventListener('targetFound', () => {
+          scanOverlay.style.display = 'none';
+          video && video.play().catch(() => {});
+        });
+        entity.addEventListener('targetLost', () => {
+          scanOverlay.style.display = 'block';
+          video && video.pause();
+        });
+      }
+    }, 1500);
+  }
+
+  closeBtn.addEventListener('click', () => {
+    const scene = arContainer.querySelector('a-scene');
+    if (scene && scene.destroy) scene.destroy();
+    arContainer.innerHTML = '';
+    arContainer.style.display = 'none';
+    scanOverlay.style.display = 'none';
+    closeBtn.style.display = 'none';
+    setupScreen.style.display = '';
+    launchBtn.disabled = !(targetFile && videoFile);
+    progressContainer.style.display = 'none';
+  });
+</script>
+</body>
+</html>
