@@ -319,6 +319,8 @@
   const MINDAR_URLS = [
     'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js',
     'https://unpkg.com/mind-ar@1.2.5/dist/mindar-image.prod.js',
+    'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.js',
+    'https://unpkg.com/mind-ar@1.2.2/dist/mindar-image.prod.js',
   ];
   const AFRAME_URLS = [
     'https://aframe.io/releases/1.4.2/aframe.min.js',
@@ -328,6 +330,8 @@
   const MINDAR_AFRAME_URLS = [
     'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js',
     'https://unpkg.com/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js',
+    'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js',
+    'https://unpkg.com/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js',
   ];
 
   let targetFile = null, videoFile = null;
@@ -426,16 +430,35 @@
     });
   }
 
+  // iOS Safari requires preserveDrawingBuffer and powerPreference to be set
+  // explicitly or WebGL contexts can silently fail inside libraries.
+  const GL_ATTRS = { preserveDrawingBuffer: true, powerPreference: 'default' };
+
   function checkWebGL() {
     try {
       const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      const ctx = canvas.getContext('webgl2', GL_ATTRS)
+               || canvas.getContext('webgl', GL_ATTRS)
+               || canvas.getContext('experimental-webgl', GL_ATTRS);
       if (!ctx) return false;
-      const supported = ctx.getParameter(ctx.VERSION);
-      return !!supported;
+      return !!ctx.getParameter(ctx.VERSION);
     } catch (e) {
       return false;
     }
+  }
+
+  // Returns a hidden canvas with a pre-warmed WebGL context using the required
+  // attributes. Keeping it in the DOM stops iOS from losing the context before
+  // MindAR has a chance to use it.
+  function primeWebGL() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    canvas.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:0;left:0;';
+    document.body.appendChild(canvas);
+    const gl = canvas.getContext('webgl2', GL_ATTRS) || canvas.getContext('webgl', GL_ATTRS);
+    if (!gl) { canvas.remove(); return null; }
+    return canvas;
   }
 
   launchBtn.addEventListener('click', async () => {
@@ -468,10 +491,12 @@
       const imgEl = await resizeImage(targetFile, 1024);
 
       setProgress(10, 'Compiling image target…');
+      const glCanvas = primeWebGL();
       const compiler = new MINDAR.IMAGE.Compiler();
       await compiler.compileImageTargets([imgEl], progress => {
         setProgress(10 + progress * 0.82);
       });
+      if (glCanvas) glCanvas.remove();
 
       setProgress(93, 'Exporting target data…');
       const buffer = await compiler.exportData();
