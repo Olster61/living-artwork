@@ -578,7 +578,7 @@
     const vidHeight = targetAspectRatio.toFixed(4);
     arContainer.innerHTML = `
       <a-scene
-        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 0.01;"
+        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 1000; warmupTolerance: 2; missTolerance: 8;"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -607,20 +607,26 @@
     scanOverlay.style.display = 'block';
     closeBtn.style.display = 'flex';
 
-    setTimeout(() => {
-      const entity = arContainer.querySelector('[mindar-image-target]');
-      const video  = document.getElementById('ar-video');
-      if (entity) {
-        entity.addEventListener('targetFound', () => {
+    // Bind immediately — the DOM elements exist now and will receive events as
+    // soon as MindAR fires them. The old setTimeout(1500) caused a race where
+    // a fast initial detection fired before the handlers were attached.
+    const entity = arContainer.querySelector('[mindar-image-target]');
+    const video  = document.getElementById('ar-video');
+    if (entity && video) {
+      entity.addEventListener('targetFound', () => {
+        // Double rAF: wait two render frames so the One Euro Filter has
+        // converged to the correct pose before revealing the overlay.
+        // Prevents the 1–2 frame "wrong angle" flash on re-acquisition.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
           scanOverlay.style.display = 'none';
-          video && video.play().catch(() => {});
-        });
-        entity.addEventListener('targetLost', () => {
-          scanOverlay.style.display = 'block';
-          video && video.pause();
-        });
-      }
-    }, 1500);
+          video.play().catch(() => {});
+        }));
+      });
+      entity.addEventListener('targetLost', () => {
+        scanOverlay.style.display = 'block';
+        video.pause();
+      });
+    }
   }
 
   closeBtn.addEventListener('click', () => {
