@@ -48,7 +48,6 @@
       margin-bottom: 28px;
     }
 
-    /* Artwork preview frame */
     .preview-wrap {
       position: relative;
       width: min(240px, 68vw);
@@ -61,8 +60,7 @@
     }
 
     #preview-img {
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       object-fit: cover;
       display: block;
       opacity: 0;
@@ -73,12 +71,7 @@
     .shimmer {
       position: absolute;
       inset: 0;
-      background: linear-gradient(
-        100deg,
-        var(--dark-2) 30%,
-        #242424 50%,
-        var(--dark-2) 70%
-      );
+      background: linear-gradient(100deg, var(--dark-2) 30%, #242424 50%, var(--dark-2) 70%);
       background-size: 250% 100%;
       animation: shimmer 1.6s ease-in-out infinite;
     }
@@ -87,9 +80,7 @@
       100% { background-position: -200% 0; }
     }
 
-    /* Corner accents on preview */
-    .preview-wrap::before,
-    .preview-wrap::after {
+    .preview-wrap::before, .preview-wrap::after {
       content: '';
       position: absolute;
       width: 18px; height: 18px;
@@ -104,14 +95,12 @@
     .preview-wrap.loaded::before,
     .preview-wrap.loaded::after { opacity: 1; }
 
-    /* Headings */
     h1 {
       font-size: 1.55rem;
       font-weight: 300;
       letter-spacing: 0.06em;
       margin-bottom: 8px;
       text-align: center;
-      color: var(--text);
     }
 
     .subtitle {
@@ -123,9 +112,7 @@
       margin-bottom: 36px;
     }
 
-    /* CTA button */
     #start-btn {
-      position: relative;
       background: linear-gradient(135deg, var(--gold-dark) 0%, var(--gold) 100%);
       color: #1a1000;
       border: none;
@@ -145,10 +132,7 @@
       transform: translateY(-1px);
       box-shadow: 0 6px 28px rgba(201,168,76,0.25);
     }
-    #start-btn:disabled {
-      opacity: 0.38;
-      cursor: not-allowed;
-    }
+    #start-btn:disabled { opacity: 0.38; cursor: not-allowed; }
 
     .btn-inner {
       display: flex;
@@ -157,7 +141,6 @@
       gap: 8px;
     }
 
-    /* Spinner inside button */
     .spinner {
       width: 14px; height: 14px;
       border: 2px solid rgba(26,16,0,0.3);
@@ -188,7 +171,7 @@
       display: none;
     }
 
-    /* ── AR container ───────────────────────────────────────── */
+    /* ── Camera / AR container (detection only, always behind video) ── */
     #ar-container {
       position: fixed;
       inset: 0;
@@ -202,7 +185,7 @@
       height: 100% !important;
     }
 
-    /* ── Scan overlay ───────────────────────────────────────── */
+    /* ── Scan overlay (shown while searching) ───────────────── */
     #scan-overlay {
       position: fixed;
       inset: 0;
@@ -213,8 +196,7 @@
 
     .scan-frame {
       position: absolute;
-      top: 50%;
-      left: 50%;
+      top: 50%; left: 50%;
       transform: translate(-50%, -58%);
       width: min(66vw, 270px);
       height: min(66vw, 270px);
@@ -249,8 +231,7 @@
 
     .scan-label {
       position: absolute;
-      bottom: 24%;
-      left: 50%;
+      bottom: 24%; left: 50%;
       transform: translateX(-50%);
       color: var(--gold);
       font-size: 0.76rem;
@@ -260,7 +241,25 @@
       white-space: nowrap;
     }
 
-    /* ── Expanding rings ────────────────────────────────────── */
+    /* ── Fullscreen video (shown on detection) ──────────────── */
+    /* Sits above the camera feed and scan overlay.             */
+    /* Camera keeps running behind it for lost/found tracking.  */
+    #video-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 160;
+      background: #000;
+      display: none;
+    }
+
+    #fullscreen-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* ── Expanding rings (above video) ──────────────────────── */
     #ring-overlay {
       position: fixed;
       inset: 0;
@@ -339,10 +338,10 @@
   <div class="error-msg"   id="error-msg"></div>
 </div>
 
-<!-- A-Frame AR scene injected here -->
+<!-- MindAR A-Frame scene — detection only, camera feed visible while scanning -->
 <div id="ar-container"></div>
 
-<!-- Scan prompt -->
+<!-- Scan prompt — visible while searching for artwork -->
 <div id="scan-overlay">
   <div class="scan-frame">
     <div class="c-br"></div>
@@ -352,7 +351,16 @@
   <div class="scan-label">Point at the artwork</div>
 </div>
 
-<!-- Expanding rings on target detection -->
+<!-- Fullscreen video — covers camera entirely on detection -->
+<div id="video-screen">
+  <video id="fullscreen-video"
+    src="https://raw.githubusercontent.com/Olster61/living-artwork/main/artwork.mp4"
+    preload="auto" loop playsinline webkit-playsinline
+    crossorigin="anonymous">
+  </video>
+</div>
+
+<!-- Expanding rings — above the video layer -->
 <div id="ring-overlay">
   <div class="ring"></div>
   <div class="ring"></div>
@@ -364,10 +372,7 @@
 
 <script>
   const TARGET_URL = 'https://raw.githubusercontent.com/Olster61/living-artwork/main/artwork.png';
-  const VIDEO_URL  = 'https://raw.githubusercontent.com/Olster61/living-artwork/main/artwork.mp4';
 
-  // MindAR CDN candidates — ESM (1.2.x) first, UMD fallback (1.1.5).
-  // Dynamic import() is used for ESM bundles so iOS Safari executes them correctly.
   const COMPILER_CANDIDATES = [
     { url: 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js', version: '1.2.5', esm: true  },
     { url: 'https://unpkg.com/mind-ar@1.2.5/dist/mindar-image.prod.js',            version: '1.2.5', esm: true  },
@@ -387,27 +392,26 @@
     '1.1.5': ['https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-aframe.prod.js', 'https://unpkg.com/mind-ar@1.1.5/dist/mindar-image-aframe.prod.js'],
   };
 
-  // State
-  let compiledMindUrl  = null;
-  let targetAspectRatio = 1;
-  let mindarVersion     = null;
-  let aframeLoaded      = false;
-  let hasError          = false;
+  let compiledMindUrl = null;
+  let mindarVersion   = null;
+  let aframeLoaded    = false;
+  let hasError        = false;
 
-  // DOM refs
-  const welcome     = document.getElementById('welcome');
-  const startBtn    = document.getElementById('start-btn');
-  const btnLabel    = document.getElementById('btn-label');
-  const spinner     = document.getElementById('spinner');
-  const statusLine  = document.getElementById('status-line');
-  const errorMsg    = document.getElementById('error-msg');
-  const previewImg  = document.getElementById('preview-img');
-  const previewWrap = document.getElementById('preview-wrap');
-  const shimmerEl   = document.getElementById('shimmer');
-  const arContainer = document.getElementById('ar-container');
-  const scanOverlay = document.getElementById('scan-overlay');
-  const ringOverlay = document.getElementById('ring-overlay');
-  const closeBtn    = document.getElementById('close-btn');
+  const welcome      = document.getElementById('welcome');
+  const startBtn     = document.getElementById('start-btn');
+  const btnLabel     = document.getElementById('btn-label');
+  const spinner      = document.getElementById('spinner');
+  const statusLine   = document.getElementById('status-line');
+  const errorMsg     = document.getElementById('error-msg');
+  const previewImg   = document.getElementById('preview-img');
+  const previewWrap  = document.getElementById('preview-wrap');
+  const shimmerEl    = document.getElementById('shimmer');
+  const arContainer  = document.getElementById('ar-container');
+  const scanOverlay  = document.getElementById('scan-overlay');
+  const videoScreen  = document.getElementById('video-screen');
+  const fullscreenVid= document.getElementById('fullscreen-video');
+  const ringOverlay  = document.getElementById('ring-overlay');
+  const closeBtn     = document.getElementById('close-btn');
 
   // ── Utilities ──────────────────────────────────────────────
 
@@ -446,13 +450,11 @@
     throw new Error('Could not load MindAR. Check your internet connection and try again.');
   }
 
-  // Resize image to max dimension before compilation to keep compile time reasonable
   function resizeForCompile(img, maxPx = 1024) {
     let w = img.naturalWidth, h = img.naturalHeight;
     if (w > maxPx || h > maxPx) {
       const s = maxPx / Math.max(w, h);
-      w = Math.round(w * s);
-      h = Math.round(h * s);
+      w = Math.round(w * s); h = Math.round(h * s);
     }
     const canvas = document.createElement('canvas');
     canvas.width = w; canvas.height = h;
@@ -468,13 +470,12 @@
     });
   }
 
-  // ── Preview image load ──────────────────────────────────────
+  // ── Preview image ───────────────────────────────────────────
 
   function waitForPreview() {
     return new Promise((resolve, reject) => {
-      if (previewImg.complete && previewImg.naturalWidth > 0) {
-        resolve();
-      } else {
+      if (previewImg.complete && previewImg.naturalWidth > 0) resolve();
+      else {
         previewImg.addEventListener('load',  resolve, { once: true });
         previewImg.addEventListener('error', reject,  { once: true });
       }
@@ -486,29 +487,23 @@
     previewImg.classList.add('visible');
     previewWrap.classList.add('loaded');
   });
-  previewImg.addEventListener('error', () => {
-    shimmerEl.style.display = 'none';
-  });
+  previewImg.addEventListener('error', () => { shimmerEl.style.display = 'none'; });
 
-  // ── Background preparation (runs immediately on page load) ──
+  // ── Preparation (runs on page load) ────────────────────────
 
   async function prepare() {
     hasError = false;
     errorMsg.style.display = 'none';
-
     try {
       setStatus('Loading engine…');
       await loadMindARCompiler();
 
       setStatus('Analysing artwork…');
-      // Wait for the preview img to have loaded (it starts loading automatically
-      // from the src attribute). If it fails, fetch separately as fallback.
       let sourceImg;
       try {
         await waitForPreview();
         sourceImg = previewImg;
       } catch {
-        // Preview load failed — fetch directly
         const resp = await fetch(TARGET_URL);
         if (!resp.ok) throw new Error('Could not load artwork image.');
         const blob = await resp.blob();
@@ -521,7 +516,6 @@
         });
       }
 
-      targetAspectRatio = sourceImg.naturalHeight / sourceImg.naturalWidth;
       const resized = await resizeForCompile(sourceImg);
 
       setStatus('Compiling target…');
@@ -531,10 +525,8 @@
       if (compiledMindUrl) URL.revokeObjectURL(compiledMindUrl);
       compiledMindUrl = URL.createObjectURL(new Blob([buffer]));
 
-      // Ready
       setStatus('');
       setBtnReady();
-
     } catch (err) {
       hasError = true;
       setStatus('');
@@ -543,32 +535,24 @@
     }
   }
 
-  function setStatus(msg) {
-    statusLine.textContent = msg;
-  }
+  function setStatus(msg)  { statusLine.textContent = msg; }
+  function showError(msg)  { errorMsg.textContent = msg; errorMsg.style.display = 'block'; }
 
   function setBtnReady() {
     startBtn.disabled = false;
     btnLabel.textContent = 'Start AR Experience';
     spinner.style.display = 'none';
   }
-
   function setBtnRetry() {
     startBtn.disabled = false;
     btnLabel.textContent = 'Retry';
     spinner.style.display = 'none';
   }
 
-  function showError(msg) {
-    errorMsg.textContent = msg;
-    errorMsg.style.display = 'block';
-  }
-
   // ── Start button ────────────────────────────────────────────
 
   startBtn.addEventListener('click', async () => {
     if (hasError) {
-      // Reset and retry preparation
       hasError = false;
       compiledMindUrl = null;
       startBtn.disabled = true;
@@ -602,11 +586,10 @@
     }
   });
 
-  // ── Expanding rings animation ───────────────────────────────
+  // ── Rings animation ─────────────────────────────────────────
 
   function fireRings() {
     const rings = ringOverlay.querySelectorAll('.ring');
-    // Remove class, force reflow on each ring, re-add to restart animation
     rings.forEach(r => { r.classList.remove('go'); void r.offsetWidth; });
     ringOverlay.style.display = 'block';
     rings.forEach(r => r.classList.add('go'));
@@ -614,12 +597,13 @@
   }
 
   // ── Launch AR ───────────────────────────────────────────────
+  // A-Frame scene is detection-only: no <a-assets>, no <a-plane>.
+  // The camera feed stays visible while scanning; #video-screen
+  // covers it entirely when the target is found.
 
   function launchAR() {
     welcome.style.display = 'none';
     arContainer.style.display = 'block';
-
-    const vidH = targetAspectRatio.toFixed(4);
 
     arContainer.innerHTML = `
       <a-scene
@@ -629,47 +613,33 @@
         vr-mode-ui="enabled: false"
         device-orientation-permission-ui="enabled: false"
       >
-        <a-assets>
-          <video id="ar-video"
-            src="${VIDEO_URL}"
-            preload="auto" loop playsinline webkit-playsinline
-            crossorigin="anonymous">
-          </video>
-        </a-assets>
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-        <a-entity mindar-image-target="targetIndex: 0">
-          <a-plane
-            material="src: #ar-video; shader: flat; side: double; transparent: false"
-            position="0 0 0"
-            rotation="0 0 0"
-            width="1"
-            height="${vidH}">
-          </a-plane>
-        </a-entity>
+        <a-entity mindar-image-target="targetIndex: 0"></a-entity>
       </a-scene>
     `;
 
     scanOverlay.style.display = 'block';
     closeBtn.style.display    = 'flex';
 
-    // Bind listeners immediately after innerHTML is set — no setTimeout delay
-    // so targetFound firing on fast initial detection is never missed.
     const entity = arContainer.querySelector('[mindar-image-target]');
-    const video  = document.getElementById('ar-video');
 
-    if (entity && video) {
+    if (entity) {
       entity.addEventListener('targetFound', () => {
-        // Double rAF so One Euro Filter has converged before revealing overlay,
-        // preventing the 1–2 frame wrong-angle flash on (re-)acquisition.
+        // Double rAF ensures the One Euro Filter has settled before we switch
+        // to the video screen, preventing a brief wrong-pose flash.
         requestAnimationFrame(() => requestAnimationFrame(() => {
-          scanOverlay.style.display = 'none';
+          scanOverlay.style.display  = 'none';
+          // Show video screen first so play() is called on a visible element
+          videoScreen.style.display  = 'block';
           fireRings();
-          video.play().catch(() => {});
+          fullscreenVid.play().catch(() => {});
         }));
       });
+
       entity.addEventListener('targetLost', () => {
-        scanOverlay.style.display = 'block';
-        video.pause();
+        fullscreenVid.pause();
+        videoScreen.style.display  = 'none';
+        scanOverlay.style.display  = 'block';
       });
     }
   }
@@ -679,16 +649,17 @@
   closeBtn.addEventListener('click', () => {
     const scene = arContainer.querySelector('a-scene');
     if (scene && scene.destroy) scene.destroy();
-    arContainer.innerHTML     = '';
-    arContainer.style.display = 'none';
-    scanOverlay.style.display = 'none';
-    ringOverlay.style.display = 'none';
-    closeBtn.style.display    = 'none';
-    welcome.style.display     = 'flex';
+    arContainer.innerHTML      = '';
+    arContainer.style.display  = 'none';
+    scanOverlay.style.display  = 'none';
+    videoScreen.style.display  = 'none';
+    ringOverlay.style.display  = 'none';
+    closeBtn.style.display     = 'none';
+    fullscreenVid.pause();
+    welcome.style.display      = 'flex';
     setBtnReady();
   });
 
-  // ── Kick off preparation on page load ───────────────────────
   prepare();
 </script>
 </body>
