@@ -313,30 +313,52 @@
   <div class="scan-text">Point camera at target image</div>
 </div>
 
-<button class="close-btn" id="close-btn" title="Exit AR">✕</button>
+<button class="close-btn" id="close-btn" title="Exit AR">&#x2715;</button>
 
 <script>
-  const MINDAR_URLS = [
-    'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js',
-    'https://unpkg.com/mind-ar@1.2.5/dist/mindar-image.prod.js',
-    'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.js',
-    'https://unpkg.com/mind-ar@1.2.2/dist/mindar-image.prod.js',
-  ];
+  // MindAR 1.2.x ships as ES modules (266-byte entry files that use `import`).
+  // Safari requires type="module" to execute ES module syntax; loading them via
+  // a plain <script> tag silently fails on iOS even though Chrome tolerates it.
+  // Fix: use dynamic import() for 1.2.x, fall back to the last UMD release (1.1.5).
+
   const AFRAME_URLS = [
     'https://aframe.io/releases/1.4.2/aframe.min.js',
     'https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe.min.js',
     'https://unpkg.com/aframe@1.4.2/dist/aframe.min.js',
   ];
-  const MINDAR_AFRAME_URLS = [
-    'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js',
-    'https://unpkg.com/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js',
-    'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js',
-    'https://unpkg.com/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js',
+
+  // Ordered candidate list for the compiler module.
+  // esm:true  → load via import() so ES module syntax executes on iOS Safari.
+  // esm:false → UMD/IIFE bundle, safe to load via <script> tag on all browsers.
+  const COMPILER_CANDIDATES = [
+    { url: 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js', version: '1.2.5', esm: true  },
+    { url: 'https://unpkg.com/mind-ar@1.2.5/dist/mindar-image.prod.js',            version: '1.2.5', esm: true  },
+    { url: 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.js', version: '1.2.2', esm: true  },
+    { url: 'https://unpkg.com/mind-ar@1.2.2/dist/mindar-image.prod.js',            version: '1.2.2', esm: true  },
+    { url: 'https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image.prod.js', version: '1.1.5', esm: false },
+    { url: 'https://unpkg.com/mind-ar@1.1.5/dist/mindar-image.prod.js',            version: '1.1.5', esm: false },
   ];
+
+  // A-Frame integration bundle per loaded compiler version.
+  const AFRAME_INTEGRATION = {
+    '1.2.5': [
+      'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js',
+      'https://unpkg.com/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js',
+    ],
+    '1.2.2': [
+      'https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js',
+      'https://unpkg.com/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js',
+    ],
+    '1.1.5': [
+      'https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-aframe.prod.js',
+      'https://unpkg.com/mind-ar@1.1.5/dist/mindar-image-aframe.prod.js',
+    ],
+  };
 
   let targetFile = null, videoFile = null;
   let compiledMindUrl = null, videoObjectUrl = null;
   let mindarLoaded = false, aframeLoaded = false;
+  let mindarVersion = null;
 
   const $ = id => document.getElementById(id);
   const imgInput = $('img-input'), vidInput = $('vid-input');
@@ -375,6 +397,31 @@
       }
     }
     throw new Error('Could not load ' + label + ' from any CDN. Check your internet connection and try again.');
+  }
+
+  // Load the MindAR compiler, trying ESM dynamic-import first then UMD fallback.
+  async function loadMindARCompiler() {
+    for (const c of COMPILER_CANDIDATES) {
+      try {
+        if (c.esm) {
+          // Dynamic import() executes ES module syntax — works on iOS Safari 11+.
+          await import(c.url);
+        } else {
+          await loadScript(c.url);
+        }
+        if (window.MINDAR && window.MINDAR.IMAGE && window.MINDAR.IMAGE.Compiler) {
+          mindarVersion = c.version;
+          console.log('MindAR compiler loaded:', c.url);
+          return;
+        }
+      } catch (e) {
+        console.warn('MindAR load attempt failed (' + c.url + '):', e.message || e);
+      }
+    }
+    throw new Error(
+      'Could not load MindAR from any CDN.\n' +
+      'Check your internet connection, disable any content blockers, and try again.'
+    );
   }
 
   function showError(msg) { errorBox.textContent = msg; errorBox.style.display = 'block'; }
@@ -430,8 +477,6 @@
     });
   }
 
-  // iOS Safari requires preserveDrawingBuffer and powerPreference to be set
-  // explicitly or WebGL contexts can silently fail inside libraries.
   const GL_ATTRS = { preserveDrawingBuffer: true, powerPreference: 'default' };
 
   function checkWebGL() {
@@ -447,9 +492,6 @@
     }
   }
 
-  // Returns a hidden canvas with a pre-warmed WebGL context using the required
-  // attributes. Keeping it in the DOM stops iOS from losing the context before
-  // MindAR has a chance to use it.
   function primeWebGL() {
     const canvas = document.createElement('canvas');
     canvas.width = 1;
@@ -467,9 +509,7 @@
     if (!checkWebGL()) {
       showError(
         'WebGL is not available on this browser. MindAR requires WebGL to run.\n\n' +
-        'On Firefox for iOS, WebGL may be disabled by default. ' +
-        'Try: Settings → Firefox → Advanced → WebGL → Enable. ' +
-        'Safari on iOS is recommended as an alternative.'
+        'On iOS, make sure you are using Safari and that JavaScript is enabled in Settings > Safari.'
       );
       return;
     }
@@ -480,9 +520,12 @@
 
     try {
       if (!mindarLoaded) {
-        await loadScriptWithFallback(MINDAR_URLS, 'MindAR compiler');
-        if (typeof MINDAR === 'undefined' || !MINDAR.IMAGE || !MINDAR.IMAGE.Compiler) {
-          throw new Error('MindAR loaded but did not initialise correctly. Try a different browser or disable any content blockers.');
+        await loadMindARCompiler();
+        if (!window.MINDAR || !window.MINDAR.IMAGE || !window.MINDAR.IMAGE.Compiler) {
+          throw new Error(
+            'MindAR loaded but did not initialise correctly.\n' +
+            'Try disabling content blockers and reload the page.'
+          );
         }
         mindarLoaded = true;
       }
@@ -492,7 +535,7 @@
 
       setProgress(10, 'Compiling image target…');
       const glCanvas = primeWebGL();
-      const compiler = new MINDAR.IMAGE.Compiler();
+      const compiler = new window.MINDAR.IMAGE.Compiler();
       await compiler.compileImageTargets([imgEl], progress => {
         setProgress(10 + progress * 0.82);
       });
@@ -509,7 +552,8 @@
       setProgress(96, 'Loading AR framework…');
       if (!aframeLoaded) {
         await loadScriptWithFallback(AFRAME_URLS, 'A-Frame');
-        await loadScriptWithFallback(MINDAR_AFRAME_URLS, 'MindAR A-Frame');
+        const aframeUrls = AFRAME_INTEGRATION[mindarVersion] || AFRAME_INTEGRATION['1.1.5'];
+        await loadScriptWithFallback(aframeUrls, 'MindAR A-Frame');
         aframeLoaded = true;
       }
 
@@ -556,7 +600,6 @@
     scanOverlay.style.display = 'block';
     closeBtn.style.display = 'flex';
 
-    // Bind target found/lost after scene initialises
     setTimeout(() => {
       const entity = arContainer.querySelector('[mindar-image-target]');
       const video  = document.getElementById('ar-video');
