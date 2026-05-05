@@ -359,6 +359,7 @@
   let compiledMindUrl = null, videoObjectUrl = null;
   let mindarLoaded = false, aframeLoaded = false;
   let mindarVersion = null;
+  let targetAspectRatio = 9 / 16; // updated from actual image after compile
 
   const $ = id => document.getElementById(id);
   const imgInput = $('img-input'), vidInput = $('vid-input');
@@ -533,6 +534,8 @@
       setProgress(5, 'Resizing image…');
       const imgEl = await resizeImage(targetFile, 1024);
 
+      targetAspectRatio = imgEl.naturalHeight / imgEl.naturalWidth;
+
       setProgress(10, 'Compiling image target…');
       const glCanvas = primeWebGL();
       const compiler = new window.MINDAR.IMAGE.Compiler();
@@ -572,9 +575,10 @@
     progressContainer.style.display = 'none';
     arContainer.style.display = 'block';
 
+    const vidHeight = targetAspectRatio.toFixed(4);
     arContainer.innerHTML = `
       <a-scene
-        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no;"
+        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 0.01;"
         color-space="sRGB"
         renderer="colorManagement: true"
         vr-mode-ui="enabled: false"
@@ -591,7 +595,7 @@
         <a-entity mindar-image-target="targetIndex: 0">
           <a-video src="#ar-video"
             position="0 0 0.001"
-            width="1" height="0.5625">
+            width="1" height="${vidHeight}">
           </a-video>
         </a-entity>
       </a-scene>
