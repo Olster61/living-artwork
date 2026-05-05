@@ -400,6 +400,27 @@
     throw new Error('Could not load ' + label + ' from any CDN. Check your internet connection and try again.');
   }
 
+  // Attempt to prime TF.js with the WebGPU backend before MindAR loads.
+  // On browsers without WebGPU (iOS < 26, older Chrome) this is a no-op.
+  // On Safari iOS 26+ / Chrome 113+ it sets window.tf to use WebGPU so that
+  // MindAR's UMD fallback (1.1.5) picks up the faster backend if it reads
+  // window.tf rather than using its own bundled copy.
+  // Failure at any step is caught and logged — WebGL remains the fallback.
+  async function tryWebGPUBackend() {
+    if (!navigator.gpu) return;
+    try {
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) return;
+      await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4/dist/tf.min.js');
+      await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4/dist/tf-backend-webgpu.min.js');
+      await tf.setBackend('webgpu');
+      await tf.ready();
+      console.log('[AR] TF.js backend: webgpu');
+    } catch (e) {
+      console.warn('[AR] WebGPU backend not available, using WebGL:', e.message || e);
+    }
+  }
+
   // Load the MindAR compiler, trying ESM dynamic-import first then UMD fallback.
   async function loadMindARCompiler() {
     for (const c of COMPILER_CANDIDATES) {
@@ -521,6 +542,7 @@
 
     try {
       if (!mindarLoaded) {
+        await tryWebGPUBackend();
         await loadMindARCompiler();
         if (!window.MINDAR || !window.MINDAR.IMAGE || !window.MINDAR.IMAGE.Compiler) {
           throw new Error(
