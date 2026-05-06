@@ -659,6 +659,8 @@
           scanOverlay.style.display = 'none';
           fireRings();
           video.play().catch(() => {});
+          enterFullscreen();
+          lockOrientation();
         }));
       });
       entity.addEventListener('targetLost', () => {
@@ -668,9 +670,35 @@
     }
   }
 
+  // ── Fullscreen + orientation helpers ───────────────────────
+
+  function enterFullscreen() {
+    const el = document.documentElement;
+    if      (el.requestFullscreen)       el.requestFullscreen().catch(() => {});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  }
+
+  function exitFullscreen() {
+    if      (document.exitFullscreen)       document.exitFullscreen().catch(() => {});
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
+
+  function lockOrientation() {
+    if (!screen.orientation || !screen.orientation.lock) return;
+    // targetAspectRatio = height/width; < 1 means landscape artwork
+    const type = targetAspectRatio < 1 ? 'landscape' : 'portrait';
+    screen.orientation.lock(type).catch(() => {});
+  }
+
+  function unlockOrientation() {
+    try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (_) {}
+  }
+
   // ── Exit AR ─────────────────────────────────────────────────
 
   closeBtn.addEventListener('click', () => {
+    exitFullscreen();
+    unlockOrientation();
     const scene = arContainer.querySelector('a-scene');
     if (scene && scene.destroy) scene.destroy();
     arContainer.innerHTML     = '';
