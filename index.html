@@ -666,30 +666,24 @@
       </a-scene>
     `;
 
-    // Dismiss the welcome screen only once the camera feed is live.
-    let revealed = false;
-    function revealCamera() {
-      if (revealed || arContainer.style.display === 'none') return;
-      revealed = true;
-      if (cameraReadyObs)   { cameraReadyObs.disconnect(); cameraReadyObs = null; }
-      if (cameraReadyTimer) { clearTimeout(cameraReadyTimer); cameraReadyTimer = null; }
-      welcome.style.display     = 'none';
-      scanOverlay.style.display = 'block';
-      // Delay enabling detection so residual MindAR state from a prior session
-      // cannot fire targetFound before the new camera feed has stabilised.
-      setTimeout(() => { scanActive = true; }, 400);
-    }
+    // Show camera immediately — no waiting for canplay.
+    welcome.style.display     = 'none';
+    scanOverlay.style.display = 'block';
 
-    // MindAR creates an <video autoplay> for the camera stream; watch for it.
+    // Enable detection 400ms after the camera video starts playing, so
+    // residual MindAR state from a prior session cannot fire targetFound
+    // before the new feed has stabilised. scanActive = true is the gate.
     cameraReadyObs = new MutationObserver(() => {
       const v = document.querySelector('video[autoplay]:not(#fullscreen-video)');
       if (!v) return;
       cameraReadyObs.disconnect(); cameraReadyObs = null;
-      if (v.readyState >= 3) revealCamera();
-      else v.addEventListener('canplay', revealCamera, { once: true });
+      if (cameraReadyTimer) { clearTimeout(cameraReadyTimer); cameraReadyTimer = null; }
+      const arm = () => setTimeout(() => { scanActive = true; }, 400);
+      if (v.readyState >= 3) arm();
+      else v.addEventListener('canplay', arm, { once: true });
     });
     cameraReadyObs.observe(document.body, { childList: true, subtree: true });
-    cameraReadyTimer = setTimeout(revealCamera, 6000); // fallback
+    cameraReadyTimer = setTimeout(() => { scanActive = true; }, 4000); // fallback
 
     const entity = arContainer.querySelector('[mindar-image-target]');
 
