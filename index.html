@@ -527,6 +527,10 @@
   // session cannot trigger the video before the camera has properly started.
   let scanActive = false;
 
+  // Debug overlay (removed on close)
+  let debugEl    = null;
+  let debugTimer = null;
+
   // ── Preparation (runs on page load) ────────────────────────
 
   async function prepare() {
@@ -711,6 +715,66 @@
         scanOverlay.style.display  = 'block';
       });
     }
+
+    // ── Live debug overlay ────────────────────────────────────
+    debugEl = document.createElement('div');
+    debugEl.style.cssText = [
+      'position:fixed', 'top:8px', 'left:8px', 'z-index:9999',
+      'background:rgba(0,0,0,.82)', 'color:#0f0',
+      'font:11px/1.65 monospace', 'padding:6px 12px',
+      'border-radius:5px', 'pointer-events:none',
+      'max-width:92vw', 'word-break:break-all',
+    ].join(';');
+    document.body.appendChild(debugEl);
+
+    let dbgTicks = 0;
+    const dbgScene = arContainer.querySelector('a-scene');
+
+    const patchTick = () => {
+      const sys = dbgScene && dbgScene.systems && dbgScene.systems['mindar-image-system'];
+      if (!sys || !sys.tick || sys.__dbgPatched) return;
+      sys.__dbgPatched = true;
+      const orig = sys.tick.bind(sys);
+      sys.tick = function (t, dt) { dbgTicks++; return orig(t, dt); };
+    };
+    if (dbgScene) {
+      if (dbgScene.hasLoaded) patchTick();
+      else dbgScene.addEventListener('loaded', patchTick);
+    }
+
+    debugTimer = setInterval(() => {
+      if (!debugEl) return;
+      const sc  = document.querySelector('a-scene');
+      const sys = sc && sc.systems && sc.systems['mindar-image-system'];
+      const ctrl = sys && sys.controller;
+
+      // MindAR internals differ by version — try both structures
+      let ts = null;
+      if (ctrl) {
+        const pl = ctrl.processorList;
+        if (pl && pl[0] && pl[0].trackingStates) ts = pl[0].trackingStates[0];
+        else if (ctrl.trackingStates)             ts = ctrl.trackingStates[0];
+      }
+
+      const vid = sys && sys.video;
+      const camStr = vid
+        ? vid.videoWidth + 'x' + vid.videoHeight + ' rs=' + vid.readyState
+        : '—';
+      const trackStr = ts
+        ? 'miss=' + ts.miss + ' warm=' + (ts.reached ? '✓' : '✗')
+        : '—';
+
+      debugEl.innerHTML = [
+        'scene: '      + (sc ? (sc.hasLoaded ? '✓ loaded' : 'loading…') : '✗ none'),
+        'mindar sys: ' + (sys  ? '✓' : '✗ missing'),
+        'controller: ' + (ctrl ? '✓' : '✗ missing'),
+        'cam: '        + camStr,
+        'ticks: '      + dbgTicks,
+        'scanActive: ' + scanActive,
+        'mind URL: '   + (compiledMindUrl ? '✓' : '✗'),
+        'tracking: '   + trackStr,
+      ].join('<br>');
+    }, 300);
   }
 
   // ── Orientation helpers ─────────────────────────────────────
@@ -754,6 +818,8 @@
 
   closeBtn.addEventListener('click', () => {
     scanActive = false; // prevent any in-flight targetFound from firing
+    if (debugTimer) { clearInterval(debugTimer); debugTimer = null; }
+    if (debugEl)    { debugEl.remove(); debugEl = null; }
     if (cameraReadyObs)   { cameraReadyObs.disconnect(); cameraReadyObs = null; }
     if (cameraReadyTimer) { clearTimeout(cameraReadyTimer); cameraReadyTimer = null; }
     unlockOrientation();
