@@ -523,6 +523,10 @@
   let cameraReadyObs   = null;
   let cameraReadyTimer = null;
 
+  // Guards targetFound/targetLost so stale MindAR state from the previous
+  // session cannot trigger the video before the camera has properly started.
+  let scanActive = false;
+
   // ── Preparation (runs on page load) ────────────────────────
 
   async function prepare() {
@@ -643,6 +647,7 @@
   // covers it entirely when the target is found.
 
   function launchAR() {
+    scanActive = false; // reset; will be set true once camera is live
     // Start the AR scene behind the welcome screen (z-index 60 > ar-container 50).
     // Welcome acts as a loading cover so there's no black-screen flash.
     arContainer.style.display = 'block';
@@ -650,7 +655,7 @@
 
     arContainer.innerHTML = `
       <a-scene
-        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 8;"
+        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 1000; warmupTolerance: 2; missTolerance: 8;"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -670,6 +675,9 @@
       if (cameraReadyTimer) { clearTimeout(cameraReadyTimer); cameraReadyTimer = null; }
       welcome.style.display     = 'none';
       scanOverlay.style.display = 'block';
+      // Delay enabling detection so residual MindAR state from a prior session
+      // cannot fire targetFound before the new camera feed has stabilised.
+      setTimeout(() => { scanActive = true; }, 400);
     }
 
     // MindAR creates an <video autoplay> for the camera stream; watch for it.
@@ -687,9 +695,11 @@
 
     if (entity) {
       entity.addEventListener('targetFound', () => {
+        if (!scanActive) return;
         // Double rAF ensures the One Euro Filter has settled before we switch
         // to the video screen, preventing a brief wrong-pose flash.
         requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (!scanActive) return;
           scanOverlay.style.display  = 'none';
           // Show video screen first so play() is called on a visible element
           videoScreen.style.display  = 'block';
@@ -701,6 +711,7 @@
       });
 
       entity.addEventListener('targetLost', () => {
+        if (!scanActive) return;
         fullscreenVid.pause();
         videoScreen.style.display  = 'none';
         scanOverlay.style.display  = 'block';
@@ -748,6 +759,7 @@
   // ── Exit AR ─────────────────────────────────────────────────
 
   closeBtn.addEventListener('click', () => {
+    scanActive = false; // prevent any in-flight targetFound from firing
     if (cameraReadyObs)   { cameraReadyObs.disconnect(); cameraReadyObs = null; }
     if (cameraReadyTimer) { clearTimeout(cameraReadyTimer); cameraReadyTimer = null; }
     unlockOrientation();
