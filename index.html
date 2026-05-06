@@ -35,7 +35,7 @@
       align-items: center;
       justify-content: center;
       padding: 32px 24px 40px;
-      z-index: 10;
+      z-index: 60;
       background: var(--dark);
     }
 
@@ -517,12 +517,73 @@
   });
   previewImg.addEventListener('error', () => { shimmerEl.style.display = 'none'; });
 
+  // ── IndexedDB target cache ──────────────────────────────────
+  // Key includes the image URL so a changed artwork auto-invalidates.
+
+  const MIND_CACHE_KEY = 'mind-v1:' + TARGET_URL;
+
+  function openMindDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('living-artwork-mind', 1);
+      req.onupgradeneeded = e => e.target.result.createObjectStore('targets');
+      req.onsuccess  = e => resolve(e.target.result);
+      req.onerror    = ()  => reject(req.error);
+    });
+  }
+
+  async function loadMindCache() {
+    try {
+      const db = await openMindDB();
+      return await new Promise(resolve => {
+        const req = db.transaction('targets', 'readonly')
+                      .objectStore('targets').get(MIND_CACHE_KEY);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror   = () => resolve(null);
+      });
+    } catch { return null; }
+  }
+
+  async function saveMindCache(buffer, version) {
+    try {
+      const db = await openMindDB();
+      await new Promise(resolve => {
+        const tx = db.transaction('targets', 'readwrite');
+        tx.objectStore('targets').put({ buffer, version }, MIND_CACHE_KEY);
+        tx.oncomplete = resolve;
+        tx.onerror    = resolve;
+      });
+    } catch { /* non-fatal */ }
+  }
+
+  // Camera-ready tracking (set in launchAR, cleaned up on close)
+  let cameraReadyObs   = null;
+  let cameraReadyTimer = null;
+
   // ── Preparation (runs on page load) ────────────────────────
 
   async function prepare() {
     hasError = false;
     errorMsg.style.display = 'none';
     try {
+      // ── Fast path: use cached .mind target ─────────────────
+      const cached = await loadMindCache();
+      if (cached && cached.buffer) {
+        if (compiledMindUrl) URL.revokeObjectURL(compiledMindUrl);
+        compiledMindUrl = URL.createObjectURL(new Blob([cached.buffer]));
+        mindarVersion   = cached.version || '1.2.5';
+        // Ensure artwork orientation is known (image may still be loading)
+        if (artworkIsLandscape === null) {
+          try {
+            await waitForPreview();
+            artworkIsLandscape = previewImg.naturalWidth >= previewImg.naturalHeight;
+          } catch { artworkIsLandscape = true; }
+        }
+        setStatus('');
+        setBtnReady();
+        return;
+      }
+
+      // ── Slow path: compile and cache ───────────────────────
       setStatus('Loading engine…');
       await loadMindARCompiler();
 
@@ -554,6 +615,7 @@
       const compiler = new window.MINDAR.IMAGE.Compiler();
       await compiler.compileImageTargets([resized], () => {});
       const buffer = await compiler.exportData();
+      saveMindCache(buffer, mindarVersion); // async, non-blocking
       if (compiledMindUrl) URL.revokeObjectURL(compiledMindUrl);
       compiledMindUrl = URL.createObjectURL(new Blob([buffer]));
 
@@ -634,12 +696,14 @@
   // covers it entirely when the target is found.
 
   function launchAR() {
-    welcome.style.display = 'none';
+    // Start the AR scene behind the welcome screen (z-index 60 > ar-container 50).
+    // Welcome acts as a loading cover so there's no black-screen flash.
     arContainer.style.display = 'block';
+    closeBtn.style.display    = 'flex';
 
     arContainer.innerHTML = `
       <a-scene
-        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 1000; warmupTolerance: 2; missTolerance: 8;"
+        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 8;"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -650,8 +714,27 @@
       </a-scene>
     `;
 
-    scanOverlay.style.display = 'block';
-    closeBtn.style.display    = 'flex';
+    // Dismiss the welcome screen only once the camera feed is live.
+    let revealed = false;
+    function revealCamera() {
+      if (revealed || arContainer.style.display === 'none') return;
+      revealed = true;
+      if (cameraReadyObs)   { cameraReadyObs.disconnect(); cameraReadyObs = null; }
+      if (cameraReadyTimer) { clearTimeout(cameraReadyTimer); cameraReadyTimer = null; }
+      welcome.style.display     = 'none';
+      scanOverlay.style.display = 'block';
+    }
+
+    // MindAR creates an <video autoplay> for the camera stream; watch for it.
+    cameraReadyObs = new MutationObserver(() => {
+      const v = document.querySelector('video[autoplay]:not(#fullscreen-video)');
+      if (!v) return;
+      cameraReadyObs.disconnect(); cameraReadyObs = null;
+      if (v.readyState >= 3) revealCamera();
+      else v.addEventListener('canplay', revealCamera, { once: true });
+    });
+    cameraReadyObs.observe(document.body, { childList: true, subtree: true });
+    cameraReadyTimer = setTimeout(revealCamera, 6000); // fallback
 
     const entity = arContainer.querySelector('[mindar-image-target]');
 
@@ -718,6 +801,8 @@
   // ── Exit AR ─────────────────────────────────────────────────
 
   closeBtn.addEventListener('click', () => {
+    if (cameraReadyObs)   { cameraReadyObs.disconnect(); cameraReadyObs = null; }
+    if (cameraReadyTimer) { clearTimeout(cameraReadyTimer); cameraReadyTimer = null; }
     unlockOrientation();
     const scene = arContainer.querySelector('a-scene');
     if (scene && scene.destroy) scene.destroy();
