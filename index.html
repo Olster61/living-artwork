@@ -259,6 +259,22 @@
       display: block;
     }
 
+    /* In portrait the 16:9 video is rotated to fill the screen.
+       The CSS box is swapped (100vh wide, 100vw tall) and offset so
+       its centre stays at the viewport centre; transform then rotates
+       it into the correct landscape orientation. */
+    @media (orientation: portrait) {
+      #fullscreen-video {
+        position: absolute;
+        width: 100vh;
+        height: 100vw;
+        top: calc((100vh - 100vw) / 2);
+        left: calc((100vw - 100vh) / 2);
+        transform: rotate(90deg);
+        transform-origin: center center;
+      }
+    }
+
     /* ── Expanding rings (above video) ──────────────────────── */
     #ring-overlay {
       position: fixed;
@@ -631,6 +647,7 @@
           scanOverlay.style.display  = 'none';
           // Show video screen first so play() is called on a visible element
           videoScreen.style.display  = 'block';
+          lockLandscape();
           fireRings();
           fullscreenVid.play().catch(() => {});
         }));
@@ -644,9 +661,31 @@
     }
   }
 
+  // ── Orientation helpers ─────────────────────────────────────
+  // Try to lock to landscape (Android Chrome). iOS doesn't support
+  // screen.orientation.lock, so the CSS portrait media-query rotation
+  // acts as the fallback for all browsers that can't lock.
+
+  async function lockLandscape() {
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        await screen.orientation.lock('landscape');
+      }
+    } catch (e) { /* CSS rotation fallback handles portrait */ }
+  }
+
+  function unlockOrientation() {
+    try {
+      if (screen.orientation && screen.orientation.unlock) {
+        screen.orientation.unlock();
+      }
+    } catch (e) {}
+  }
+
   // ── Exit AR ─────────────────────────────────────────────────
 
   closeBtn.addEventListener('click', () => {
+    unlockOrientation();
     const scene = arContainer.querySelector('a-scene');
     if (scene && scene.destroy) scene.destroy();
     arContainer.innerHTML      = '';
