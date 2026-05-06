@@ -486,10 +486,12 @@
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
     return new Promise((resolve, reject) => {
       canvas.toBlob(blob => {
+        // blob is null when the canvas is tainted (CORS) — reject instead of hanging.
+        if (!blob) { reject(new Error('canvas.toBlob returned null — possible CORS issue')); return; }
         const out = new Image();
         const url = URL.createObjectURL(blob);
         out.onload  = () => { URL.revokeObjectURL(url); resolve(out); };
-        out.onerror = reject;
+        out.onerror = () => { URL.revokeObjectURL(url); reject(new Error('resized image failed to load')); };
         out.src = url;
       }, 'image/jpeg', 0.92);
     });
@@ -524,35 +526,69 @@
 
   function openMindDB() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open('living-artwork-mind', 1);
-      req.onupgradeneeded = e => e.target.result.createObjectStore('targets');
-      req.onsuccess  = e => resolve(e.target.result);
-      req.onerror    = ()  => reject(req.error);
+      try {
+        const req = indexedDB.open('living-artwork-mind', 1);
+        req.onupgradeneeded = e => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('targets')) {
+            db.createObjectStore('targets');
+          }
+        };
+        req.onsuccess = e => { console.log('[idb] opened'); resolve(e.target.result); };
+        req.onerror   = () => { console.warn('[idb] open error', req.error); reject(req.error); };
+        req.onblocked = () => { console.warn('[idb] blocked'); reject(new Error('IDB blocked')); };
+      } catch (e) { console.warn('[idb] open threw', e); reject(e); }
     });
   }
 
+  // Wraps IDB read in a 3-second timeout so a hung IDB never stalls prepare().
   async function loadMindCache() {
-    try {
-      const db = await openMindDB();
-      return await new Promise(resolve => {
-        const req = db.transaction('targets', 'readonly')
-                      .objectStore('targets').get(MIND_CACHE_KEY);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror   = () => resolve(null);
-      });
-    } catch { return null; }
+    console.log('[cache] checking...');
+    const readPromise = (async () => {
+      try {
+        const db = await openMindDB();
+        return await new Promise(resolve => {
+          const req = db.transaction('targets', 'readonly')
+                        .objectStore('targets').get(MIND_CACHE_KEY);
+          req.onsuccess = () => resolve(req.result ?? null);
+          req.onerror   = () => { console.warn('[cache] read error', req.error); resolve(null); };
+        });
+      } catch (e) { console.warn('[cache] load error', e); return null; }
+    })();
+    const timeoutPromise = new Promise(resolve =>
+      setTimeout(() => { console.warn('[cache] IDB read timed out — skipping cache'); resolve(null); }, 3000)
+    );
+    const result = await Promise.race([readPromise, timeoutPromise]);
+    const bytes = result?.buffer?.byteLength ?? result?.byteLength ?? 0;
+    console.log('[cache]', result ? `hit (${bytes} bytes, version ${result.version})` : 'miss');
+    return result;
   }
 
+  // Saves a defensive copy of the buffer (slice) so the caller's reference is never neutered.
   async function saveMindCache(buffer, version) {
+    const copy = buffer.slice ? buffer.slice(0) : buffer;
+    console.log('[cache] saving', copy.byteLength ?? '?', 'bytes, version', version);
     try {
       const db = await openMindDB();
       await new Promise(resolve => {
         const tx = db.transaction('targets', 'readwrite');
-        tx.objectStore('targets').put({ buffer, version }, MIND_CACHE_KEY);
-        tx.oncomplete = resolve;
+        tx.objectStore('targets').put({ buffer: copy, version }, MIND_CACHE_KEY);
+        tx.oncomplete = () => { console.log('[cache] saved OK'); resolve(); };
+        tx.onerror    = () => { console.warn('[cache] save error', tx.error); resolve(); };
+      });
+    } catch (e) { console.warn('[cache] save threw', e); }
+  }
+
+  async function clearMindCache() {
+    try {
+      const db = await openMindDB();
+      await new Promise(resolve => {
+        const tx = db.transaction('targets', 'readwrite');
+        tx.objectStore('targets').delete(MIND_CACHE_KEY);
+        tx.oncomplete = () => { console.log('[cache] cleared'); resolve(); };
         tx.onerror    = resolve;
       });
-    } catch { /* non-fatal */ }
+    } catch { /* ignore */ }
   }
 
   // Camera-ready tracking (set in launchAR, cleaned up on close)
@@ -564,14 +600,25 @@
   async function prepare() {
     hasError = false;
     errorMsg.style.display = 'none';
+    console.log('[prepare] start');
     try {
       // ── Fast path: use cached .mind target ─────────────────
       const cached = await loadMindCache();
-      if (cached && cached.buffer) {
+
+      // Require a meaningful buffer (>1 kB) to guard against corrupt entries.
+      const cachedBuf = cached?.buffer;
+      const cachedOk  = cachedBuf && (cachedBuf.byteLength ?? cachedBuf.length ?? 0) > 1024;
+
+      if (cached && !cachedOk) {
+        console.warn('[prepare] cached entry invalid — clearing and recompiling');
+        clearMindCache();
+      }
+
+      if (cachedOk) {
+        console.log('[prepare] using cached target');
         if (compiledMindUrl) URL.revokeObjectURL(compiledMindUrl);
-        compiledMindUrl = URL.createObjectURL(new Blob([cached.buffer]));
+        compiledMindUrl = URL.createObjectURL(new Blob([cachedBuf]));
         mindarVersion   = cached.version || '1.2.5';
-        // Ensure artwork orientation is known (image may still be loading)
         if (artworkIsLandscape === null) {
           try {
             await waitForPreview();
@@ -580,19 +627,24 @@
         }
         setStatus('');
         setBtnReady();
+        console.log('[prepare] ready (cache hit)');
         return;
       }
 
       // ── Slow path: compile and cache ───────────────────────
       setStatus('Loading engine…');
+      console.log('[prepare] loading MindAR compiler');
       await loadMindARCompiler();
+      console.log('[prepare] compiler loaded, version:', mindarVersion);
 
       setStatus('Analysing artwork…');
+      console.log('[prepare] waiting for artwork image');
       let sourceImg;
       try {
         await waitForPreview();
         sourceImg = previewImg;
       } catch {
+        console.warn('[prepare] <img> failed, fetching directly');
         const resp = await fetch(TARGET_URL);
         if (!resp.ok) throw new Error('Could not load artwork image.');
         const blob = await resp.blob();
@@ -604,24 +656,44 @@
           i.src = url;
         });
       }
+      console.log('[prepare] image ready:', sourceImg.naturalWidth, 'x', sourceImg.naturalHeight);
 
       if (artworkIsLandscape === null) {
         artworkIsLandscape = sourceImg.naturalWidth >= sourceImg.naturalHeight;
       }
 
+      console.log('[prepare] resizing for compile');
       const resized = await resizeForCompile(sourceImg);
+      console.log('[prepare] resize done:', resized.naturalWidth, 'x', resized.naturalHeight);
 
-      setStatus('Compiling target…');
+      setStatus('Compiling… 0%');
+      console.log('[prepare] starting compileImageTargets');
       const compiler = new window.MINDAR.IMAGE.Compiler();
-      await compiler.compileImageTargets([resized], () => {});
+      await compiler.compileImageTargets([resized], progress => {
+        const pct = Math.round(progress * 100);
+        console.log('[compile]', pct + '%');
+        setStatus('Compiling… ' + pct + '%');
+      });
+      console.log('[prepare] compileImageTargets done');
+
+      setStatus('Exporting…');
       const buffer = await compiler.exportData();
-      saveMindCache(buffer, mindarVersion); // async, non-blocking
+      console.log('[prepare] exported', buffer.byteLength, 'bytes');
+
+      // Create the blob URL BEFORE firing the async cache write, so the
+      // original buffer reference is consumed first.
       if (compiledMindUrl) URL.revokeObjectURL(compiledMindUrl);
       compiledMindUrl = URL.createObjectURL(new Blob([buffer]));
 
+      // Save a copy — slice(0) guarantees the original buffer is never neutered
+      // if a browser incorrectly transfers it into the IDB structured-clone.
+      saveMindCache(buffer.slice(0), mindarVersion);
+
       setStatus('');
       setBtnReady();
+      console.log('[prepare] ready (compiled)');
     } catch (err) {
+      console.error('[prepare] error:', err);
       hasError = true;
       setStatus('');
       showError('Setup failed: ' + (err.message || err));
