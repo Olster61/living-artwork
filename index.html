@@ -172,17 +172,31 @@
     }
 
     /* ── Camera / AR container (detection only, always behind video) ── */
+    /* MindAR scene — pushed off-screen; used for detection only, not rendering */
     #ar-container {
       position: fixed;
-      inset: 0;
-      display: none;
-      z-index: 50;
+      left: -100vw;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
     }
     #ar-container a-scene {
-      position: fixed !important;
+      position: absolute !important;
       inset: 0 !important;
       width: 100% !important;
       height: 100% !important;
+    }
+
+    /* Camera feed — getUserMedia stream shown during scanning */
+    #camera-feed {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 55;
+      display: none;
     }
 
     /* ── Scan overlay (shown while searching) ───────────────── */
@@ -360,8 +374,10 @@
   <div class="error-msg"   id="error-msg"></div>
 </div>
 
-<!-- MindAR A-Frame scene — detection only, camera feed visible while scanning -->
+<!-- MindAR A-Frame scene — off-screen, detection only -->
 <div id="ar-container"></div>
+<!-- Camera preview — getUserMedia stream, visible during scanning -->
+<video id="camera-feed" autoplay playsinline muted></video>
 
 <!-- Scan prompt — visible while searching for artwork -->
 <div id="scan-overlay">
@@ -430,6 +446,7 @@
   const previewWrap  = document.getElementById('preview-wrap');
   const shimmerEl    = document.getElementById('shimmer');
   const arContainer  = document.getElementById('ar-container');
+  const cameraFeedEl = document.getElementById('camera-feed');
   const scanOverlay  = document.getElementById('scan-overlay');
   const videoScreen  = document.getElementById('video-screen');
   const fullscreenVid= document.getElementById('fullscreen-video');
@@ -517,9 +534,8 @@
   });
   previewImg.addEventListener('error', () => { shimmerEl.style.display = 'none'; });
 
-  // Camera-ready tracking (set in launchAR, cleaned up on close)
-  let cameraReadyObs   = null;
-  let cameraReadyTimer = null;
+  // Saved original getUserMedia so we can restore it if AR is closed early
+  let gumOriginal = null;
 
   // ── Preparation (runs on page load) ────────────────────────
 
@@ -638,11 +654,31 @@
   // covers it entirely when the target is found.
 
   function launchAR() {
-    // Start the AR scene behind the welcome screen (z-index 60 > ar-container 50).
-    // Welcome acts as a loading cover so there's no black-screen flash.
-    arContainer.style.display = 'block';
-    closeBtn.style.display    = 'flex';
+    closeBtn.style.display = 'flex';
 
+    // Intercept MindAR's getUserMedia call so we can pipe the same stream
+    // into our own #camera-feed element — one permission prompt, two consumers.
+    gumOriginal = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = async function(constraints) {
+      const stream = await gumOriginal(constraints);
+      // Restore immediately — only needs to fire once
+      navigator.mediaDevices.getUserMedia = gumOriginal;
+      gumOriginal = null;
+      if (constraints && constraints.video) {
+        cameraFeedEl.srcObject = stream;
+        cameraFeedEl.style.display = 'block';
+        const showScan = () => {
+          welcome.style.display     = 'none';
+          scanOverlay.style.display = 'block';
+        };
+        if (cameraFeedEl.readyState >= 3) showScan();
+        else cameraFeedEl.addEventListener('canplay', showScan, { once: true });
+      }
+      return stream;
+    };
+
+    // A-Frame scene lives off-screen (left:-100vw in CSS) — MindAR uses it
+    // for detection only; the visible camera comes from #camera-feed above.
     arContainer.innerHTML = `
       <a-scene
         mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 8;"
@@ -656,37 +692,13 @@
       </a-scene>
     `;
 
-    // Dismiss the welcome screen only once the camera feed is live.
-    let revealed = false;
-    function revealCamera() {
-      if (revealed || arContainer.style.display === 'none') return;
-      revealed = true;
-      if (cameraReadyObs)   { cameraReadyObs.disconnect(); cameraReadyObs = null; }
-      if (cameraReadyTimer) { clearTimeout(cameraReadyTimer); cameraReadyTimer = null; }
-      welcome.style.display     = 'none';
-      scanOverlay.style.display = 'block';
-    }
-
-    // MindAR creates an <video autoplay> for the camera stream; watch for it.
-    cameraReadyObs = new MutationObserver(() => {
-      const v = document.querySelector('video[autoplay]:not(#fullscreen-video)');
-      if (!v) return;
-      cameraReadyObs.disconnect(); cameraReadyObs = null;
-      if (v.readyState >= 3) revealCamera();
-      else v.addEventListener('canplay', revealCamera, { once: true });
-    });
-    cameraReadyObs.observe(document.body, { childList: true, subtree: true });
-    cameraReadyTimer = setTimeout(revealCamera, 6000); // fallback
-
     const entity = arContainer.querySelector('[mindar-image-target]');
 
     if (entity) {
       entity.addEventListener('targetFound', () => {
-        // Double rAF ensures the One Euro Filter has settled before we switch
-        // to the video screen, preventing a brief wrong-pose flash.
         requestAnimationFrame(() => requestAnimationFrame(() => {
+          cameraFeedEl.style.display = 'none';
           scanOverlay.style.display  = 'none';
-          // Show video screen first so play() is called on a visible element
           videoScreen.style.display  = 'block';
           applyVideoLayout();
           lockOrientation();
@@ -698,6 +710,7 @@
       entity.addEventListener('targetLost', () => {
         fullscreenVid.pause();
         videoScreen.style.display  = 'none';
+        cameraFeedEl.style.display = 'block';
         scanOverlay.style.display  = 'block';
       });
     }
@@ -743,13 +756,21 @@
   // ── Exit AR ─────────────────────────────────────────────────
 
   closeBtn.addEventListener('click', () => {
-    if (cameraReadyObs)   { cameraReadyObs.disconnect(); cameraReadyObs = null; }
-    if (cameraReadyTimer) { clearTimeout(cameraReadyTimer); cameraReadyTimer = null; }
+    // Restore getUserMedia in case user closes before MindAR called it
+    if (gumOriginal) {
+      navigator.mediaDevices.getUserMedia = gumOriginal;
+      gumOriginal = null;
+    }
     unlockOrientation();
+    // Stop camera stream tracks, then destroy scene
+    if (cameraFeedEl.srcObject) {
+      cameraFeedEl.srcObject.getTracks().forEach(t => t.stop());
+      cameraFeedEl.srcObject = null;
+    }
+    cameraFeedEl.style.display = 'none';
     const scene = arContainer.querySelector('a-scene');
     if (scene && scene.destroy) scene.destroy();
     arContainer.innerHTML      = '';
-    arContainer.style.display  = 'none';
     scanOverlay.style.display  = 'none';
     videoScreen.style.display  = 'none';
     ringOverlay.style.display  = 'none';
