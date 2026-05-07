@@ -262,7 +262,8 @@
     /* Camera keeps running behind it for lost/found tracking.  */
     #video-screen {
       position: fixed;
-      inset: 0;
+      top: 0; left: 0; right: 0;
+      height: 100dvh;
       z-index: 160;
       background: #000;
       display: none;
@@ -273,7 +274,7 @@
       inset: 0;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       display: none;
     }
     #video-screen video.active { display: block; }
@@ -557,7 +558,8 @@
   previewImg.addEventListener('error', () => { shimmerEl.style.display = 'none'; });
 
   // Saved original getUserMedia so we can restore it if AR is closed early
-  let gumOriginal = null;
+  let gumOriginal    = null;
+  let isVideoPlaying = false;
 
   // ── Preparation (runs on page load) ────────────────────────
 
@@ -723,6 +725,7 @@
           cameraFeedEl.style.display = 'none';
           scanOverlay.style.display  = 'none';
           videoScreen.style.display  = 'block';
+          isVideoPlaying = true;
           applyVideoLayout();
           lockOrientation();
           fireRings();
@@ -734,6 +737,7 @@
         const vid = document.getElementById('video-' + idx);
         if (vid) { vid.currentTime = 0; vid.pause(); }
         if (activeVideoIdx === idx) activeVideoIdx = -1;
+        isVideoPlaying = false;
         videoScreen.style.display  = 'none';
         cameraFeedEl.style.display = 'block';
         scanOverlay.style.display  = 'block';
@@ -783,13 +787,11 @@
   // During scanner: exit AR completely and return to welcome screen.
 
   closeBtn.addEventListener('click', () => {
-    if (videoScreen.style.display !== 'none') {
+    if (isVideoPlaying) {
       // Video is playing — stop it and return to scanner
-      if (activeVideoIdx >= 0) {
-        const vid = document.getElementById('video-' + activeVideoIdx);
-        if (vid) { vid.currentTime = 0; vid.pause(); }
-        activeVideoIdx = -1;
-      }
+      const vid = document.querySelector('#video-screen video.active');
+      if (vid) { vid.currentTime = 0; vid.pause(); }
+      isVideoPlaying = false;
       document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
       videoScreen.style.display  = 'none';
       unlockOrientation();
