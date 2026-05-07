@@ -767,10 +767,8 @@
           cameraFeedEl.style.display = 'none';
           scanOverlay.style.display  = 'none';
           orientText.textContent = artworkIsLandscape
-            ? 'Turn your phone to landscape
-for the best experience'
-            : 'Turn your phone to portrait
-for the best experience';
+            ? 'Turn your phone to landscape for the best experience'
+            : 'Turn your phone to portrait for the best experience';
           orientPrompt.style.display = 'flex';
           clearTimeout(orientTimer);
           orientTimer = setTimeout(() => {
