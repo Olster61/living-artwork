@@ -608,6 +608,14 @@
       return;
     }
 
+    // Enter fullscreen here — synchronous within the user gesture, so the browser allows it.
+    // We never exit fullscreen on targetLost; only the close button does that.
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) req.call(el).catch(() => {});
+    }
+
     startBtn.disabled = true;
     spinner.style.display = 'inline-block';
     btnLabel.textContent = 'Starting…';
@@ -674,7 +682,7 @@
     // for detection only; the visible camera comes from #camera-feed above.
     arContainer.innerHTML = `
       <a-scene
-        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 8;"
+        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 16;"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -786,6 +794,10 @@
     ringOverlay.style.display  = 'none';
     closeBtn.style.display     = 'none';
     document.querySelectorAll('#video-screen video').forEach(v => v.pause());
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document).catch(() => {});
+    }
     welcome.style.display      = 'flex';
     setBtnReady();
   });
