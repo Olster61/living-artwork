@@ -563,28 +563,13 @@
     hasError = false;
     errorMsg.style.display = 'none';
     try {
-      setStatus('Loading engine…');
-      await loadMindARCompiler();
-
-      setStatus('Loading images…');
-      const artworkImgs = await Promise.all(ARTWORKS.map(a => new Promise((res, rej) => {
-        const i = new Image();
-        i.onload = () => res(i);
-        i.onerror = rej;
-        i.src = a.dataUrl;
-      })));
-
-      setStatus('Compiling… 0%');
-      const compiler = new window.MINDAR.IMAGE.Compiler();
-      const resizedImgs = await Promise.all(artworkImgs.map(img => resizeForCompile(img)));
-      await compiler.compileImageTargets(resizedImgs, progress => {
-        setStatus('Compiling… ' + Math.round(progress * 100) + '%');
-      });
-
-      const buffer = await compiler.exportData();
+      setStatus('Loading…');
+      const resp = await fetch('https://raw.githubusercontent.com/Olster61/living-artwork/main/targets.mind');
+      if (!resp.ok) throw new Error('Failed to fetch targets: ' + resp.status);
+      const buffer = await resp.arrayBuffer();
       if (compiledMindUrl) URL.revokeObjectURL(compiledMindUrl);
       compiledMindUrl = URL.createObjectURL(new Blob([buffer]));
-
+      mindarVersion = '1.2.5';
       setStatus('');
       setBtnReady();
     } catch (err) {
