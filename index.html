@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Living Artwork</title>
   <style>
     :root {
@@ -255,6 +257,20 @@
       white-space: nowrap;
     }
 
+    .fs-prompt {
+      position: absolute;
+      bottom: 18%; left: 50%;
+      transform: translateX(-50%);
+      color: rgba(201,168,76,0.65);
+      font-size: 0.65rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      pointer-events: all;
+      cursor: pointer;
+      display: none;
+    }
+
     /* ── Fullscreen video (shown on detection) ──────────────── */
     /* Sits above the camera feed and scan overlay.             */
     /* Camera keeps running behind it for lost/found tracking.  */
@@ -411,6 +427,7 @@
   </div>
   <div class="scan-line"></div>
   <div class="scan-label">Point at the artwork</div>
+  <div class="fs-prompt" id="fs-prompt">Tap to go fullscreen</div>
 </div>
 
 <!-- Fullscreen video — covers camera entirely on detection -->
@@ -497,6 +514,7 @@
   const ringOverlay  = document.getElementById('ring-overlay');
   const closeBtn       = document.getElementById('close-btn');
   const videoCloseBtn  = document.getElementById('video-close-btn');
+  const fsPrompt       = document.getElementById('fs-prompt');
   let   videoFadeTimer = null;
 
   // ── Utilities ──────────────────────────────────────────────
@@ -633,12 +651,17 @@
       return;
     }
 
-    // Enter fullscreen here — synchronous within the user gesture, so the browser allows it.
-    // We never exit fullscreen on targetLost; only the close button does that.
+    // Enter fullscreen synchronously within the user gesture.
+    // We never exit fullscreen on targetLost; only the scan close button does that.
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-      const el = document.documentElement;
-      const req = el.requestFullscreen || el.webkitRequestFullscreen;
-      if (req) req.call(el).catch(() => {});
+      function tryFS(el) {
+        const req = el && (el.requestFullscreen || el.webkitRequestFullscreen);
+        return req ? req.call(el) : Promise.reject(new Error('unavailable'));
+      }
+      tryFS(document.documentElement)
+        .catch(() => tryFS(document.body))
+        .catch(() => tryFS(document.querySelector('video')))
+        .catch(() => {});
     }
 
     startBtn.disabled = true;
@@ -696,6 +719,7 @@
         const showScan = () => {
           welcome.style.display     = 'none';
           scanOverlay.style.display = 'block';
+          updateFsPrompt();
         };
         if (cameraFeedEl.readyState >= 3) showScan();
         else cameraFeedEl.addEventListener('canplay', showScan, { once: true });
@@ -758,6 +782,7 @@
         hideVideoClose();
         cameraFeedEl.style.display = 'block';
         scanOverlay.style.display  = 'block';
+        updateFsPrompt();
         closeBtn.style.display     = 'flex';
       });
     });
@@ -834,7 +859,26 @@
     unlockOrientation();
     cameraFeedEl.style.display = 'block';
     scanOverlay.style.display  = 'block';
+    updateFsPrompt();
     closeBtn.style.display     = 'flex';
+  });
+
+  function updateFsPrompt() {
+    const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    fsPrompt.style.display = inFs ? 'none' : 'block';
+  }
+  document.addEventListener('fullscreenchange', updateFsPrompt);
+  document.addEventListener('webkitfullscreenchange', updateFsPrompt);
+
+  fsPrompt.addEventListener('click', () => {
+    function tryFS(el) {
+      const req = el && (el.requestFullscreen || el.webkitRequestFullscreen);
+      return req ? req.call(el) : Promise.reject(new Error('unavailable'));
+    }
+    tryFS(document.documentElement)
+      .catch(() => tryFS(document.body))
+      .catch(() => tryFS(document.querySelector('video')))
+      .catch(() => {});
   });
 
   // ── Exit AR ─────────────────────────────────────────────────
