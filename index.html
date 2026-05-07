@@ -773,7 +773,10 @@
           videoScreen.style.display  = 'block';
           isVideoPlaying = true;
           fireRings();
-          if (vid) vid.play().catch(() => {});
+          if (vid) {
+            vid.muted = true;
+            vid.play().then(() => { vid.muted = false; }).catch(() => {});
+          }
         }));
       });
 
@@ -790,6 +793,18 @@
   }
 
 
+
+  // Re-enter fullscreen if browser exits it on device rotation
+  window.addEventListener('orientationchange', () => {
+    if (!isVideoPlaying) return;
+    setTimeout(() => {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const el = document.documentElement;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (req) req.call(el).catch(() => {});
+      }
+    }, 200);
+  });
 
   // ── Close button (dual-mode) ────────────────────────────────
   // During video: stop video, return to scanner (stay in fullscreen).
