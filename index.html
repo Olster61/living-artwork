@@ -717,7 +717,7 @@
 
       entity.addEventListener('targetLost', () => {
         const vid = document.getElementById('video-' + idx);
-        if (vid) vid.pause();
+        if (vid) { vid.currentTime = 0; vid.pause(); }
         if (activeVideoIdx === idx) activeVideoIdx = -1;
         videoScreen.style.display  = 'none';
         cameraFeedEl.style.display = 'block';
