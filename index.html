@@ -350,6 +350,27 @@
       -webkit-backdrop-filter: blur(6px);
       pointer-events: all;
     }
+    #video-close-btn {
+      position: fixed;
+      top: 16px; right: 16px;
+      z-index: 300;
+      width: 40px; height: 40px;
+      background: rgba(0,0,0,0.55);
+      border: 1px solid rgba(201,168,76,0.6);
+      color: var(--gold);
+      border-radius: 50%;
+      font-size: 1rem;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      pointer-events: all;
+      opacity: 1;
+      transition: opacity 0.6s ease;
+    }
+    #video-close-btn.faded { opacity: 0; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -413,8 +434,10 @@
   <div class="ring"></div>
 </div>
 
-<!-- Exit AR -->
+<!-- Exit AR (scan overlay — ends the whole session) -->
 <button id="close-btn" title="Exit">&#x2715;</button>
+<!-- Back to scan (video overlay — stays in fullscreen) -->
+<button id="video-close-btn" title="Back to scan">&#x2715;</button>
 
 <script>
   const ARTWORKS = [
@@ -472,7 +495,9 @@
   const videoScreen  = document.getElementById('video-screen');
   // videos are referenced by id ('video-0', 'video-1') per target in launchAR
   const ringOverlay  = document.getElementById('ring-overlay');
-  const closeBtn     = document.getElementById('close-btn');
+  const closeBtn       = document.getElementById('close-btn');
+  const videoCloseBtn  = document.getElementById('video-close-btn');
+  let   videoFadeTimer = null;
 
   // ── Utilities ──────────────────────────────────────────────
 
@@ -720,6 +745,8 @@
           lockOrientation();
           fireRings();
           if (vid) vid.play().catch(() => {});
+          closeBtn.style.display = 'none';
+          showVideoClose();
         }));
       });
 
@@ -728,8 +755,10 @@
         if (vid) { vid.currentTime = 0; vid.pause(); }
         if (activeVideoIdx === idx) activeVideoIdx = -1;
         videoScreen.style.display  = 'none';
+        hideVideoClose();
         cameraFeedEl.style.display = 'block';
         scanOverlay.style.display  = 'block';
+        closeBtn.style.display     = 'flex';
       });
     });
   }
@@ -771,6 +800,43 @@
     } catch (e) {}
   }
 
+  // ── Video close button (shown during playback, fades after 3 s) ─
+
+  function showVideoClose() {
+    clearTimeout(videoFadeTimer);
+    videoCloseBtn.classList.remove('faded');
+    videoCloseBtn.style.display = 'flex';
+    videoFadeTimer = setTimeout(() => videoCloseBtn.classList.add('faded'), 3000);
+  }
+
+  function hideVideoClose() {
+    clearTimeout(videoFadeTimer);
+    videoCloseBtn.classList.remove('faded');
+    videoCloseBtn.style.display = 'none';
+  }
+
+  // Tap anywhere on the video screen to bring the button back
+  videoScreen.addEventListener('click', () => {
+    if (videoCloseBtn.style.display !== 'none') showVideoClose();
+  });
+
+  // Video close: pause + reset video, return to scan overlay, stay in fullscreen
+  videoCloseBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    hideVideoClose();
+    if (activeVideoIdx >= 0) {
+      const vid = document.getElementById('video-' + activeVideoIdx);
+      if (vid) { vid.currentTime = 0; vid.pause(); }
+      activeVideoIdx = -1;
+    }
+    document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
+    videoScreen.style.display  = 'none';
+    unlockOrientation();
+    cameraFeedEl.style.display = 'block';
+    scanOverlay.style.display  = 'block';
+    closeBtn.style.display     = 'flex';
+  });
+
   // ── Exit AR ─────────────────────────────────────────────────
 
   closeBtn.addEventListener('click', () => {
@@ -793,6 +859,7 @@
     videoScreen.style.display  = 'none';
     ringOverlay.style.display  = 'none';
     closeBtn.style.display     = 'none';
+    hideVideoClose();
     document.querySelectorAll('#video-screen video').forEach(v => v.pause());
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       const exit = document.exitFullscreen || document.webkitExitFullscreen;
