@@ -334,6 +334,39 @@
       100% { transform: translate(-50%, -50%) scale(5.5);  opacity: 0; }
     }
 
+    /* ── Orientation prompt (shown briefly before video plays) ─ */
+    #orient-prompt {
+      position: fixed;
+      inset: 0;
+      z-index: 250;
+      background: rgba(13,13,13,0.92);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      pointer-events: none;
+    }
+    .orient-icon {
+      font-size: 2.8rem;
+      display: inline-block;
+      animation: orientBounce 0.9s ease-in-out infinite alternate;
+    }
+    @keyframes orientBounce {
+      from { transform: rotate(-15deg); }
+      to   { transform: rotate(75deg);  }
+    }
+    .orient-text {
+      color: var(--gold);
+      font-size: 0.78rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      text-align: center;
+      padding: 0 40px;
+      line-height: 1.7;
+      white-space: pre-line;
+    }
+
     /* ── Close button ───────────────────────────────────────── */
     #close-btn {
       position: fixed;
@@ -416,6 +449,12 @@
   <div class="ring"></div>
 </div>
 
+<!-- Orientation prompt — shown briefly before video plays -->
+<div id="orient-prompt">
+  <div class="orient-icon">&#x1F4F1;</div>
+  <div class="orient-text" id="orient-text"></div>
+</div>
+
 <!-- Close: returns to scan while video plays; exits AR from scan view -->
 <button id="close-btn" title="Exit">&#x2715;</button>
 
@@ -476,6 +515,8 @@
   // videos are referenced by id ('video-0', 'video-1') per target in launchAR
   const ringOverlay  = document.getElementById('ring-overlay');
   const closeBtn       = document.getElementById('close-btn');
+  const orientPrompt   = document.getElementById('orient-prompt');
+  const orientText     = document.getElementById('orient-text');
 
   // ── Utilities ──────────────────────────────────────────────
 
@@ -560,6 +601,7 @@
   // Saved original getUserMedia so we can restore it if AR is closed early
   let gumOriginal    = null;
   let isVideoPlaying = false;
+  let orientTimer    = null;
 
   // ── Preparation (runs on page load) ────────────────────────
 
@@ -724,16 +766,28 @@
 
           cameraFeedEl.style.display = 'none';
           scanOverlay.style.display  = 'none';
-          videoScreen.style.display  = 'block';
-          isVideoPlaying = true;
-          applyVideoLayout();
-          lockOrientation();
-          fireRings();
-          if (vid) vid.play().catch(() => {});
+          orientText.textContent = artworkIsLandscape
+            ? 'Turn your phone to landscape
+for the best experience'
+            : 'Turn your phone to portrait
+for the best experience';
+          orientPrompt.style.display = 'flex';
+          clearTimeout(orientTimer);
+          orientTimer = setTimeout(() => {
+            orientPrompt.style.display = 'none';
+            videoScreen.style.display  = 'block';
+            isVideoPlaying = true;
+            applyVideoLayout();
+            lockOrientation();
+            fireRings();
+            if (vid) vid.play().catch(() => {});
+          }, 2000);
         }));
       });
 
       entity.addEventListener('targetLost', () => {
+        clearTimeout(orientTimer);
+        orientPrompt.style.display = 'none';
         const vid = document.getElementById('video-' + idx);
         if (vid) { vid.currentTime = 0; vid.pause(); }
         if (activeVideoIdx === idx) activeVideoIdx = -1;
@@ -763,7 +817,11 @@
   }
 
   window.addEventListener('resize', () => {
-    if (videoScreen.style.display !== 'none') applyVideoLayout();
+    if (isVideoPlaying) applyVideoLayout();
+  });
+
+  window.addEventListener('orientationchange', () => {
+    if (isVideoPlaying) applyVideoLayout();
   });
 
   async function lockOrientation() {
@@ -787,8 +845,10 @@
   // During scanner: exit AR completely and return to welcome screen.
 
   closeBtn.addEventListener('click', () => {
-    if (isVideoPlaying) {
-      // Video is playing — stop it and return to scanner
+    if (isVideoPlaying || orientPrompt.style.display !== 'none') {
+      // Video is playing or orientation prompt is showing — cancel and return to scanner
+      clearTimeout(orientTimer);
+      orientPrompt.style.display = 'none';
       const vid = document.querySelector('#video-screen video.active');
       if (vid) { vid.currentTime = 0; vid.pause(); }
       isVideoPlaying = false;
