@@ -29,6 +29,29 @@
     }
 
     /* ── Welcome screen ─────────────────────────────────────── */
+    .how-to-scan {
+      margin-top: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      opacity: 0.85;
+    }
+    .how-to-text {
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--gold);
+      text-align: center;
+      max-width: 240px;
+      line-height: 1.75;
+      opacity: 0.8;
+    }
+    .scan-illustration {
+      width: 160px;
+      height: 200px;
+    }
+
     #welcome {
       position: fixed;
       inset: 0;
@@ -245,17 +268,7 @@
       50%       { top: calc(50% + min(33vw, 135px)); }
     }
 
-    .scan-label {
-      position: absolute;
-      bottom: 24%; left: 50%;
-      transform: translateX(-50%);
-      color: var(--gold);
-      font-size: 0.76rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      text-shadow: 0 0 14px rgba(201,168,76,0.55);
-      white-space: nowrap;
-    }
+
 
     /* ── Fullscreen video (shown on detection) ──────────────── */
     /* Sits above the camera feed and scan overlay.             */
@@ -278,31 +291,6 @@
       display: none;
     }
     #video-screen video.active { display: block; }
-
-    /* Landscape artwork on a portrait phone: rotate the video 90° so it fills
-       the screen. The CSS box is swapped (100dvh × 100vw) and offset so its
-       centre sits at the viewport centre; the transform maps all four corners
-       exactly to the screen corners. */
-    #video-screen.landscape-on-portrait video.active {
-      position: absolute;
-      width: 100dvh;
-      height: 100vw;
-      top: calc((100dvh - 100vw) / 2);
-      left: calc((100vw - 100dvh) / 2);
-      transform: rotate(90deg);
-      transform-origin: center center;
-    }
-
-    /* Portrait artwork on a landscape phone: show full height, centred.
-       Orientation lock is the primary fix; this is the iOS fallback. */
-    #video-screen.portrait-on-landscape video.active {
-      position: absolute;
-      width: auto;
-      height: 100%;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-    }
 
     /* ── Expanding rings (above video) ──────────────────────── */
     #ring-overlay {
@@ -332,39 +320,6 @@
     @keyframes ringBurst {
       0%   { transform: translate(-50%, -50%) scale(0.15); opacity: 1; }
       100% { transform: translate(-50%, -50%) scale(5.5);  opacity: 0; }
-    }
-
-    /* ── Orientation prompt (shown briefly before video plays) ─ */
-    #orient-prompt {
-      position: fixed;
-      inset: 0;
-      z-index: 250;
-      background: rgba(13,13,13,0.92);
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      pointer-events: none;
-    }
-    .orient-icon {
-      font-size: 2.8rem;
-      display: inline-block;
-      animation: orientBounce 0.9s ease-in-out infinite alternate;
-    }
-    @keyframes orientBounce {
-      from { transform: rotate(-15deg); }
-      to   { transform: rotate(75deg);  }
-    }
-    .orient-text {
-      color: var(--gold);
-      font-size: 0.78rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      text-align: center;
-      padding: 0 40px;
-      line-height: 1.7;
-      white-space: pre-line;
     }
 
     /* ── Close button ───────────────────────────────────────── */
@@ -411,6 +366,67 @@
 
   <div class="status-line" id="status-line">Loading experience…</div>
   <div class="error-msg"   id="error-msg"></div>
+
+  <div class="how-to-scan">
+    <p class="how-to-text">Start by pointing your camera at your artwork to reveal the magic</p>
+    <svg class="scan-illustration" viewBox="0 0 160 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <!-- Hand holding phone -->
+      <g class="hand-group">
+        <!-- Palm / hand shape -->
+        <ellipse cx="80" cy="188" rx="28" ry="12" fill="rgba(201,168,76,0.18)"/>
+        <!-- Thumb -->
+        <path d="M57 175 Q48 168 50 158 Q52 150 58 152 Q62 153 62 160 L62 175Z" fill="#c9a84c" opacity="0.7"/>
+        <!-- Fingers curl under phone -->
+        <path d="M63 175 L63 163 Q63 158 68 158 L93 158 Q98 158 98 163 L98 175Z" fill="#c9a84c" opacity="0.55"/>
+        <!-- Phone body -->
+        <rect x="62" y="60" width="36" height="108" rx="5" ry="5" fill="#1a1a1a" stroke="#c9a84c" stroke-width="1.5"/>
+        <!-- Phone screen -->
+        <rect x="65" y="65" width="30" height="92" rx="3" ry="3" fill="#0d0d0d"/>
+        <!-- Phone notch -->
+        <rect x="74" y="62" width="12" height="3" rx="1.5" fill="#c9a84c" opacity="0.4"/>
+        <!-- Camera lens on phone screen (scanning) -->
+        <circle cx="80" cy="111" r="9" fill="none" stroke="rgba(201,168,76,0.3)" stroke-width="1"/>
+        <circle cx="80" cy="111" r="5" fill="rgba(201,168,76,0.15)" stroke="rgba(201,168,76,0.5)" stroke-width="0.8"/>
+      </g>
+
+      <!-- Picture frame on wall -->
+      <g class="frame-group">
+        <!-- Frame outer -->
+        <rect x="10" y="8" width="58" height="72" rx="2" fill="none" stroke="#c9a84c" stroke-width="2"/>
+        <!-- Frame inner mat -->
+        <rect x="16" y="14" width="46" height="60" rx="1" fill="rgba(201,168,76,0.06)" stroke="rgba(201,168,76,0.25)" stroke-width="0.8"/>
+        <!-- Artwork suggestion — abstract lines -->
+        <line x1="22" y1="28" x2="56" y2="28" stroke="rgba(201,168,76,0.3)" stroke-width="1"/>
+        <line x1="22" y1="36" x2="50" y2="36" stroke="rgba(201,168,76,0.2)" stroke-width="1"/>
+        <line x1="22" y1="44" x2="54" y2="44" stroke="rgba(201,168,76,0.25)" stroke-width="1"/>
+        <line x1="22" y1="52" x2="46" y2="52" stroke="rgba(201,168,76,0.2)" stroke-width="1"/>
+        <line x1="22" y1="60" x2="52" y2="60" stroke="rgba(201,168,76,0.15)" stroke-width="1"/>
+        <!-- Wall hanging wire -->
+        <path d="M39 8 Q39 3 39 3" stroke="rgba(201,168,76,0.4)" stroke-width="1" fill="none"/>
+        <circle cx="39" cy="3" r="1.5" fill="rgba(201,168,76,0.4)"/>
+      </g>
+
+      <!-- Animated scanner beams from phone to frame -->
+      <g class="beam-group">
+        <line x1="62" y1="85" x2="68" y2="44" stroke="rgba(201,168,76,0.25)" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="62" y1="111" x2="68" y2="44" stroke="rgba(201,168,76,0.15)" stroke-width="0.8" stroke-dasharray="3,3"/>
+      </g>
+
+      <!-- Animated scanner line sweeping across frame -->
+      <rect class="scan-sweep" x="16" y="14" width="46" height="2" rx="1" fill="rgba(201,168,76,0.7)">
+        <animate attributeName="y" values="14;72;14" dur="2.4s" repeatCount="indefinite" calcMode="ease-in-out"/>
+        <animate attributeName="opacity" values="0.8;0.3;0.8" dur="2.4s" repeatCount="indefinite"/>
+      </rect>
+
+      <!-- Corner brackets on frame (scanner UI feel) -->
+      <g stroke="#c9a84c" stroke-width="1.5" fill="none" opacity="0.6">
+        <path d="M10 22 L10 8 L24 8"/>
+        <path d="M54 8 L68 8 L68 22"/>
+        <path d="M68 66 L68 80 L54 80"/>
+        <path d="M24 80 L10 80 L10 66"/>
+      </g>
+    </svg>
+  </div>
 </div>
 
 <!-- MindAR A-Frame scene — off-screen, detection only -->
@@ -425,7 +441,7 @@
     <div class="c-bl"></div>
   </div>
   <div class="scan-line"></div>
-  <div class="scan-label">Point at the artwork</div>
+
 </div>
 
 <!-- Fullscreen video — covers camera entirely on detection -->
@@ -447,12 +463,6 @@
   <div class="ring"></div>
   <div class="ring"></div>
   <div class="ring"></div>
-</div>
-
-<!-- Orientation prompt — shown briefly before video plays -->
-<div id="orient-prompt">
-  <div class="orient-icon">&#x1F4F1;</div>
-  <div class="orient-text" id="orient-text"></div>
 </div>
 
 <!-- Close: returns to scan while video plays; exits AR from scan view -->
@@ -515,8 +525,6 @@
   // videos are referenced by id ('video-0', 'video-1') per target in launchAR
   const ringOverlay  = document.getElementById('ring-overlay');
   const closeBtn       = document.getElementById('close-btn');
-  const orientPrompt   = document.getElementById('orient-prompt');
-  const orientText     = document.getElementById('orient-text');
 
   // ── Utilities ──────────────────────────────────────────────
 
@@ -589,8 +597,6 @@
     });
   }
 
-  let artworkIsLandscape = null;
-
   previewImg.addEventListener('load', () => {
     shimmerEl.style.display = 'none';
     previewImg.classList.add('visible');
@@ -601,7 +607,6 @@
   // Saved original getUserMedia so we can restore it if AR is closed early
   let gumOriginal    = null;
   let isVideoPlaying = false;
-  let orientTimer    = null;
 
   // ── Preparation (runs on page load) ────────────────────────
 
@@ -757,7 +762,6 @@
             if (prev) prev.pause();
           }
           activeVideoIdx = idx;
-          artworkIsLandscape = ARTWORKS[idx].isLandscape;
 
           // Activate the correct video element
           document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
@@ -766,26 +770,14 @@
 
           cameraFeedEl.style.display = 'none';
           scanOverlay.style.display  = 'none';
-          orientText.textContent = artworkIsLandscape
-            ? 'Turn your phone to landscape for the best experience'
-            : 'Turn your phone to portrait for the best experience';
-          orientPrompt.style.display = 'flex';
-          clearTimeout(orientTimer);
-          orientTimer = setTimeout(() => {
-            orientPrompt.style.display = 'none';
-            videoScreen.style.display  = 'block';
-            isVideoPlaying = true;
-            applyVideoLayout();
-            lockOrientation();
-            fireRings();
-            if (vid) vid.play().catch(() => {});
-          }, 2000);
+          videoScreen.style.display  = 'block';
+          isVideoPlaying = true;
+          fireRings();
+          if (vid) vid.play().catch(() => {});
         }));
       });
 
       entity.addEventListener('targetLost', () => {
-        clearTimeout(orientTimer);
-        orientPrompt.style.display = 'none';
         const vid = document.getElementById('video-' + idx);
         if (vid) { vid.currentTime = 0; vid.pause(); }
         if (activeVideoIdx === idx) activeVideoIdx = -1;
@@ -797,62 +789,20 @@
     });
   }
 
-  // ── Orientation helpers ─────────────────────────────────────
-  // Lock to the artwork's orientation on Android Chrome.
-  // iOS doesn't support screen.orientation.lock, so the CSS classes
-  // set by applyVideoLayout() act as the fallback on all browsers.
 
-  function applyVideoLayout() {
-    if (artworkIsLandscape === null) return;
-    const phoneIsLandscape = window.innerWidth >= window.innerHeight;
-    if (artworkIsLandscape && !phoneIsLandscape) {
-      videoScreen.className = 'landscape-on-portrait';
-    } else if (!artworkIsLandscape && phoneIsLandscape) {
-      videoScreen.className = 'portrait-on-landscape';
-    } else {
-      videoScreen.className = '';
-    }
-  }
-
-  window.addEventListener('resize', () => {
-    if (isVideoPlaying) applyVideoLayout();
-  });
-
-  window.addEventListener('orientationchange', () => {
-    if (isVideoPlaying) applyVideoLayout();
-  });
-
-  async function lockOrientation() {
-    try {
-      if (screen.orientation && screen.orientation.lock) {
-        await screen.orientation.lock(artworkIsLandscape ? 'landscape' : 'portrait');
-      }
-    } catch (e) { /* CSS layout fallback handles mismatched orientations */ }
-  }
-
-  function unlockOrientation() {
-    try {
-      if (screen.orientation && screen.orientation.unlock) {
-        screen.orientation.unlock();
-      }
-    } catch (e) {}
-  }
 
   // ── Close button (dual-mode) ────────────────────────────────
   // During video: stop video, return to scanner (stay in fullscreen).
   // During scanner: exit AR completely and return to welcome screen.
 
   closeBtn.addEventListener('click', () => {
-    if (isVideoPlaying || orientPrompt.style.display !== 'none') {
-      // Video is playing or orientation prompt is showing — cancel and return to scanner
-      clearTimeout(orientTimer);
-      orientPrompt.style.display = 'none';
+    if (isVideoPlaying) {
+      // Video is playing — stop it and return to scanner
       const vid = document.querySelector('#video-screen video.active');
       if (vid) { vid.currentTime = 0; vid.pause(); }
       isVideoPlaying = false;
       document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
       videoScreen.style.display  = 'none';
-      unlockOrientation();
       cameraFeedEl.style.display = 'block';
       scanOverlay.style.display  = 'block';
       return;
@@ -862,7 +812,6 @@
       navigator.mediaDevices.getUserMedia = gumOriginal;
       gumOriginal = null;
     }
-    unlockOrientation();
     if (cameraFeedEl.srcObject) {
       cameraFeedEl.srcObject.getTracks().forEach(t => t.stop());
       cameraFeedEl.srcObject = null;
