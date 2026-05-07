@@ -180,7 +180,7 @@
       left: -100vw;
       top: 0;
       width: 100vw;
-      height: 100vh;
+      height: 100dvh;
       pointer-events: none;
     }
     #ar-container a-scene {
@@ -257,20 +257,6 @@
       white-space: nowrap;
     }
 
-    .fs-prompt {
-      position: absolute;
-      bottom: 18%; left: 50%;
-      transform: translateX(-50%);
-      color: rgba(201,168,76,0.65);
-      font-size: 0.65rem;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      white-space: nowrap;
-      pointer-events: all;
-      cursor: pointer;
-      display: none;
-    }
-
     /* ── Fullscreen video (shown on detection) ──────────────── */
     /* Sits above the camera feed and scan overlay.             */
     /* Camera keeps running behind it for lost/found tracking.  */
@@ -293,15 +279,15 @@
     #video-screen video.active { display: block; }
 
     /* Landscape artwork on a portrait phone: rotate the video 90° so it fills
-       the screen. The CSS box is swapped (100vh × 100vw) and offset so its
+       the screen. The CSS box is swapped (100dvh × 100vw) and offset so its
        centre sits at the viewport centre; the transform maps all four corners
        exactly to the screen corners. */
     #video-screen.landscape-on-portrait video.active {
       position: absolute;
-      width: 100vh;
+      width: 100dvh;
       height: 100vw;
-      top: calc((100vh - 100vw) / 2);
-      left: calc((100vw - 100vh) / 2);
+      top: calc((100dvh - 100vw) / 2);
+      left: calc((100vw - 100dvh) / 2);
       transform: rotate(90deg);
       transform-origin: center center;
     }
@@ -366,27 +352,6 @@
       -webkit-backdrop-filter: blur(6px);
       pointer-events: all;
     }
-    #video-close-btn {
-      position: fixed;
-      top: 16px; right: 16px;
-      z-index: 300;
-      width: 40px; height: 40px;
-      background: rgba(0,0,0,0.55);
-      border: 1px solid rgba(201,168,76,0.6);
-      color: var(--gold);
-      border-radius: 50%;
-      font-size: 1rem;
-      cursor: pointer;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      pointer-events: all;
-      opacity: 1;
-      transition: opacity 0.6s ease;
-    }
-    #video-close-btn.faded { opacity: 0; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -427,7 +392,6 @@
   </div>
   <div class="scan-line"></div>
   <div class="scan-label">Point at the artwork</div>
-  <div class="fs-prompt" id="fs-prompt">Tap to go fullscreen</div>
 </div>
 
 <!-- Fullscreen video — covers camera entirely on detection -->
@@ -451,10 +415,8 @@
   <div class="ring"></div>
 </div>
 
-<!-- Exit AR (scan overlay — ends the whole session) -->
+<!-- Close: returns to scan while video plays; exits AR from scan view -->
 <button id="close-btn" title="Exit">&#x2715;</button>
-<!-- Back to scan (video overlay — stays in fullscreen) -->
-<button id="video-close-btn" title="Back to scan">&#x2715;</button>
 
 <script>
   const ARTWORKS = [
@@ -513,9 +475,6 @@
   // videos are referenced by id ('video-0', 'video-1') per target in launchAR
   const ringOverlay  = document.getElementById('ring-overlay');
   const closeBtn       = document.getElementById('close-btn');
-  const videoCloseBtn  = document.getElementById('video-close-btn');
-  const fsPrompt       = document.getElementById('fs-prompt');
-  let   videoFadeTimer = null;
 
   // ── Utilities ──────────────────────────────────────────────
 
@@ -719,7 +678,6 @@
         const showScan = () => {
           welcome.style.display     = 'none';
           scanOverlay.style.display = 'block';
-          updateFsPrompt();
         };
         if (cameraFeedEl.readyState >= 3) showScan();
         else cameraFeedEl.addEventListener('canplay', showScan, { once: true });
@@ -769,8 +727,6 @@
           lockOrientation();
           fireRings();
           if (vid) vid.play().catch(() => {});
-          closeBtn.style.display = 'none';
-          showVideoClose();
         }));
       });
 
@@ -779,11 +735,8 @@
         if (vid) { vid.currentTime = 0; vid.pause(); }
         if (activeVideoIdx === idx) activeVideoIdx = -1;
         videoScreen.style.display  = 'none';
-        hideVideoClose();
         cameraFeedEl.style.display = 'block';
         scanOverlay.style.display  = 'block';
-        updateFsPrompt();
-        closeBtn.style.display     = 'flex';
       });
     });
   }
@@ -825,72 +778,31 @@
     } catch (e) {}
   }
 
-  // ── Video close button (shown during playback, fades after 3 s) ─
-
-  function showVideoClose() {
-    clearTimeout(videoFadeTimer);
-    videoCloseBtn.classList.remove('faded');
-    videoCloseBtn.style.display = 'flex';
-    videoFadeTimer = setTimeout(() => videoCloseBtn.classList.add('faded'), 3000);
-  }
-
-  function hideVideoClose() {
-    clearTimeout(videoFadeTimer);
-    videoCloseBtn.classList.remove('faded');
-    videoCloseBtn.style.display = 'none';
-  }
-
-  // Tap anywhere on the video screen to bring the button back
-  videoScreen.addEventListener('click', () => {
-    if (videoCloseBtn.style.display !== 'none') showVideoClose();
-  });
-
-  // Video close: pause + reset video, return to scan overlay, stay in fullscreen
-  videoCloseBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    hideVideoClose();
-    if (activeVideoIdx >= 0) {
-      const vid = document.getElementById('video-' + activeVideoIdx);
-      if (vid) { vid.currentTime = 0; vid.pause(); }
-      activeVideoIdx = -1;
-    }
-    document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
-    videoScreen.style.display  = 'none';
-    unlockOrientation();
-    cameraFeedEl.style.display = 'block';
-    scanOverlay.style.display  = 'block';
-    updateFsPrompt();
-    closeBtn.style.display     = 'flex';
-  });
-
-  function updateFsPrompt() {
-    const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    fsPrompt.style.display = inFs ? 'none' : 'block';
-  }
-  document.addEventListener('fullscreenchange', updateFsPrompt);
-  document.addEventListener('webkitfullscreenchange', updateFsPrompt);
-
-  fsPrompt.addEventListener('click', () => {
-    function tryFS(el) {
-      const req = el && (el.requestFullscreen || el.webkitRequestFullscreen);
-      return req ? req.call(el) : Promise.reject(new Error('unavailable'));
-    }
-    tryFS(document.documentElement)
-      .catch(() => tryFS(document.body))
-      .catch(() => tryFS(document.querySelector('video')))
-      .catch(() => {});
-  });
-
-  // ── Exit AR ─────────────────────────────────────────────────
+  // ── Close button (dual-mode) ────────────────────────────────
+  // During video: stop video, return to scanner (stay in fullscreen).
+  // During scanner: exit AR completely and return to welcome screen.
 
   closeBtn.addEventListener('click', () => {
-    // Restore getUserMedia in case user closes before MindAR called it
+    if (videoScreen.style.display !== 'none') {
+      // Video is playing — stop it and return to scanner
+      if (activeVideoIdx >= 0) {
+        const vid = document.getElementById('video-' + activeVideoIdx);
+        if (vid) { vid.currentTime = 0; vid.pause(); }
+        activeVideoIdx = -1;
+      }
+      document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
+      videoScreen.style.display  = 'none';
+      unlockOrientation();
+      cameraFeedEl.style.display = 'block';
+      scanOverlay.style.display  = 'block';
+      return;
+    }
+    // Scanner is active — exit AR completely
     if (gumOriginal) {
       navigator.mediaDevices.getUserMedia = gumOriginal;
       gumOriginal = null;
     }
     unlockOrientation();
-    // Stop camera stream tracks, then destroy scene
     if (cameraFeedEl.srcObject) {
       cameraFeedEl.srcObject.getTracks().forEach(t => t.stop());
       cameraFeedEl.srcObject = null;
@@ -903,7 +815,6 @@
     videoScreen.style.display  = 'none';
     ringOverlay.style.display  = 'none';
     closeBtn.style.display     = 'none';
-    hideVideoClose();
     document.querySelectorAll('#video-screen video').forEach(v => v.pause());
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       const exit = document.exitFullscreen || document.webkitExitFullscreen;
