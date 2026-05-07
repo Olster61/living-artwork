@@ -781,13 +781,7 @@
       });
 
       entity.addEventListener('targetLost', () => {
-        const vid = document.getElementById('video-' + idx);
-        if (vid) { vid.currentTime = 0; vid.pause(); }
-        if (activeVideoIdx === idx) activeVideoIdx = -1;
-        isVideoPlaying = false;
-        videoScreen.style.display  = 'none';
-        cameraFeedEl.style.display = 'block';
-        scanOverlay.style.display  = 'block';
+        // Video keeps playing after target is lost — user closes it explicitly
       });
     });
   }
