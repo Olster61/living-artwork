@@ -170,9 +170,9 @@
     #video-screen video.active { display: block; }
 
     #video-spinner {
-      position: absolute;
-      bottom: 16px;
-      right: 16px;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
       width: 40px;
       height: 40px;
       border: 3px solid rgba(201,168,76,0.2);
@@ -181,7 +181,7 @@
       animation: vidSpin 0.8s linear infinite;
       opacity: 0.7;
       display: none;
-      z-index: 5;
+      z-index: 165;
       pointer-events: none;
     }
     @keyframes vidSpin { to { transform: rotate(360deg); } }
@@ -310,8 +310,10 @@
     preload="auto" loop playsinline webkit-playsinline
     crossorigin="anonymous">
   </video>
-  <div id="video-spinner"></div>
 </div>
+
+<!-- Buffering spinner — fixed overlay, shown while video loads after targetFound -->
+<div id="video-spinner"></div>
 
 <!-- Expanding rings — above the video layer -->
 <div id="ring-overlay">
@@ -612,33 +614,54 @@
     entities.forEach((entity, idx) => {
       entity.addEventListener('targetFound', () => {
         requestAnimationFrame(() => requestAnimationFrame(() => {
-          // Pause any previously active video
+          console.log('[AR] targetFound idx=' + idx);
+
           if (activeVideoIdx >= 0) {
             const prev = document.getElementById('video-' + activeVideoIdx);
             if (prev) prev.pause();
           }
           activeVideoIdx = idx;
 
-          // Activate the correct video element
+          // Mark the right video active (still invisible — inside hidden #video-screen)
           document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
           const vid = document.getElementById('video-' + idx);
           if (vid) vid.classList.add('active');
 
-          cameraFeedEl.style.display = 'none';
+          // Hide scan UI; camera feed stays visible until 'playing' fires
           scanOverlay.style.display  = 'none';
-          videoScreen.style.display  = 'block';
           isVideoPlaying = true;
           fireRings();
+
           if (vid) {
-            // Reload from scratch so canplaythrough fires reliably,
-            // avoiding the static-first-frame bug when data isn't buffered.
-            vid.load();
             videoSpinner.style.display = 'block';
-            vid.addEventListener('canplaythrough', () => {
+            console.log('[AR] load() → video-' + idx);
+            vid.load();
+
+            // 'playing' fires only when the first frame is actually rendered —
+            // never on pre-buffered data, never on canplaythrough alone.
+            // videoScreen stays hidden until this moment to avoid the static frame.
+            vid.addEventListener('playing', () => {
+              if (!isVideoPlaying || activeVideoIdx !== idx) {
+                console.log('[AR] playing stale — ignored (isVideoPlaying=' + isVideoPlaying + ', activeIdx=' + activeVideoIdx + ', idx=' + idx + ')');
+                return;
+              }
+              console.log('[AR] playing → hiding camera, showing video screen');
               videoSpinner.style.display = 'none';
-              vid.muted = true;
-              vid.play().then(() => { vid.muted = false; }).catch(() => {});
+              cameraFeedEl.style.display = 'none';
+              videoScreen.style.display  = 'block';
             }, { once: true });
+
+            console.log('[AR] play() → video-' + idx);
+            vid.muted = true;
+            vid.play()
+              .then(() => {
+                console.log('[AR] play() resolved → video-' + idx);
+                vid.muted = false;
+              })
+              .catch(err => {
+                console.warn('[AR] play() failed → video-' + idx + ':', err);
+                videoSpinner.style.display = 'none';
+              });
           }
         }));
       });
@@ -669,15 +692,16 @@
 
   closeBtn.addEventListener('click', () => {
     if (isVideoPlaying) {
-      // Video is playing — stop it and return to scanner
+      // Handles both: video visible (playing) and video buffering (loading)
       const vid = document.querySelector('#video-screen video.active');
+      isVideoPlaying = false;          // guard must be cleared before pause()
       if (vid) { vid.currentTime = 0; vid.pause(); }
-      isVideoPlaying = false;
       videoSpinner.style.display = 'none';
       document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
       videoScreen.style.display  = 'none';
       cameraFeedEl.style.display = 'block';
       scanOverlay.style.display  = 'block';
+      console.log('[AR] close during isVideoPlaying — returned to scanner');
       return;
     }
     // Scanner is active — exit AR completely
