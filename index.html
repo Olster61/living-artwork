@@ -636,6 +636,7 @@
             videoSpinner.style.display = 'block';
             console.log('[AR] load() → video-' + idx);
             vid.load();
+            vid.loop = true;
 
             // 'playing' fires only when the first frame is actually rendered —
             // never on pre-buffered data, never on canplaythrough alone.
