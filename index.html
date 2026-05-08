@@ -169,6 +169,23 @@
     }
     #video-screen video.active { display: block; }
 
+    #video-spinner {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(201,168,76,0.2);
+      border-top-color: #c9a84c;
+      border-radius: 50%;
+      animation: vidSpin 0.8s linear infinite;
+      opacity: 0.7;
+      display: none;
+      z-index: 5;
+      pointer-events: none;
+    }
+    @keyframes vidSpin { to { transform: rotate(360deg); } }
+
     /* ── Expanding rings (above video) ──────────────────────── */
     #ring-overlay {
       position: fixed;
@@ -293,6 +310,7 @@
     preload="auto" loop playsinline webkit-playsinline
     crossorigin="anonymous">
   </video>
+  <div id="video-spinner"></div>
 </div>
 
 <!-- Expanding rings — above the video layer -->
@@ -359,6 +377,7 @@
   const cameraFeedEl = document.getElementById('camera-feed');
   const scanOverlay  = document.getElementById('scan-overlay');
   const videoScreen  = document.getElementById('video-screen');
+  const videoSpinner = document.getElementById('video-spinner');
   // videos are referenced by id ('video-0', 'video-1') per target in launchAR
   const ringOverlay  = document.getElementById('ring-overlay');
   const closeBtn       = document.getElementById('close-btn');
@@ -611,8 +630,15 @@
           isVideoPlaying = true;
           fireRings();
           if (vid) {
-            vid.muted = true;
-            vid.play().then(() => { vid.muted = false; }).catch(() => {});
+            // Reload from scratch so canplaythrough fires reliably,
+            // avoiding the static-first-frame bug when data isn't buffered.
+            vid.load();
+            videoSpinner.style.display = 'block';
+            vid.addEventListener('canplaythrough', () => {
+              videoSpinner.style.display = 'none';
+              vid.muted = true;
+              vid.play().then(() => { vid.muted = false; }).catch(() => {});
+            }, { once: true });
           }
         }));
       });
@@ -647,6 +673,7 @@
       const vid = document.querySelector('#video-screen video.active');
       if (vid) { vid.currentTime = 0; vid.pause(); }
       isVideoPlaying = false;
+      videoSpinner.style.display = 'none';
       document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
       videoScreen.style.display  = 'none';
       cameraFeedEl.style.display = 'block';
@@ -668,6 +695,7 @@
     arContainer.innerHTML      = '';
     scanOverlay.style.display  = 'none';
     videoScreen.style.display  = 'none';
+    videoSpinner.style.display = 'none';
     ringOverlay.style.display  = 'none';
     closeBtn.style.display     = 'none';
     document.querySelectorAll('#video-screen video').forEach(v => v.pause());
