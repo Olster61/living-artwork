@@ -380,6 +380,9 @@
   const scanOverlay  = document.getElementById('scan-overlay');
   const videoScreen  = document.getElementById('video-screen');
   const videoSpinner = document.getElementById('video-spinner');
+  // Source URLs read from HTML attributes — used to explicitly set vid.src on each play
+  const VIDEO_SRCS = Array.from(document.querySelectorAll('#video-screen video'))
+                          .map(v => v.getAttribute('src'));
   // videos are referenced by id ('video-0', 'video-1') per target in launchAR
   const ringOverlay  = document.getElementById('ring-overlay');
   const closeBtn       = document.getElementById('close-btn');
@@ -627,42 +630,47 @@
           const vid = document.getElementById('video-' + idx);
           if (vid) vid.classList.add('active');
 
-          // Hide scan UI; camera feed stays visible until 'playing' fires
+          // Hide scan UI; camera feed stays visible until videoScreen is shown
           scanOverlay.style.display  = 'none';
           isVideoPlaying = true;
           fireRings();
 
           if (vid) {
             videoSpinner.style.display = 'block';
-            console.log('[AR] load() → video-' + idx);
-            vid.load();
-            vid.loop = true;
 
-            // 'playing' fires only when the first frame is actually rendered —
-            // never on pre-buffered data, never on canplaythrough alone.
-            // videoScreen stays hidden until this moment to avoid the static frame.
-            vid.addEventListener('playing', () => {
+            // loadeddata fires as soon as the first frame is decoded and ready to display.
+            // Calling play() from here (not before) avoids the static-frame bug where
+            // play() is called before any frame data is available.
+            vid.addEventListener('loadeddata', () => {
               if (!isVideoPlaying || activeVideoIdx !== idx) {
-                console.log('[AR] playing stale — ignored (isVideoPlaying=' + isVideoPlaying + ', activeIdx=' + activeVideoIdx + ', idx=' + idx + ')');
+                console.log('[AR] loadeddata stale — ignored');
                 return;
               }
-              console.log('[AR] playing → hiding camera, showing video screen');
-              videoSpinner.style.display = 'none';
-              cameraFeedEl.style.display = 'none';
-              videoScreen.style.display  = 'block';
+              console.log('[AR] loadeddata → play() on video-' + idx);
+              vid.muted = true;
+              vid.play()
+                .then(() => {
+                  if (!isVideoPlaying || activeVideoIdx !== idx) {
+                    console.log('[AR] play() resolved stale — pausing');
+                    vid.pause();
+                    return;
+                  }
+                  console.log('[AR] play() resolved → showing video screen');
+                  vid.muted = false;
+                  videoSpinner.style.display = 'none';
+                  cameraFeedEl.style.display = 'none';
+                  videoScreen.style.display  = 'block';
+                })
+                .catch(err => {
+                  console.warn('[AR] play() failed:', err);
+                  videoSpinner.style.display = 'none';
+                });
             }, { once: true });
 
-            console.log('[AR] play() → video-' + idx);
-            vid.muted = true;
-            vid.play()
-              .then(() => {
-                console.log('[AR] play() resolved → video-' + idx);
-                vid.muted = false;
-              })
-              .catch(err => {
-                console.warn('[AR] play() failed → video-' + idx + ':', err);
-                videoSpinner.style.display = 'none';
-              });
+            console.log('[AR] src + load() → video-' + idx);
+            vid.src  = VIDEO_SRCS[idx];
+            vid.loop = true;
+            vid.load();
           }
         }));
       });
