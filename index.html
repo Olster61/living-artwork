@@ -599,7 +599,7 @@
     // for detection only; the visible camera comes from #camera-feed above.
     arContainer.innerHTML = `
       <a-scene
-        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 16;"
+        mindar-image="imageTargetSrc: ${compiledMindUrl}; autoStart: true; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 20;"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -625,52 +625,38 @@
           }
           activeVideoIdx = idx;
 
-          // Mark the right video active (still invisible — inside hidden #video-screen)
+          // Mark the right video active
           document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
           const vid = document.getElementById('video-' + idx);
           if (vid) vid.classList.add('active');
 
-          // Hide scan UI; camera feed stays visible until videoScreen is shown
+          // Immediately show video screen (dark background + spinner) for instant feedback
           scanOverlay.style.display  = 'none';
+          cameraFeedEl.style.display = 'none';
+          videoScreen.style.display  = 'block';
+          videoSpinner.style.display = 'block';
           isVideoPlaying = true;
           fireRings();
 
           if (vid) {
-            videoSpinner.style.display = 'block';
+            function hideSpinner() {
+              videoSpinner.style.display = 'none';
+            }
 
-            // loadeddata fires as soon as the first frame is decoded and ready to display.
-            // Calling play() from here (not before) avoids the static-frame bug where
-            // play() is called before any frame data is available.
-            vid.addEventListener('loadeddata', () => {
-              if (!isVideoPlaying || activeVideoIdx !== idx) {
-                console.log('[AR] loadeddata stale — ignored');
-                return;
-              }
-              console.log('[AR] loadeddata → play() on video-' + idx);
-              vid.muted = true;
-              vid.play()
-                .then(() => {
-                  if (!isVideoPlaying || activeVideoIdx !== idx) {
-                    console.log('[AR] play() resolved stale — pausing');
-                    vid.pause();
-                    return;
-                  }
-                  console.log('[AR] play() resolved → showing video screen');
-                  vid.muted = false;
-                  videoSpinner.style.display = 'none';
-                  cameraFeedEl.style.display = 'none';
-                  videoScreen.style.display  = 'block';
-                })
-                .catch(err => {
-                  console.warn('[AR] play() failed:', err);
-                  videoSpinner.style.display = 'none';
-                });
-            }, { once: true });
-
-            console.log('[AR] src + load() → video-' + idx);
-            vid.src  = VIDEO_SRCS[idx];
             vid.loop = true;
+            vid.src  = VIDEO_SRCS[idx];
             vid.load();
+            console.log('[AR] src + load() → video-' + idx);
+            vid.addEventListener('loadeddata', function onLoaded() {
+              vid.removeEventListener('loadeddata', onLoaded);
+              console.log('[AR] loadeddata → play() on video-' + idx);
+              vid.play().then(() => {
+                hideSpinner();
+              }).catch(() => {
+                vid.muted = true;
+                vid.play().then(() => hideSpinner());
+              });
+            });
           }
         }));
       });
