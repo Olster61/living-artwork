@@ -1,6 +1,7 @@
 const express = require('express')
 const multer = require('multer')
 const { createClient } = require('@supabase/supabase-js')
+const WebSocket = require('ws')
 const cors = require('cors')
 const path = require('path')
 const os = require('os')
@@ -12,6 +13,7 @@ const PORT = process.env.PORT || 3000
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET, {
   auth: { autoRefreshToken: false, persistSession: false },
+  realtime: { transport: WebSocket },
   global: {
     fetch: (url, opts = {}) => {
       const controller = new AbortController()
