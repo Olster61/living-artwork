@@ -621,6 +621,37 @@
     padding: 2px 8px; font-size: 11px; font-weight: 600;
   }
 
+  /* ── UPLOAD PROGRESS ── */
+  .upload-progress-wrap {
+    margin-top: 16px;
+    padding-bottom: 28px;
+  }
+  .upload-progress-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+    font-size: 13px; color: var(--text2);
+  }
+  .upload-spin-icon { color: var(--gold); animation: spin 1s linear infinite; flex-shrink: 0; }
+  .upload-progress-text { flex: 1; }
+  .upload-progress-pct { color: var(--gold); font-weight: 600; font-size: 13px; min-width: 36px; text-align: right; }
+  .upload-progress-track {
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .upload-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold-dk), var(--gold), var(--gold-lt));
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+  .upload-complete-bar {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 16px; padding-bottom: 28px;
+    font-size: 13px;
+  }
+
   /* ── GRID DROP ZONE ── */
   .drag-overlay {
     position: absolute;
@@ -1004,35 +1035,55 @@ async function handleGridDrop (e) {
   }
 
   renderStagingArea()
+  uploadAllPairs()
 }
 
 // ── Staging area (inline below artwork grid) ──────────────────────────────────
 function renderStagingArea () {
   const area = document.getElementById('staging-area')
   if (!area) return
-
   if (!bulkPairs.length) { area.innerHTML = ''; return }
 
-  const pending   = bulkPairs.filter(p => p.status === 'pending').length
+  const total     = bulkPairs.length
   const done      = bulkPairs.filter(p => p.status === 'done').length
   const errors    = bulkPairs.filter(p => p.status === 'error').length
   const uploading = bulkPairs.some(p => p.status === 'uploading')
+  const completed = done + errors
+  const pct       = total ? Math.round((completed / total) * 100) : 0
+  const allDone   = completed === total && total > 0
+
+  let statusBar = ''
+  if (allDone) {
+    statusBar = `
+      <div class="upload-complete-bar">
+        <span style="color:var(--ok);font-weight:500">✓ Upload complete!</span>
+        ${done   ? `<span style="color:var(--text2)">${done} uploaded</span>` : ''}
+        ${errors ? `<span style="color:var(--err)">✗ ${errors} failed</span>` : ''}
+        <div style="flex:1"></div>
+        <button class="btn btn-outline btn-sm" onclick="clearStagingDone()">Dismiss</button>
+      </div>`
+  } else if (uploading || completed > 0) {
+    statusBar = `
+      <div class="upload-progress-wrap">
+        <div class="upload-progress-header">
+          <svg class="upload-spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span class="upload-progress-text">Uploading…</span>
+          <span class="upload-progress-pct">${pct}%</span>
+        </div>
+        <div class="upload-progress-track">
+          <div class="upload-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>`
+  }
 
   area.innerHTML = `
-    <div class="section-divider" style="margin-top:28px">Pending Upload</div>
+    <div class="section-divider" style="margin-top:28px">Uploading</div>
     <div class="pair-grid">${bulkPairs.map(pairCardHTML).join('')}</div>
-    <div class="bulk-summary" style="margin-top:12px;padding-bottom:28px">
-      <span class="bulk-count-badge">${bulkPairs.length} pair${bulkPairs.length !== 1 ? 's' : ''}</span>
-      ${done   ? `<span style="color:var(--ok)">✓ ${done} uploaded</span>` : ''}
-      ${errors ? `<span style="color:var(--err)">✗ ${errors} failed</span>` : ''}
-      ${pending && !uploading ? `<span>${pending} pending</span>` : ''}
-      <div style="flex:1"></div>
-      ${done || errors ? `<button class="btn btn-outline btn-sm" onclick="clearStagingDone()">Clear done</button>` : ''}
-      <button class="btn btn-gold btn-sm" onclick="uploadAllPairs()" ${!pending || uploading ? 'disabled' : ''}>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Upload All${pending ? ` (${pending})` : ''}
-      </button>
-    </div>
+    ${statusBar}
   `
 }
 
@@ -1237,13 +1288,14 @@ function pairIndividualFiles (files) {
   const byStem = {}
   for (const f of files) {
     const stem = f.name.replace(/\.[^.]+$/, '')
-    if (!byStem[stem]) byStem[stem] = {}
-    if (/\.(png|jpe?g|webp)$/i.test(f.name)) byStem[stem].image = f
-    if (/\.mp4$/i.test(f.name))               byStem[stem].video = f
+    const key  = stem.toLowerCase()
+    if (!byStem[key]) byStem[key] = { name: stem }
+    if (/\.(png|jpe?g|webp)$/i.test(f.name)) byStem[key].image = f
+    if (/\.mp4$/i.test(f.name))               byStem[key].video = f
   }
-  return Object.entries(byStem)
-    .filter(([, v]) => v.image && v.video)
-    .map(([stem, v]) => makePair(stem, v.image, v.video))
+  return Object.values(byStem)
+    .filter(v => v.image && v.video)
+    .map(v => makePair(v.name, v.image, v.video))
 }
 
 function makePair (name, imageFile, videoFile) {
@@ -1272,7 +1324,7 @@ function updatePairName (id, val) {
 }
 
 async function uploadAllPairs () {
-  if (!currentCustomer) { toast('Select a customer first', 'err'); return }
+  if (!currentCustomer) return
 
   const pending = bulkPairs.filter(p => p.status === 'pending')
   if (!pending.length) return
@@ -1307,7 +1359,6 @@ async function uploadAllPairs () {
   }
 
   if (successCount) {
-    toast(`${successCount} artwork${successCount !== 1 ? 's' : ''} uploaded ✓`, 'ok')
     renderMain('artworks')
     renderSidebar()
   }
