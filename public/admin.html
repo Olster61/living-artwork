@@ -497,6 +497,130 @@
     content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.05);
   }
 
+  /* ── BULK UPLOAD ── */
+  #bulk-modal .modal {
+    width: 740px;
+  }
+
+  .bulk-drop-zone {
+    border: 2px dashed var(--gold-bd);
+    border-radius: var(--radius-sm);
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg3);
+    position: relative;
+    margin-bottom: 4px;
+  }
+  .bulk-drop-zone.drag-over {
+    border-color: var(--gold);
+    background: var(--gold-bg);
+    transform: scale(1.005);
+  }
+  .bulk-drop-zone-icon { font-size: 32px; margin-bottom: 10px; }
+  .bulk-drop-zone-label { font-size: 13px; color: var(--text2); line-height: 1.6; }
+  .bulk-drop-zone-sub   { font-size: 11px; color: var(--text3); margin-top: 6px; }
+  .bulk-drop-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0;
+    cursor: pointer; width: 100%; height: 100%;
+  }
+
+  .pair-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 2px 2px 4px;
+    margin-bottom: 4px;
+  }
+
+  .pair-card {
+    background: var(--card);
+    border: 1px solid var(--gold-bd);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    position: relative;
+    transition: border-color 0.2s;
+    animation: fadeUp 0.2s ease both;
+  }
+  .pair-card.status-done     { border-color: rgba(92,184,92,0.45); }
+  .pair-card.status-error    { border-color: rgba(217,83,79,0.45); }
+  .pair-card.status-uploading{ border-color: var(--gold); }
+
+  .pair-thumb-wrap {
+    position: relative;
+    aspect-ratio: 4/3;
+    background: var(--bg3);
+    overflow: hidden;
+  }
+  .pair-thumb { width:100%; height:100%; object-fit:cover; display:block; }
+  .pair-thumb-placeholder {
+    width:100%; height:100%;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--text3); font-size:24px;
+  }
+
+  .pair-status-badge {
+    position: absolute; top: 6px; right: 6px;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  }
+  .pair-card.status-done      .pair-status-badge { background: rgba(92,184,92,0.9);  color:#fff; }
+  .pair-card.status-error     .pair-status-badge { background: rgba(217,83,79,0.9); color:#fff; }
+  .pair-card.status-uploading .pair-status-badge {
+    background: rgba(201,168,76,0.9);
+    animation: spin 0.8s linear infinite;
+  }
+
+  .pair-info { padding: 8px 10px 10px; }
+  .pair-name-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    color: var(--text);
+    font-size: 12px; font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    padding: 2px 0 4px;
+    margin-bottom: 6px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .pair-name-input:focus { border-bottom-color: var(--gold-bd); }
+  .pair-name-input:disabled { opacity: 0.5; }
+
+  .pair-files { display: flex; flex-direction: column; gap: 3px; }
+  .pair-files span {
+    font-size: 10px; color: var(--text3);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pair-error { font-size: 10px; color: var(--err); margin-top: 4px; line-height: 1.4; }
+
+  .pair-remove {
+    position: absolute; top: 5px; left: 5px;
+    width: 20px; height: 20px;
+    background: rgba(0,0,0,0.65); border: none; border-radius: 50%;
+    color: var(--text2); font-size: 11px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.15s, color 0.15s;
+  }
+  .pair-card:hover .pair-remove { opacity: 1; }
+  .pair-remove:hover { color: var(--err); }
+
+  .bulk-summary {
+    font-size: 12px; color: var(--text2); padding: 8px 2px 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .bulk-count-badge {
+    background: var(--gold-bg); border: 1px solid var(--gold-bd);
+    color: var(--gold); border-radius: 10px;
+    padding: 2px 8px; font-size: 11px; font-weight: 600;
+  }
+
   /* ── NO SELECTION ── */
   .no-selection {
     flex: 1; display: flex; flex-direction: column;
@@ -628,6 +752,44 @@
   </div>
 </div>
 
+<!-- MODAL: Bulk Upload -->
+<div class="modal-overlay" id="bulk-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Bulk Upload Artworks</div>
+      <button class="modal-close" onclick="closeBulkModal()">✕</button>
+    </div>
+
+    <!-- Drop zone -->
+    <div class="bulk-drop-zone" id="bulk-drop-zone"
+         ondragover="bulkDragOver(event)"
+         ondragleave="bulkDragLeave(event)"
+         ondrop="handleBulkDrop(event)">
+      <input type="file" id="bulk-file-input" multiple accept="image/*,video/mp4"
+             onchange="handleBulkFileInput(event)">
+      <div class="bulk-drop-zone-icon">📂</div>
+      <div class="bulk-drop-zone-label">
+        Drop folders <em>or</em> files here<br>
+        <strong style="color:var(--gold)">Folders</strong> — one trigger image + one MP4 per folder<br>
+        <strong style="color:var(--gold)">Files</strong> — paired by matching filename (e.g. tiger.png + tiger.mp4)
+      </div>
+      <div class="bulk-drop-zone-sub">or click to browse files</div>
+    </div>
+
+    <!-- Pair preview grid -->
+    <div id="bulk-pair-grid" class="pair-grid" style="display:none"></div>
+    <div id="bulk-summary" class="bulk-summary" style="display:none"></div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeBulkModal()">Cancel</button>
+      <button class="btn btn-gold" id="bulk-upload-btn" onclick="uploadAllPairs()" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload All
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- COMPILE OVERLAY -->
 <div class="compile-overlay" id="compile-overlay">
   <div class="compile-icon">⚙</div>
@@ -746,6 +908,10 @@ function renderMain (state, msg) {
         <button class="btn btn-outline btn-sm" onclick="compileTargets()" id="compile-btn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>
           Compile Targets
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="openBulkModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Bulk Upload
         </button>
         <button class="btn btn-gold btn-sm" onclick="openModal('artwork-modal')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -995,6 +1161,253 @@ document.querySelectorAll('.drop-zone').forEach(zone => {
   zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'))
   zone.addEventListener('drop', () => zone.classList.remove('drag-over'))
 })
+
+// ── Bulk Upload ───────────────────────────────────────────────────────────────
+let bulkPairs = []   // [{id, name, slug, triggerFile, videoFile, thumbUrl, status, error}]
+
+function openBulkModal () {
+  if (!currentCustomer) { toast('Select a customer first', 'err'); return }
+  bulkPairs = []
+  renderBulkGrid()
+  const dz = document.getElementById('bulk-drop-zone')
+  dz.classList.remove('drag-over')
+  document.getElementById('bulk-file-input').value = ''
+  openModal('bulk-modal')
+}
+
+function closeBulkModal () {
+  bulkPairs.forEach(p => { if (p.thumbUrl) URL.revokeObjectURL(p.thumbUrl) })
+  bulkPairs = []
+  closeModal('bulk-modal')
+}
+
+// Drag events on the drop zone
+function bulkDragOver (e) {
+  e.preventDefault()
+  document.getElementById('bulk-drop-zone').classList.add('drag-over')
+}
+function bulkDragLeave (e) {
+  if (!e.currentTarget.contains(e.relatedTarget))
+    document.getElementById('bulk-drop-zone').classList.remove('drag-over')
+}
+
+// Handle <input type=file> fallback
+function handleBulkFileInput (e) {
+  const files = Array.from(e.target.files)
+  const pairs = pairIndividualFiles(files)
+  pairs.forEach(p => bulkPairs.push(p))
+  renderBulkGrid()
+}
+
+// Main drop handler — uses FileSystem Entry API to support folders
+async function handleBulkDrop (e) {
+  e.preventDefault()
+  document.getElementById('bulk-drop-zone').classList.remove('drag-over')
+
+  const items  = Array.from(e.dataTransfer.items)
+  const entries = items.map(i => i.webkitGetAsEntry ? i.webkitGetAsEntry() : null).filter(Boolean)
+
+  const hasFolders = entries.some(en => en.isDirectory)
+
+  if (hasFolders) {
+    // Folder mode: each top-level directory = one artwork
+    for (const entry of entries) {
+      if (entry.isDirectory) {
+        const files = await readDirFiles(entry)
+        const pair  = buildPairFromFiles(entry.name, files)
+        if (pair) bulkPairs.push(pair)
+        else toast(`"${entry.name}": need one image + one MP4`, 'err')
+      }
+    }
+  } else {
+    // File mode: pair by matching stem
+    const files = []
+    for (const entry of entries) {
+      if (entry.isFile) files.push(await fileFromEntry(entry))
+    }
+    const pairs = pairIndividualFiles(files)
+    const unpaired = files.filter(f =>
+      !pairs.some(p => p.triggerFile === f || p.videoFile === f)
+    )
+    pairs.forEach(p => bulkPairs.push(p))
+    if (unpaired.length) toast(`${unpaired.length} file(s) had no matching pair and were skipped`, 'info')
+  }
+
+  renderBulkGrid()
+}
+
+// Recursively read all files from a directory entry
+function readDirFiles (dirEntry) {
+  return new Promise(resolve => {
+    const reader = dirEntry.createReader()
+    const all    = []
+    const batch  = () => {
+      reader.readEntries(async entries => {
+        if (!entries.length) { resolve(all); return }
+        for (const en of entries) {
+          if (en.isFile) all.push(await fileFromEntry(en))
+          // skip nested subdirectories
+        }
+        batch()
+      }, () => resolve(all))
+    }
+    batch()
+  })
+}
+
+function fileFromEntry (entry) {
+  return new Promise((ok, fail) => entry.file(ok, fail))
+}
+
+// Build a pair from a flat list of files (e.g. from one folder)
+function buildPairFromFiles (folderName, files) {
+  const image = files.find(f => /\.(png|jpe?g|webp)$/i.test(f.name))
+  const video = files.find(f => /\.mp4$/i.test(f.name))
+  if (!image || !video) return null
+  return makePair(folderName, image, video)
+}
+
+// Pair individual dropped files by matching stem (basename without extension)
+function pairIndividualFiles (files) {
+  const byStem = {}
+  for (const f of files) {
+    const stem = f.name.replace(/\.[^.]+$/, '')
+    if (!byStem[stem]) byStem[stem] = {}
+    if (/\.(png|jpe?g|webp)$/i.test(f.name)) byStem[stem].image = f
+    if (/\.mp4$/i.test(f.name))               byStem[stem].video = f
+  }
+  return Object.entries(byStem)
+    .filter(([, v]) => v.image && v.video)
+    .map(([stem, v]) => makePair(stem, v.image, v.video))
+}
+
+function makePair (name, imageFile, videoFile) {
+  return {
+    id:          Math.random().toString(36).slice(2),
+    name:        name,
+    slug:        slugify(name),
+    triggerFile: imageFile,
+    videoFile:   videoFile,
+    thumbUrl:    URL.createObjectURL(imageFile),
+    status:      'pending',   // pending | uploading | done | error
+    error:       null
+  }
+}
+
+function removeBulkPair (id) {
+  const p = bulkPairs.find(p => p.id === id)
+  if (p?.thumbUrl) URL.revokeObjectURL(p.thumbUrl)
+  bulkPairs = bulkPairs.filter(p => p.id !== id)
+  renderBulkGrid()
+}
+
+function updatePairName (id, val) {
+  const p = bulkPairs.find(p => p.id === id)
+  if (p) { p.name = val.trim() || p.name; p.slug = slugify(p.name) }
+}
+
+function renderBulkGrid () {
+  const grid    = document.getElementById('bulk-pair-grid')
+  const summary = document.getElementById('bulk-summary')
+  const btn     = document.getElementById('bulk-upload-btn')
+
+  if (!bulkPairs.length) {
+    grid.style.display    = 'none'
+    summary.style.display = 'none'
+    btn.disabled          = true
+    btn.textContent       = 'Upload All'
+    return
+  }
+
+  grid.style.display = 'grid'
+  grid.innerHTML = bulkPairs.map(p => {
+    const locked = p.status !== 'pending'
+    const badge  = p.status === 'uploading' ? '↻'
+                 : p.status === 'done'      ? '✓'
+                 : p.status === 'error'     ? '✗'
+                 : ''
+    return `
+      <div class="pair-card status-${p.status}" data-id="${esc(p.id)}">
+        <div class="pair-thumb-wrap">
+          <img class="pair-thumb" src="${esc(p.thumbUrl)}" alt="" onerror="this.style.display='none'">
+          ${badge ? `<div class="pair-status-badge">${badge}</div>` : ''}
+        </div>
+        ${!locked ? `<button class="pair-remove" onclick="removeBulkPair('${esc(p.id)}')" title="Remove">✕</button>` : ''}
+        <div class="pair-info">
+          <input class="pair-name-input" value="${esc(p.name)}"
+            ${locked ? 'disabled' : `onchange="updatePairName('${esc(p.id)}',this.value)"`}
+            title="Artwork name (editable)">
+          <div class="pair-files">
+            <span title="${esc(p.triggerFile.name)}">🖼 ${esc(p.triggerFile.name)}</span>
+            <span title="${esc(p.videoFile.name)}">🎬 ${esc(p.videoFile.name)} · ${(p.videoFile.size/1024/1024).toFixed(1)} MB</span>
+          </div>
+          ${p.error ? `<div class="pair-error">${esc(p.error)}</div>` : ''}
+        </div>
+      </div>`
+  }).join('')
+
+  const done     = bulkPairs.filter(p => p.status === 'done').length
+  const errors   = bulkPairs.filter(p => p.status === 'error').length
+  const pending  = bulkPairs.filter(p => p.status === 'pending').length
+
+  summary.style.display = 'flex'
+  summary.innerHTML = `
+    <span class="bulk-count-badge">${bulkPairs.length} pair${bulkPairs.length !== 1 ? 's' : ''}</span>
+    ${done    ? `<span style="color:var(--ok)">✓ ${done} uploaded</span>` : ''}
+    ${errors  ? `<span style="color:var(--err)">✗ ${errors} failed</span>` : ''}
+    ${pending ? `<span>${pending} pending</span>` : ''}
+  `
+
+  const anyPending = bulkPairs.some(p => p.status === 'pending')
+  const uploading  = bulkPairs.some(p => p.status === 'uploading')
+  btn.disabled     = !anyPending || uploading
+  btn.innerHTML    = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload All ${anyPending ? `(${pending})` : ''}`
+}
+
+async function uploadAllPairs () {
+  if (!currentCustomer) { toast('Select a customer first', 'err'); return }
+
+  const pending = bulkPairs.filter(p => p.status === 'pending')
+  if (!pending.length) return
+
+  document.getElementById('bulk-upload-btn').disabled = true
+
+  let successCount = 0
+  let errorCount   = 0
+
+  for (const pair of pending) {
+    pair.status = 'uploading'
+    renderBulkGrid()
+
+    try {
+      const fd = new FormData()
+      fd.append('customer_slug', currentCustomer.slug)
+      fd.append('artwork_name',  pair.name)
+      fd.append('artwork_slug',  pair.slug)
+      fd.append('trigger',       pair.triggerFile)
+      fd.append('video',         pair.videoFile)
+
+      const artwork = await api('POST', '/api/artwork/upload', fd)
+      artworks.push(artwork)
+      artworkCounts[currentCustomer.id] = (artworkCounts[currentCustomer.id] || 0) + 1
+      pair.status = 'done'
+      successCount++
+    } catch (e) {
+      pair.status = 'error'
+      pair.error  = e.message
+      errorCount++
+    }
+
+    renderBulkGrid()
+  }
+
+  if (successCount) {
+    toast(`${successCount} artwork${successCount !== 1 ? 's' : ''} uploaded ✓`, 'ok')
+    renderMain('artworks')
+    renderSidebar()
+  }
+  if (errorCount) toast(`${errorCount} upload${errorCount !== 1 ? 's' : ''} failed`, 'err')
+}
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 init()
