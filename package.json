@@ -1,0 +1,22 @@
+{
+  "name": "living-artwork",
+  "version": "1.0.0",
+  "description": "Living Artwork AR platform — admin panel and AR experience",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-cpu": "^4.22.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "mind-ar": "^1.2.5",
+    "multer": "^1.4.5-lts.1",
+    "sharp": "^0.34.5"
+  }
+}
