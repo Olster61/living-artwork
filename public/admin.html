@@ -646,11 +646,9 @@
     border-radius: 2px;
     transition: width 0.4s ease;
   }
-  .upload-complete-bar {
-    display: flex; align-items: center; gap: 10px;
-    margin-top: 16px; padding-bottom: 28px;
-    font-size: 13px;
-  }
+  /* ── NAV UPLOAD BAR ── */
+  #nav-upload { align-items: center; gap: 10px; min-width: 200px; }
+  #nav-upload .upload-progress-track { margin-top: 4px; }
 
   /* ── GRID DROP ZONE ── */
   .drag-overlay {
@@ -707,6 +705,22 @@
   <div class="nav-logo">Living Artwork</div>
   <span style="font-size:11px;color:var(--text3);letter-spacing:0.12em;text-transform:uppercase;">Admin Panel</span>
   <div class="nav-sep"></div>
+  <div id="nav-upload" style="display:none">
+    <svg id="nav-upload-spin" class="upload-spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span id="nav-upload-text" style="font-size:11px;color:var(--text2)">Uploading…</span>
+        <span id="nav-upload-pct" style="font-size:11px;color:var(--gold);font-weight:600;margin-left:8px;flex-shrink:0"></span>
+      </div>
+      <div class="upload-progress-track">
+        <div class="upload-progress-fill" id="nav-upload-fill" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
   <button class="btn btn-outline btn-sm" onclick="openModal('customer-modal')">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     New Customer
@@ -1043,48 +1057,32 @@ function renderStagingArea () {
   const area = document.getElementById('staging-area')
   if (!area) return
   if (!bulkPairs.length) { area.innerHTML = ''; return }
-
-  const total     = bulkPairs.length
-  const done      = bulkPairs.filter(p => p.status === 'done').length
-  const errors    = bulkPairs.filter(p => p.status === 'error').length
-  const uploading = bulkPairs.some(p => p.status === 'uploading')
-  const completed = done + errors
-  const pct       = total ? Math.round((completed / total) * 100) : 0
-  const allDone   = completed === total && total > 0
-
-  let statusBar = ''
-  if (allDone) {
-    statusBar = `
-      <div class="upload-complete-bar">
-        <span style="color:var(--ok);font-weight:500">✓ Upload complete!</span>
-        ${done   ? `<span style="color:var(--text2)">${done} uploaded</span>` : ''}
-        ${errors ? `<span style="color:var(--err)">✗ ${errors} failed</span>` : ''}
-        <div style="flex:1"></div>
-        <button class="btn btn-outline btn-sm" onclick="clearStagingDone()">Dismiss</button>
-      </div>`
-  } else if (uploading || completed > 0) {
-    statusBar = `
-      <div class="upload-progress-wrap">
-        <div class="upload-progress-header">
-          <svg class="upload-spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-          <span class="upload-progress-text">Uploading…</span>
-          <span class="upload-progress-pct">${pct}%</span>
-        </div>
-        <div class="upload-progress-track">
-          <div class="upload-progress-fill" style="width:${pct}%"></div>
-        </div>
-      </div>`
-  }
-
   area.innerHTML = `
     <div class="section-divider" style="margin-top:28px">Uploading</div>
-    <div class="pair-grid">${bulkPairs.map(pairCardHTML).join('')}</div>
-    ${statusBar}
+    <div class="pair-grid" style="padding-bottom:28px">${bulkPairs.map(pairCardHTML).join('')}</div>
   `
+}
+
+// ── Nav upload bar ────────────────────────────────────────────────────────────
+function showNavUpload (pct) {
+  const bar = document.getElementById('nav-upload')
+  if (!bar) return
+  bar.style.display = 'flex'
+  document.getElementById('nav-upload-spin').style.display = 'block'
+  document.getElementById('nav-upload-text').textContent = 'Uploading…'
+  document.getElementById('nav-upload-pct').textContent  = pct + '%'
+  document.getElementById('nav-upload-fill').style.width = pct + '%'
+}
+
+function completeNavUpload (successCount) {
+  const bar = document.getElementById('nav-upload')
+  if (!bar) return
+  document.getElementById('nav-upload-spin').style.display = 'none'
+  document.getElementById('nav-upload-text').textContent =
+    `✓ ${successCount} artwork${successCount !== 1 ? 's' : ''} uploaded`
+  document.getElementById('nav-upload-pct').textContent  = ''
+  document.getElementById('nav-upload-fill').style.width = '100%'
+  setTimeout(() => { bar.style.display = 'none' }, 3000)
 }
 
 function pairCardHTML (p) {
@@ -1108,13 +1106,6 @@ function pairCardHTML (p) {
         ${p.error ? `<div class="pair-error">${esc(p.error)}</div>` : ''}
       </div>
     </div>`
-}
-
-function clearStagingDone () {
-  bulkPairs.filter(p => p.status === 'done' || p.status === 'error')
-           .forEach(p => { if (p.thumbUrl) URL.revokeObjectURL(p.thumbUrl) })
-  bulkPairs = bulkPairs.filter(p => p.status !== 'done' && p.status !== 'error')
-  renderStagingArea()
 }
 
 // ── Customer CRUD ─────────────────────────────────────────────────────────────
@@ -1284,18 +1275,42 @@ function buildPairFromFiles (folderName, files) {
   return makePair(folderName, image, video)
 }
 
+function commonPrefix (a, b) {
+  let i = 0
+  while (i < a.length && i < b.length && a[i] === b[i]) i++
+  return a.slice(0, i)
+}
+
 function pairIndividualFiles (files) {
-  const byStem = {}
-  for (const f of files) {
-    const stem = f.name.replace(/\.[^.]+$/, '')
-    const key  = stem.toLowerCase()
-    if (!byStem[key]) byStem[key] = { name: stem }
-    if (/\.(png|jpe?g|webp)$/i.test(f.name)) byStem[key].image = f
-    if (/\.mp4$/i.test(f.name))               byStem[key].video = f
+  const images = files.filter(f => /\.(png|jpe?g|webp)$/i.test(f.name))
+  const videos = files.filter(f => /\.mp4$/i.test(f.name))
+
+  // Score every image×video combination by shared prefix length
+  const candidates = []
+  for (const img of images) {
+    const imgStem = img.name.replace(/\.[^.]+$/, '').toLowerCase()
+    for (const vid of videos) {
+      const vidStem = vid.name.replace(/\.[^.]+$/, '').toLowerCase()
+      const prefix  = commonPrefix(imgStem, vidStem)
+      // Require prefix to cover at least 50% of both names
+      if (prefix.length >= imgStem.length * 0.5 &&
+          prefix.length >= vidStem.length * 0.5) {
+        candidates.push({ img, vid, prefix, len: prefix.length })
+      }
+    }
   }
-  return Object.values(byStem)
-    .filter(v => v.image && v.video)
-    .map(v => makePair(v.name, v.image, v.video))
+  // Greedily pick best-scoring pairs first
+  candidates.sort((a, b) => b.len - a.len)
+  const usedImgs = new Set()
+  const usedVids = new Set()
+  const pairs    = []
+  for (const { img, vid, prefix } of candidates) {
+    if (usedImgs.has(img) || usedVids.has(vid)) continue
+    usedImgs.add(img); usedVids.add(vid)
+    const name = prefix.replace(/[-_\s]+$/, '') || img.name.replace(/\.[^.]+$/, '')
+    pairs.push(makePair(name, img, vid))
+  }
+  return pairs
 }
 
 function makePair (name, imageFile, videoFile) {
@@ -1329,8 +1344,11 @@ async function uploadAllPairs () {
   const pending = bulkPairs.filter(p => p.status === 'pending')
   if (!pending.length) return
 
+  const total      = pending.length
   let successCount = 0
   let errorCount   = 0
+
+  showNavUpload(0)
 
   for (const pair of pending) {
     pair.status = 'uploading'
@@ -1355,14 +1373,16 @@ async function uploadAllPairs () {
       errorCount++
     }
 
+    showNavUpload(Math.round(((successCount + errorCount) / total) * 100))
     renderStagingArea()
   }
 
-  if (successCount) {
-    renderMain('artworks')
-    renderSidebar()
-  }
-  if (errorCount) toast(`${errorCount} upload${errorCount !== 1 ? 's' : ''} failed`, 'err')
+  bulkPairs = []
+  renderMain('artworks')
+  renderSidebar()
+
+  if (successCount) completeNavUpload(successCount)
+  if (errorCount)   toast(`${errorCount} upload${errorCount !== 1 ? 's' : ''} failed`, 'err')
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
