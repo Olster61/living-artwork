@@ -12,10 +12,11 @@
  *                    { type: 'error',    message, stack }
  */
 
-import { readFile } from 'fs/promises'
+import { readFile, writeFile } from 'fs/promises'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import os from 'os'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const require   = createRequire(import.meta.url)
@@ -124,8 +125,11 @@ async function compile (imagePaths) {
   const buffer = compiler.exportData()
   log(`Export done: ${buffer.byteLength} bytes (${(buffer.byteLength / 1024).toFixed(0)} KB)`)
 
-  // Send as a plain Array so it survives JSON serialisation over IPC
-  process.send({ type: 'done', data: Array.from(new Uint8Array(buffer)) })
+  // Write to a temp file and send the path — avoids serialising megabytes of binary over IPC
+  const outPath = path.join(os.tmpdir(), `mind-${Date.now()}.mind`)
+  await writeFile(outPath, Buffer.from(buffer))
+  log(`Written to temp file: ${outPath}`)
+  process.send({ type: 'done', path: outPath })
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -211,7 +211,7 @@ app.delete('/api/artwork/:id', async (req, res) => {
   res.json({ success: true })
 })
 
-// POST /api/compile/:slug  — server-side compilation via headless Chrome + MindAR
+// POST /api/compile/:slug  — server-side compilation via Node.js child process + MindAR
 app.post('/api/compile/:slug', async (req, res) => {
   const { slug } = req.params
   console.log(`\n━━━ /api/compile/${slug} ━━━`)
@@ -255,6 +255,33 @@ app.post('/api/compile/:slug', async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+
+// POST /api/compile/:slug/upload  — accept a pre-compiled .mind file (fallback for slow servers)
+app.post('/api/compile/:slug/upload',
+  upload.single('mind'),
+  async (req, res) => {
+    const { slug } = req.params
+    console.log(`\n━━━ /api/compile/${slug}/upload ━━━`)
+
+    if (!req.file) return res.status(400).json({ error: 'mind file required (field name: mind)' })
+
+    const { data: customer, error: custErr } = await supabase
+      .from('customers').select('id').eq('slug', slug).single()
+    if (custErr || !customer) return res.status(404).json({ error: 'Customer not found' })
+
+    const mindPath = `customers/${slug}/targets.mind`
+    const mindBlob = new Blob([req.file.buffer], { type: 'application/octet-stream' })
+    const { error: uploadErr } = await supabase.storage.from('minds')
+      .upload(mindPath, mindBlob, { contentType: 'application/octet-stream', upsert: true })
+    if (uploadErr) return res.status(500).json({ error: uploadErr.message })
+
+    const mindUrl = publicUrl('minds', mindPath)
+    await supabase.from('artworks').update({ mind_url: mindUrl }).eq('customer_id', customer.id)
+
+    console.log(`Uploaded .mind → ${mindUrl}`)
+    res.json({ success: true, mindUrl })
+  }
+)
 
 const COMPILE_TIMEOUT = 120_000  // 2 minutes
 
@@ -311,13 +338,20 @@ async function compileWithMindAR (imageUrls) {
             }
             break
           }
-          case 'done':
+          case 'done': {
             process.stdout.write('\n')
-            console.log(`${ts()} [compiler] done — ${(msg.data.length / 1024).toFixed(0)} KB`)
             clearTimeout(timeout)
             child.kill()
-            resolve(Buffer.from(msg.data))
+            // Compiler wrote output to a temp file to avoid a multi-MB IPC payload
+            fsp.readFile(msg.path)
+              .then(buf => {
+                console.log(`${ts()} [compiler] done — ${(buf.length / 1024).toFixed(0)} KB`)
+                fsp.unlink(msg.path).catch(() => {})
+                resolve(buf)
+              })
+              .catch(reject)
             break
+          }
           case 'error':
             process.stdout.write('\n')
             console.error(`${ts()} [compiler] ERROR:`, msg.message)
