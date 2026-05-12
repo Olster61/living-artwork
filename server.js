@@ -60,28 +60,24 @@ function normalize10 (value, min, max) {
 }
 
 async function analyseTrackability (imageBuffer) {
-  const grayPipeline = sharp(imageBuffer).flatten({ background: '#ffffff' }).greyscale()
-  const stats = await grayPipeline.clone().stats()
+  const baseImg = sharp(imageBuffer).flatten({ background: '#ffffff' })
 
-  // Feature Points: sharpness (Laplacian-based edge strength)
-  const score_features = normalize10(stats.sharpness || 0, 0, 300)
+  // Run greyscale stats, colour stats, and raw tile buffer in parallel
+  const [grayStats, colStats, { data: rawBuf, info }] = await Promise.all([
+    baseImg.clone().greyscale().stats(),
+    baseImg.clone().stats(),
+    baseImg.clone()
+      .greyscale()
+      .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+  ])
 
-  // Contrast: standard deviation of greyscale channel
-  const score_contrast = normalize10(stats.channels[0].stdev, 0, 70)
-
-  // Uniqueness: Shannon entropy
-  const score_uniqueness = normalize10(stats.entropy, 1, 8)
-
-  // Distribution: count of 4×4 grid tiles that have texture
-  const { data: rawBuf, info } = await grayPipeline.clone()
-    .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
-    .raw()
-    .toBuffer({ resolveWithObject: true })
-
+  // Build per-tile stdev across a 4×4 grid
   const gridSize = 4
   const tileW = Math.floor(info.width / gridSize)
   const tileH = Math.floor(info.height / gridSize)
-  let tilesWithTexture = 0
+  const tileStdevs = []
 
   for (let gy = 0; gy < gridSize; gy++) {
     for (let gx = 0; gx < gridSize; gx++) {
@@ -94,12 +90,32 @@ async function analyseTrackability (imageBuffer) {
       }
       if (cnt > 0) {
         const mean = sum / cnt
-        if (Math.sqrt(Math.max(0, sumSq / cnt - mean * mean)) > 18) tilesWithTexture++
+        tileStdevs.push(Math.sqrt(Math.max(0, sumSq / cnt - mean * mean)))
       }
     }
   }
 
-  const score_distribution = normalize10(tilesWithTexture, 2, 14)
+  const meanTileStdev    = tileStdevs.reduce((a, b) => a + b, 0) / tileStdevs.length
+  const tilesWithTexture = tileStdevs.filter(s => s > 18).length
+
+  // Feature Points: √(mean tile stdev) captures edge density across the image.
+  // sqrt compresses the range so white-background illustrations aren't harshly penalised
+  // while still differentiating sparse from dense images. Calibrated: sparse~4, dense~9.
+  const score_features = normalize10(Math.sqrt(meanTileStdev), 1, 7)
+
+  // Distribution: count of 4×4 grid tiles that contain texture (stdev > 18)
+  const score_distribution = normalize10(tilesWithTexture, 1, 14)
+
+  // Contrast: standard deviation of greyscale channel
+  const score_contrast = normalize10(grayStats.channels[0].stdev, 10, 80)
+
+  // Uniqueness: mean colour-channel stdev — rewards colour variety over greyscale flatness
+  const chans = colStats.channels
+  const meanColStdev = chans.length >= 3
+    ? (chans[0].stdev + chans[1].stdev + chans[2].stdev) / 3
+    : chans[0].stdev
+  const score_uniqueness = normalize10(meanColStdev, 10, 70)
+
   const score_total = Math.round((score_features + score_distribution + score_contrast + score_uniqueness) / 4)
 
   return { score_features, score_distribution, score_contrast, score_uniqueness, score_total }
