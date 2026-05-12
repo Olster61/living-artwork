@@ -1364,11 +1364,10 @@ async function publishTargets () {
     const images = await Promise.all(artworks.map(a => loadImage(a.trigger_url)))
 
     // 3. Compile in-browser using MindAR
-    showPubNav(15, 'Compiling…  0%')
+    showPubNav(15, 'Compiling…')
     const compiler = new MINDAR.IMAGE.Compiler()
     await compiler.compileImageTargets(images, progress => {
-      const p = Math.round(progress)
-      showPubNav(15 + Math.round(p * 0.75), `Compiling…  ${p}%`)
+      showPubNav(15 + Math.round(progress * 0.75), 'Compiling…')
     })
 
     // 4. Export compiled buffer
