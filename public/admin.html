@@ -696,6 +696,38 @@
     animation: spin 0.7s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── SCORE STAR ── */
+  .score-star-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: none; border: none; cursor: pointer; padding: 1px;
+    border-radius: 4px; transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  .score-star-btn:hover { transform: scale(1.15); }
+
+  /* Small play button */
+  .btn-play { padding: 5px 9px; flex-shrink: 0; }
+
+  /* Score panel */
+  .score-panel {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .score-row {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 6px;
+  }
+  .score-row:last-child { margin-bottom: 0; }
+  .score-label { font-size: 10px; color: var(--text2); width: 90px; flex-shrink: 0; }
+  .score-val { font-size: 10px; font-weight: 600; width: 28px; text-align: right; flex-shrink: 0; }
+  .score-bar-track {
+    flex: 1; height: 3px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 2px; overflow: hidden;
+  }
+  .score-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
 </style>
 </head>
 <body>
@@ -979,6 +1011,31 @@ function renderArtworksHTML () {
   return `<div class="artworks-grid">${artworks.map(artworkCardHTML).join('')}</div>`
 }
 
+function starColor (score) {
+  if (score == null) return '#444'
+  if (score >= 8) return '#4caf50'
+  if (score >= 5) return '#ff9800'
+  return '#f44336'
+}
+
+function scorePanelHTML (a) {
+  const rows = [
+    ['Feature Points', a.score_features],
+    ['Distribution',   a.score_distribution],
+    ['Contrast',       a.score_contrast],
+    ['Uniqueness',     a.score_uniqueness]
+  ]
+  return rows.map(([label, val]) => {
+    const pct   = val != null ? val / 10 * 100 : 0
+    const color = val != null ? starColor(val) : '#444'
+    return `<div class="score-row">
+      <span class="score-label">${label}</span>
+      <span class="score-val" style="color:${color}">${val != null ? val + '/10' : '—'}</span>
+      <div class="score-bar-track"><div class="score-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>`
+  }).join('')
+}
+
 function artworkCardHTML (a) {
   const thumb = a.trigger_url
     ? `<img class="card-thumb" src="${esc(a.trigger_url)}" alt="${esc(a.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
@@ -989,6 +1046,26 @@ function artworkCardHTML (a) {
     </svg>
   </div>`
 
+  const score    = a.score_total
+  const sc       = starColor(score)
+  const scoreNum = score != null ? Math.round(score) : '?'
+  const fontSize = scoreNum === 10 ? 5 : 7
+
+  const starBtn = `<button class="score-star-btn" onclick="toggleScorePanel('${a.id}')" title="Trackability score: ${scoreNum}/10">
+    <svg width="28" height="28" viewBox="0 0 24 24">
+      <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"
+        fill="${sc}" stroke="${sc}" stroke-width="0.5"/>
+      <text x="12" y="13" text-anchor="middle" dominant-baseline="middle"
+        fill="white" font-size="${fontSize}" font-weight="800" font-family="Arial,sans-serif">${scoreNum}</text>
+    </svg>
+  </button>`
+
+  const playBtn = a.video_url
+    ? `<a href="${esc(a.video_url)}" target="_blank" class="btn btn-outline btn-play" title="Play video">
+        <svg width="9" height="10" viewBox="0 0 9 10" fill="currentColor"><polygon points="0,0 9,5 0,10"/></svg>
+      </a>`
+    : ''
+
   return `
     <div class="artwork-card" data-id="${a.id}">
       ${thumb}${placeholder}
@@ -996,8 +1073,12 @@ function artworkCardHTML (a) {
         <div class="card-name">${esc(a.name)}</div>
         <div class="card-slug">${esc(a.slug)}</div>
         <div class="card-actions">
-          ${a.video_url ? `<a href="${esc(a.video_url)}" target="_blank" class="btn btn-outline btn-sm" style="flex:1;justify-content:center">▶ Video</a>` : ''}
-          <button class="btn btn-danger" onclick="deleteArtwork('${a.id}','${esc(a.name)}')">Delete</button>
+          ${starBtn}
+          ${playBtn}
+          <button class="btn btn-danger" style="margin-left:auto" onclick="deleteArtwork('${a.id}','${esc(a.name)}')">Delete</button>
+        </div>
+        <div class="score-panel" id="score-panel-${a.id}" style="display:none">
+          ${scorePanelHTML(a)}
         </div>
       </div>
     </div>
@@ -1383,6 +1464,12 @@ async function uploadAllPairs () {
 
   if (successCount) completeNavUpload(successCount)
   if (errorCount)   toast(`${errorCount} upload${errorCount !== 1 ? 's' : ''} failed`, 'err')
+}
+
+// ── Score panel ───────────────────────────────────────────────────────────────
+function toggleScorePanel (id) {
+  const panel = document.getElementById('score-panel-' + id)
+  if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none'
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────

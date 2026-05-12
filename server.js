@@ -1,3 +1,4 @@
+require('dotenv').config()
 const express = require('express')
 const multer = require('multer')
 const { createClient } = require('@supabase/supabase-js')
@@ -6,6 +7,7 @@ const cors = require('cors')
 const path = require('path')
 const os = require('os')
 const fsp = require('fs/promises')
+const sharp = require('sharp')
 
 const SUPABASE_URL    = process.env.SUPABASE_URL
 const SUPABASE_SECRET = process.env.SUPABASE_SECRET
@@ -48,6 +50,59 @@ async function initBuckets () {
 function publicUrl (bucket, storagePath) {
   const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath)
   return data.publicUrl
+}
+
+// ── Trackability scoring ──────────────────────────────────────────────────────
+
+function normalize10 (value, min, max) {
+  const clamped = Math.max(min, Math.min(max, value))
+  return Math.max(1, Math.min(10, Math.round(((clamped - min) / (max - min)) * 9 + 1)))
+}
+
+async function analyseTrackability (imageBuffer) {
+  const grayPipeline = sharp(imageBuffer).flatten({ background: '#ffffff' }).greyscale()
+  const stats = await grayPipeline.clone().stats()
+
+  // Feature Points: sharpness (Laplacian-based edge strength)
+  const score_features = normalize10(stats.sharpness || 0, 0, 300)
+
+  // Contrast: standard deviation of greyscale channel
+  const score_contrast = normalize10(stats.channels[0].stdev, 0, 70)
+
+  // Uniqueness: Shannon entropy
+  const score_uniqueness = normalize10(stats.entropy, 1, 8)
+
+  // Distribution: count of 4×4 grid tiles that have texture
+  const { data: rawBuf, info } = await grayPipeline.clone()
+    .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  const gridSize = 4
+  const tileW = Math.floor(info.width / gridSize)
+  const tileH = Math.floor(info.height / gridSize)
+  let tilesWithTexture = 0
+
+  for (let gy = 0; gy < gridSize; gy++) {
+    for (let gx = 0; gx < gridSize; gx++) {
+      let sum = 0, sumSq = 0, cnt = 0
+      for (let y = gy * tileH; y < Math.min((gy + 1) * tileH, info.height); y++) {
+        for (let x = gx * tileW; x < Math.min((gx + 1) * tileW, info.width); x++) {
+          const v = rawBuf[y * info.width + x]
+          sum += v; sumSq += v * v; cnt++
+        }
+      }
+      if (cnt > 0) {
+        const mean = sum / cnt
+        if (Math.sqrt(Math.max(0, sumSq / cnt - mean * mean)) > 18) tilesWithTexture++
+      }
+    }
+  }
+
+  const score_distribution = normalize10(tilesWithTexture, 2, 14)
+  const score_total = Math.round((score_features + score_distribution + score_contrast + score_uniqueness) / 4)
+
+  return { score_features, score_distribution, score_contrast, score_uniqueness, score_total }
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -155,12 +210,39 @@ app.post('/api/artwork/upload',
     const videoUrl   = publicUrl('artworks', `${basePath}/video.mp4`)
     console.log('Public URLs:', { triggerUrl, videoUrl })
 
+    // Analyse trackability scores from trigger image
+    let scores = {}
+    try {
+      scores = await analyseTrackability(triggerFile.buffer)
+      console.log('Trackability scores:', scores)
+    } catch (e) {
+      console.warn('Score analysis failed:', e.message)
+    }
+
     console.log('Inserting artwork record...')
-    const { data: artwork, error: artErr } = await supabase
+    const insertData = {
+      customer_id: customer.id,
+      name: artwork_name,
+      slug: artwork_slug,
+      trigger_url: triggerUrl,
+      video_url: videoUrl,
+      ...scores
+    }
+
+    let { data: artwork, error: artErr } = await supabase
       .from('artworks')
-      .insert({ customer_id: customer.id, name: artwork_name, slug: artwork_slug, trigger_url: triggerUrl, video_url: videoUrl })
+      .insert(insertData)
       .select()
       .single()
+
+    if (artErr && artErr.message.includes('column') && Object.keys(scores).length > 0) {
+      // Score columns not yet in DB — retry without scores
+      console.warn('Score columns missing — run migrations/add_scores.sql. Retrying without scores...')
+      const { score_features, score_distribution, score_contrast, score_uniqueness, score_total, ...baseData } = insertData
+      const retry = await supabase.from('artworks').insert(baseData).select().single()
+      artErr = retry.error
+      artwork = retry.data
+    }
 
     if (artErr) {
       console.log('ERROR: artwork DB insert failed:', JSON.stringify(artErr, null, 2))
@@ -262,21 +344,49 @@ app.post('/api/compile/:slug/upload',
   async (req, res) => {
     const { slug } = req.params
     console.log(`\n━━━ /api/compile/${slug}/upload ━━━`)
+    console.log('SUPABASE_URL:', SUPABASE_URL)
+    console.log('SUPABASE_SECRET set:', !!SUPABASE_SECRET)
 
     if (!req.file) return res.status(400).json({ error: 'mind file required (field name: mind)' })
+    console.log(`File: ${req.file.originalname}, ${(req.file.size / 1024).toFixed(1)} KB, ${req.file.mimetype}`)
 
     const { data: customer, error: custErr } = await supabase
       .from('customers').select('id').eq('slug', slug).single()
-    if (custErr || !customer) return res.status(404).json({ error: 'Customer not found' })
+    if (custErr || !customer) {
+      console.log('ERROR: customer lookup failed:', custErr)
+      return res.status(404).json({ error: 'Customer not found' })
+    }
+    console.log('Customer found, id:', customer.id)
 
     const mindPath = `customers/${slug}/targets.mind`
+    console.log(`Uploading to bucket 'minds' path: ${mindPath}`)
     const mindBlob = new Blob([req.file.buffer], { type: 'application/octet-stream' })
-    const { error: uploadErr } = await supabase.storage.from('minds')
+    const { data: uploadData, error: uploadErr } = await supabase.storage.from('minds')
       .upload(mindPath, mindBlob, { contentType: 'application/octet-stream', upsert: true })
-    if (uploadErr) return res.status(500).json({ error: uploadErr.message })
+
+    if (uploadErr) {
+      console.log('ERROR: .mind upload failed')
+      console.log('  name:', uploadErr.name)
+      console.log('  message:', uploadErr.message)
+      console.log('  status:', uploadErr.status)
+      console.log('  statusCode:', uploadErr.statusCode)
+      // Walk the cause chain — "fetch failed" errors nest the real reason here
+      let cause = uploadErr.cause
+      let depth = 0
+      while (cause) {
+        console.log(`  cause[${depth}]:`, cause?.message ?? cause)
+        cause = cause?.cause
+        depth++
+      }
+      console.log('  full:', JSON.stringify(uploadErr, Object.getOwnPropertyNames(uploadErr), 2))
+      return res.status(500).json({ error: uploadErr.message })
+    }
+    console.log('Upload OK:', uploadData?.path)
 
     const mindUrl = publicUrl('minds', mindPath)
-    await supabase.from('artworks').update({ mind_url: mindUrl }).eq('customer_id', customer.id)
+    console.log('Public URL:', mindUrl)
+    const { error: updateErr } = await supabase.from('artworks').update({ mind_url: mindUrl }).eq('customer_id', customer.id)
+    if (updateErr) console.log('WARN: mind_url update failed:', updateErr.message)
 
     console.log(`Uploaded .mind → ${mindUrl}`)
     res.json({ success: true, mindUrl })
