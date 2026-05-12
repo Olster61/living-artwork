@@ -811,45 +811,6 @@
   </div>
 </div>
 
-<!-- MODAL: Add Artwork -->
-<div class="modal-overlay" id="artwork-modal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">Add Artwork</div>
-      <button class="modal-close" onclick="closeModal('artwork-modal')">✕</button>
-    </div>
-    <div class="form-group">
-      <label>Artwork Name</label>
-      <input type="text" id="art-name" placeholder="e.g. Owl in Flight" autocomplete="off">
-    </div>
-    <div class="form-group">
-      <label>Slug <span style="color:var(--text3);font-weight:300;text-transform:none;letter-spacing:0;">(auto-generated)</span></label>
-      <input type="text" id="art-slug" placeholder="e.g. owl-in-flight" autocomplete="off">
-    </div>
-    <div class="form-group">
-      <label>Trigger Image <span style="color:var(--text3);font-weight:300;text-transform:none;letter-spacing:0;">(PNG/JPG — the AR marker)</span></label>
-      <div class="drop-zone" id="trigger-dropzone">
-        <input type="file" id="art-trigger" accept="image/*" onchange="handleFileSelect(this,'trigger-dropzone','trigger-file-name')">
-        <div class="drop-zone-icon">🖼</div>
-        <div class="drop-zone-label">Drop image here or click to browse</div>
-        <div class="drop-zone-file" id="trigger-file-name"></div>
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Video <span style="color:var(--text3);font-weight:300;text-transform:none;letter-spacing:0;">(MP4 — plays on trigger)</span></label>
-      <div class="drop-zone" id="video-dropzone">
-        <input type="file" id="art-video" accept="video/mp4" onchange="handleFileSelect(this,'video-dropzone','video-file-name')">
-        <div class="drop-zone-icon">🎬</div>
-        <div class="drop-zone-label">Drop MP4 here or click to browse</div>
-        <div class="drop-zone-file" id="video-file-name"></div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal('artwork-modal')">Cancel</button>
-      <button class="btn btn-gold" id="art-submit-btn" onclick="submitArtwork()">Upload Artwork</button>
-    </div>
-  </div>
-</div>
 
 <!-- COMPILE OVERLAY -->
 <div class="compile-overlay" id="compile-overlay">
@@ -974,7 +935,7 @@ function renderMain (state, msg) {
           </svg>
           Publish
         </button>
-        <button class="btn btn-gold btn-sm" onclick="openModal('artwork-modal')">
+        <button class="btn btn-gold btn-sm" onclick="openArtworkFilePicker()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Add Artwork
         </button>
@@ -1006,7 +967,7 @@ function renderArtworksHTML () {
         </svg>
         <p>No artworks yet</p>
         <span>Drop files onto this area or use Add Artwork to get started</span>
-        <button class="btn btn-gold" style="margin-top:8px" onclick="openModal('artwork-modal')">Add First Artwork</button>
+        <button class="btn btn-gold" style="margin-top:8px" onclick="openArtworkFilePicker()">Add First Artwork</button>
       </div>
     `
   }
@@ -1226,62 +1187,24 @@ async function submitCustomer () {
 }
 
 // ── Artwork CRUD ──────────────────────────────────────────────────────────────
-document.getElementById('art-name').addEventListener('input', function () {
-  const slug = document.getElementById('art-slug')
-  if (!slug.dataset.manual) slug.value = slugify(this.value)
-})
-document.getElementById('art-slug').addEventListener('input', function () {
-  this.dataset.manual = this.value ? '1' : ''
-})
-
-function handleFileSelect (input, zoneId, labelId) {
-  const file = input.files[0]
-  document.getElementById(labelId).textContent = file ? file.name : ''
-}
-
-async function submitArtwork () {
-  if (!currentCustomer) return
-  const name = document.getElementById('art-name').value.trim()
-  const slug = document.getElementById('art-slug').value.trim()
-  const trigger = document.getElementById('art-trigger').files[0]
-  const video = document.getElementById('art-video').files[0]
-
-  if (!name || !slug) { toast('Name and slug required', 'err'); return }
-  if (!trigger) { toast('Trigger image required', 'err'); return }
-  if (!video)   { toast('Video (MP4) required', 'err'); return }
-
-  const btn = document.getElementById('art-submit-btn')
-  btn.disabled = true; btn.textContent = 'Uploading…'
-
-  try {
-    const fd = new FormData()
-    fd.append('customer_slug', currentCustomer.slug)
-    fd.append('artwork_name', name)
-    fd.append('artwork_slug', slug)
-    fd.append('trigger', trigger)
-    fd.append('video', video)
-
-    const artwork = await api('POST', '/api/artwork/upload', fd)
-    artworks.push(artwork)
-    artworkCounts[currentCustomer.id] = (artworkCounts[currentCustomer.id] || 0) + 1
-
-    closeModal('artwork-modal')
-    document.getElementById('art-name').value = ''
-    document.getElementById('art-slug').value = ''
-    delete document.getElementById('art-slug').dataset.manual
-    document.getElementById('art-trigger').value = ''
-    document.getElementById('art-video').value = ''
-    document.getElementById('trigger-file-name').textContent = ''
-    document.getElementById('video-file-name').textContent = ''
-
-    renderMain('artworks')
-    renderSidebar()
-    toast(`"${name}" uploaded`, 'ok')
-  } catch (e) {
-    toast(e.message, 'err')
-  } finally {
-    btn.disabled = false; btn.textContent = 'Upload Artwork'
+function openArtworkFilePicker () {
+  if (!currentCustomer) { toast('Select a customer first', 'err'); return }
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.multiple = true
+  input.accept = 'image/*,video/mp4,.mp4'
+  input.onchange = () => {
+    if (!input.files.length) return
+    const files = Array.from(input.files)
+    const pairs = pairIndividualFiles(files)
+    const unpaired = files.filter(f => !pairs.some(p => p.triggerFile === f || p.videoFile === f))
+    pairs.forEach(p => bulkPairs.push(p))
+    if (unpaired.length) toast(`${unpaired.length} file(s) had no matching pair and were skipped`, 'info')
+    if (!pairs.length) { toast('No matching image/video pairs found', 'err'); return }
+    renderStagingArea()
+    uploadAllPairs()
   }
+  input.click()
 }
 
 async function deleteArtwork (id, name) {
