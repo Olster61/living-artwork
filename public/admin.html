@@ -968,9 +968,11 @@ function renderMain (state, msg) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           Copy .mind URL
         </button>
-        <button class="btn btn-outline btn-sm" onclick="compileTargets()" id="compile-btn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>
-          Compile Targets
+        <button class="btn btn-gold btn-sm" onclick="publishTargets()" id="publish-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+          Publish
         </button>
         <button class="btn btn-gold btn-sm" onclick="openModal('artwork-modal')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1296,35 +1298,102 @@ async function deleteArtwork (id, name) {
   }
 }
 
-// ── Compile ───────────────────────────────────────────────────────────────────
-async function compileTargets () {
-  if (!currentCustomer) return
-  if (!artworks.length) { toast('No artworks to compile', 'err'); return }
+// ── Publish (browser-side MindAR compilation + upload) ───────────────────────
+let _publishing = false
+let _pubNavTimer = null
 
-  showCompileOverlay('Compiling AR targets on server…')
+function loadScript (src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${CSS.escape ? src : src}"]`)) { resolve(); return }
+    const s = document.createElement('script')
+    s.src = src
+    s.onload  = resolve
+    s.onerror = () => reject(new Error('Failed to load compiler script from CDN'))
+    document.head.appendChild(s)
+  })
+}
+
+function loadImage (url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload  = () => resolve(img)
+    img.onerror = () => reject(new Error('Could not load image: ' + url))
+    img.src = url
+  })
+}
+
+function showPubNav (pct, label) {
+  if (_pubNavTimer) { clearTimeout(_pubNavTimer); _pubNavTimer = null }
+  const bar = document.getElementById('nav-upload')
+  if (!bar) return
+  bar.style.display = 'flex'
+  document.getElementById('nav-upload-spin').style.display = 'block'
+  document.getElementById('nav-upload-text').textContent = label || 'Compiling…'
+  document.getElementById('nav-upload-pct').textContent  = pct + '%'
+  document.getElementById('nav-upload-fill').style.width = pct + '%'
+}
+
+function endPubNav (label, isError) {
+  const bar = document.getElementById('nav-upload')
+  if (!bar) return
+  document.getElementById('nav-upload-spin').style.display = 'none'
+  document.getElementById('nav-upload-text').textContent = label
+  document.getElementById('nav-upload-pct').textContent  = ''
+  document.getElementById('nav-upload-fill').style.width = isError ? '0%' : '100%'
+  _pubNavTimer = setTimeout(() => { bar.style.display = 'none' }, isError ? 3000 : 5000)
+}
+
+async function publishTargets () {
+  if (!currentCustomer || _publishing) return
+  if (!artworks.length) { toast('No artworks to publish', 'err'); return }
+
+  _publishing = true
+  const btn = document.getElementById('publish-btn')
+  if (btn) btn.disabled = true
+
+  const slug  = currentCustomer.slug
+  const count = artworks.length
 
   try {
-    const result = await api('POST', `/api/compile/${currentCustomer.slug}`)
-    hideCompileOverlay()
-    toast(`Compiled ${result.imageCount} target${result.imageCount !== 1 ? 's' : ''} ✓`, 'ok')
-    console.log('Mind URL:', result.mindUrl)
+    // 1. Load MindAR compiler from CDN (cached after first load)
+    showPubNav(2, 'Loading compiler…')
+    await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js')
+
+    // 2. Fetch all trigger images for this customer
+    showPubNav(8, `Fetching ${count} image${count !== 1 ? 's' : ''}…`)
+    const images = await Promise.all(artworks.map(a => loadImage(a.trigger_url)))
+
+    // 3. Compile in-browser using MindAR
+    showPubNav(15, 'Compiling…  0%')
+    const compiler = new MINDAR.IMAGE.Compiler()
+    await compiler.compileImageTargets(images, progress => {
+      const p = Math.round(progress)
+      showPubNav(15 + Math.round(p * 0.75), `Compiling…  ${p}%`)
+    })
+
+    // 4. Export compiled buffer
+    showPubNav(92, 'Exporting…')
+    const exportedBuffer = await compiler.exportData()
+
+    // 5. Upload targets.mind to Supabase via server
+    showPubNav(96, 'Uploading targets.mind…')
+    const fd = new FormData()
+    fd.append('mind', new Blob([exportedBuffer], { type: 'application/octet-stream' }), 'targets.mind')
+    await api('POST', `/api/compile/${slug}/upload`, fd)
+
+    // 6. Done
+    endPubNav(`Published! ${count} artwork${count !== 1 ? 's' : ''} live`)
+    toast(`Published — ${count} target${count !== 1 ? 's' : ''} live ✓`, 'ok')
+
   } catch (e) {
-    hideCompileOverlay()
-    toast('Compile failed: ' + e.message, 'err')
-    console.error(e)
+    endPubNav('Publish failed', true)
+    toast('Publish failed: ' + e.message, 'err')
+    console.error('Publish error:', e)
+  } finally {
+    _publishing = false
+    if (btn) btn.disabled = false
   }
-}
-
-function showCompileOverlay (status) {
-  document.getElementById('compile-overlay').classList.add('open')
-  document.getElementById('compile-status').textContent = status || 'Working…'
-  document.getElementById('progress-bar').style.width = '0%'
-  document.getElementById('progress-bar').style.animation = 'indeterminate 1.5s ease-in-out infinite'
-}
-
-function hideCompileOverlay () {
-  document.getElementById('compile-overlay').classList.remove('open')
-  document.getElementById('progress-bar').style.animation = ''
 }
 
 // ── Bulk pair logic ───────────────────────────────────────────────────────────
