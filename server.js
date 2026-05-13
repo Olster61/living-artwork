@@ -333,11 +333,10 @@ app.post('/api/compile/:slug', async (req, res) => {
     const mindBuffer = await compileWithMindAR(imageUrls)
     console.log(`Compiled OK — ${(mindBuffer.length / 1024).toFixed(0)} KB`)
 
-    // 3. Upload .mind file to Supabase
+    // 3. Upload .mind file to Supabase (pass Buffer directly — avoids flaky FormData+Blob path)
     const mindPath = `customers/${slug}/targets.mind`
-    const mindBlob = new Blob([mindBuffer], { type: 'application/octet-stream' })
     const { error: uploadErr } = await supabase.storage.from('minds')
-      .upload(mindPath, mindBlob, { contentType: 'application/octet-stream', upsert: true })
+      .upload(mindPath, mindBuffer, { contentType: 'application/octet-stream', upsert: true })
     if (uploadErr) throw new Error(`Storage upload failed: ${uploadErr.message}`)
 
     const mindUrl = publicUrl('minds', mindPath)
@@ -376,9 +375,10 @@ app.post('/api/compile/:slug/upload',
 
     const mindPath = `customers/${slug}/targets.mind`
     console.log(`Uploading to bucket 'minds' path: ${mindPath}`)
-    const mindBlob = new Blob([req.file.buffer], { type: 'application/octet-stream' })
+    // Pass Buffer directly — avoids the FormData+Blob wrapping the SDK applies to Blob
+    // inputs, which is the flaky code path in Node.js's undici-backed fetch.
     const { data: uploadData, error: uploadErr } = await supabase.storage.from('minds')
-      .upload(mindPath, mindBlob, { contentType: 'application/octet-stream', upsert: true })
+      .upload(mindPath, req.file.buffer, { contentType: 'application/octet-stream', upsert: true })
 
     if (uploadErr) {
       console.log('ERROR: .mind upload failed')
@@ -386,15 +386,13 @@ app.post('/api/compile/:slug/upload',
       console.log('  message:', uploadErr.message)
       console.log('  status:', uploadErr.status)
       console.log('  statusCode:', uploadErr.statusCode)
-      // Walk the cause chain — "fetch failed" errors nest the real reason here
-      let cause = uploadErr.cause
-      let depth = 0
-      while (cause) {
-        console.log(`  cause[${depth}]:`, cause?.message ?? cause)
-        cause = cause?.cause
-        depth++
+      // The SDK stores the underlying error on originalError, not cause
+      const orig = uploadErr.originalError
+      if (orig) {
+        console.log('  originalError:', orig?.message)
+        let c = orig?.cause; let d = 0
+        while (c) { console.log(`  cause[${d}]:`, c?.message ?? c); c = c?.cause; d++ }
       }
-      console.log('  full:', JSON.stringify(uploadErr, Object.getOwnPropertyNames(uploadErr), 2))
       return res.status(500).json({ error: uploadErr.message })
     }
     console.log('Upload OK:', uploadData?.path)
