@@ -697,6 +697,30 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ── CARD DELETE OVERLAY ── */
+  .card-thumb-wrap {
+    position: relative;
+  }
+  .card-delete-btn {
+    position: absolute;
+    top: 8px; right: 8px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(180,40,40,0.82);
+    border: none;
+    color: #fff;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .artwork-card:hover .card-delete-btn { opacity: 1; }
+  .card-delete-btn:hover { background: var(--err); }
+
   /* ── SCORE STAR ── */
   .score-star-btn {
     display: inline-flex; align-items: center; justify-content: center;
@@ -752,6 +776,12 @@
         <div class="upload-progress-fill" id="nav-upload-fill" style="width:0%"></div>
       </div>
     </div>
+    <button id="nav-upload-cancel" onclick="cancelUpload()"
+      style="flex-shrink:0;padding:3px 9px;font-size:11px;background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:var(--text2);cursor:pointer;font-family:'Inter',sans-serif;transition:border-color 0.15s,color 0.15s;"
+      onmouseover="this.style.borderColor='rgba(217,83,79,0.5)';this.style.color='var(--err)'"
+      onmouseout="this.style.borderColor='rgba(255,255,255,0.12)';this.style.color='var(--text2)'">
+      Cancel
+    </button>
   </div>
   <button class="btn btn-outline btn-sm" onclick="openModal('customer-modal')">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -832,6 +862,7 @@ let currentCustomer = null
 let artworks = []
 let artworkCounts = {}
 let bulkPairs = []   // [{id, name, slug, triggerFile, videoFile, thumbUrl, status, error}]
+let _uploadCancelled = false
 
 // ── API ───────────────────────────────────────────────────────────────────────
 async function api (method, url, body) {
@@ -1031,14 +1062,16 @@ function artworkCardHTML (a) {
 
   return `
     <div class="artwork-card" data-id="${a.id}">
-      ${thumb}${placeholder}
+      <div class="card-thumb-wrap">
+        ${thumb}${placeholder}
+        <button class="card-delete-btn" onclick="deleteArtwork('${a.id}','${esc(a.name)}')" title="Delete">✕</button>
+      </div>
       <div class="card-body">
         <div class="card-name">${esc(a.name)}</div>
         <div class="card-slug">${esc(a.slug)}</div>
         <div class="card-actions">
           ${starBtn}
           ${playBtn}
-          <button class="btn btn-danger" style="margin-left:auto" onclick="deleteArtwork('${a.id}','${esc(a.name)}')">Delete</button>
         </div>
         <div class="score-panel" id="score-panel-${a.id}" style="display:none">
           ${scorePanelHTML(a)}
@@ -1409,12 +1442,17 @@ function updatePairName (id, val) {
   if (p) { p.name = val.trim() || p.name; p.slug = slugify(p.name) }
 }
 
+function cancelUpload () {
+  _uploadCancelled = true
+}
+
 async function uploadAllPairs () {
   if (!currentCustomer) return
 
   const pending = bulkPairs.filter(p => p.status === 'pending')
   if (!pending.length) return
 
+  _uploadCancelled = false
   const total      = pending.length
   let successCount = 0
   let errorCount   = 0
@@ -1422,6 +1460,8 @@ async function uploadAllPairs () {
   showNavUpload(0)
 
   for (const pair of pending) {
+    if (_uploadCancelled) break
+
     pair.status = 'uploading'
     renderStagingArea()
 
@@ -1446,6 +1486,18 @@ async function uploadAllPairs () {
 
     showNavUpload(Math.round(((successCount + errorCount) / total) * 100))
     renderStagingArea()
+  }
+
+  if (_uploadCancelled) {
+    bulkPairs = bulkPairs.filter(p => p.status !== 'pending')
+    const bar = document.getElementById('nav-upload')
+    if (bar) bar.style.display = 'none'
+    document.getElementById('nav-upload-fill').style.width = '0%'
+    renderMain('artworks')
+    renderSidebar()
+    if (successCount) toast(`${successCount} artwork${successCount !== 1 ? 's' : ''} uploaded`, 'ok')
+    toast('Upload cancelled', 'info')
+    return
   }
 
   bulkPairs = []
