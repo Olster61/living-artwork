@@ -316,6 +316,7 @@
   let aframeLoaded    = false;
   let isVideoPlaying  = false;
   let gumOriginal     = null;
+  let loopHandler     = null;   // {vid, fn} — active timeupdate handler for seamless loop
 
   // ── DOM refs ────────────────────────────────────────────────
   const welcome      = document.getElementById('welcome');
@@ -363,17 +364,18 @@
         throw new Error('No artworks found. Add artworks via the admin panel first.');
       artworks = data.artworks;
 
-      // 2. Create one <video> element per artwork (ready before AR loads)
+      // 2. Create two <video> elements per artwork for seamless looping
       videoScreen.innerHTML = '';
       artworks.forEach((art, i) => {
-        const vid = document.createElement('video');
-        vid.id = 'video-' + i;
-        vid.loop = true;
-        vid.playsInline = true;
-        vid.setAttribute('playsinline', '');
-        vid.setAttribute('webkit-playsinline', '');
-        vid.preload = 'none';
-        videoScreen.appendChild(vid);
+        ['a', 'b'].forEach(slot => {
+          const vid = document.createElement('video');
+          vid.id = 'video-' + i + '-' + slot;
+          vid.playsInline = true;
+          vid.setAttribute('playsinline', '');
+          vid.setAttribute('webkit-playsinline', '');
+          vid.preload = 'auto';
+          videoScreen.appendChild(vid);
+        });
       });
 
       // 3. Download mind file → blob URL (avoids CORS in MindAR)
@@ -490,14 +492,16 @@
         requestAnimationFrame(() => requestAnimationFrame(() => {
           console.log('[AR] targetFound idx=' + idx);
 
-          // Pause any previously-active video
+          // Pause any previously-active video and clear seamless-loop handler
+          if (loopHandler) { loopHandler.vid.removeEventListener('timeupdate', loopHandler.fn); loopHandler = null; }
           document.querySelectorAll('#video-screen video').forEach(v => {
             if (!v.paused) v.pause();
             v.classList.remove('active');
           });
 
-          const vid = document.getElementById('video-' + idx);
-          if (vid) vid.classList.add('active');
+          const vidA = document.getElementById('video-' + idx + '-a');
+          const vidB = document.getElementById('video-' + idx + '-b');
+          if (vidA) vidA.classList.add('active');
 
           // Immediately show black screen + spinner for instant feedback
           scanOverlay.style.display  = 'none';
@@ -507,18 +511,60 @@
           isVideoPlaying = true;
           fireRings();
 
-          if (vid) {
-            vid.loop = true;
-            vid.src  = artworks[idx].video_url;
-            vid.load();
-            vid.addEventListener('loadeddata', function onLoaded() {
-              vid.removeEventListener('loadeddata', onLoaded);
+          if (vidA && vidB) {
+            const url = artworks[idx].video_url;
+            let current = vidA, next = vidB;
+
+            function switchToNext() {
+              next.classList.add('active');
+              current.classList.remove('active');
+              const prev = current;
+              current = next;
+              next = prev;
+              next.currentTime = 0;
+              next.load();
+            }
+
+            function setupLoop(vid) {
+              const fn = function() {
+                if (vid.duration && vid.currentTime >= vid.duration - 0.4) {
+                  vid.removeEventListener('timeupdate', fn);
+                  const ready = next.readyState >= 3;
+                  switchToNext();
+                  if (ready) {
+                    current.play().catch(() => {});
+                  } else {
+                    current.addEventListener('canplay', function onCan() {
+                      current.removeEventListener('canplay', onCan);
+                      current.play().catch(() => {});
+                    });
+                  }
+                  setupLoop(current);
+                }
+              };
+              loopHandler = { vid, fn };
+              vid.addEventListener('timeupdate', fn);
+            }
+
+            vidB.src = url;
+            vidB.load();
+
+            vidA.src = url;
+            vidA.load();
+            vidA.addEventListener('loadeddata', function onLoaded() {
+              vidA.removeEventListener('loadeddata', onLoaded);
               console.log('[AR] loadeddata → play() on video-' + idx);
-              vid.play()
-                .then(() => { videoSpinner.style.display = 'none'; })
+              vidA.play()
+                .then(() => {
+                  videoSpinner.style.display = 'none';
+                  setupLoop(vidA);
+                })
                 .catch(() => {
-                  vid.muted = true;
-                  vid.play().then(() => { videoSpinner.style.display = 'none'; });
+                  vidA.muted = true;
+                  vidA.play().then(() => {
+                    videoSpinner.style.display = 'none';
+                    setupLoop(vidA);
+                  });
                 });
             });
           }
@@ -547,10 +593,9 @@
   // During scanner: exit AR entirely and return to welcome.
   closeBtn.addEventListener('click', () => {
     if (isVideoPlaying) {
-      const vid = document.querySelector('#video-screen video.active');
+      if (loopHandler) { loopHandler.vid.removeEventListener('timeupdate', loopHandler.fn); loopHandler = null; }
       isVideoPlaying = false;
-      if (vid) { vid.pause(); vid.currentTime = 0; }
-      document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('#video-screen video').forEach(v => { if (!v.paused) v.pause(); v.classList.remove('active'); });
       videoSpinner.style.display = 'none';
       videoScreen.style.display  = 'none';
       cameraFeedEl.style.display = 'block';
