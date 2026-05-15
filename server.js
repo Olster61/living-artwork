@@ -779,6 +779,16 @@ app.delete('/api/smart-folders/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
+app.post('/api/smart-folders/:id/items', async (req, res) => {
+  const { id } = req.params
+  const { ideaIds = [] } = req.body
+  if (!ideaIds.length) return res.status(400).json({ error: 'ideaIds required' })
+  const rows = ideaIds.map(idea_id => ({ folder_id: id, idea_id }))
+  const { error } = await supabase.from('smart_folder_items').upsert(rows, { onConflict: 'folder_id,idea_id' })
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
 // ── Static / Admin page ───────────────────────────────────────────────────────
 
 app.use('/public', express.static(path.join(__dirname, 'public')))

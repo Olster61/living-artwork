@@ -234,19 +234,6 @@
     .folder-row:hover .folder-del { color: var(--text3); }
     .folder-del:hover { color: var(--err) !important; }
 
-    .new-folder-btn {
-      display: none;
-      margin: 6px 12px 0;
-      padding: 7px 12px;
-      background: var(--gold-bg);
-      border: 1px solid var(--gold-bdh);
-      border-radius: var(--radius-sm);
-      color: var(--gold-lt); font-size: 12px; font-weight: 500;
-      cursor: pointer; font-family: 'Inter', sans-serif;
-      transition: background 0.15s; text-align: center;
-    }
-    .new-folder-btn:hover { background: rgba(201,168,76,0.18); }
-
     /* ── Content area ─────────────────────────────────────── */
     .content-area {
       flex: 1; min-width: 0;
@@ -254,15 +241,42 @@
       display: flex; flex-direction: column;
     }
 
-    /* ── Selection bar ────────────────────────────────────── */
-    .sel-bar {
-      position: sticky; top: 0; z-index: 50;
-      background: var(--bg2); border-bottom: 1px solid var(--gold-bd);
-      padding: 8px 24px;
-      display: none; align-items: center; gap: 12px;
+    /* ── Selection toolbar (fixed bottom) ──────────────────── */
+    .sel-toolbar {
+      position: fixed;
+      bottom: 30px; left: 50%; transform: translateX(-50%) translateY(120px);
+      z-index: 500;
+      background: var(--bg2); border: 1px solid var(--gold-bd);
+      border-radius: 40px; padding: 10px 16px 10px 22px;
+      display: flex; align-items: center; gap: 12px;
       font-size: 13px; color: var(--text2);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.65);
+      opacity: 0; pointer-events: none;
+      transition: transform 0.25s cubic-bezier(.34,1.56,.64,1), opacity 0.2s;
     }
-    .sel-bar.on { display: flex; }
+    .sel-toolbar.on {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1; pointer-events: auto;
+    }
+
+    /* ── Folder dropdown ────────────────────────────────────── */
+    .folder-dropdown-wrap { position: relative; }
+    .folder-dropdown {
+      position: absolute; bottom: calc(100% + 8px); right: 0;
+      background: var(--bg2); border: 1px solid var(--gold-bd);
+      border-radius: var(--radius-sm); min-width: 210px;
+      padding: 4px 0;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55); z-index: 600;
+    }
+    .folder-dropdown[hidden] { display: none; }
+    .folder-dd-item {
+      display: block; width: 100%; text-align: left;
+      padding: 9px 14px; background: none; border: none;
+      color: var(--text2); font-size: 13px; font-family: 'Inter', sans-serif;
+      cursor: pointer; transition: background 0.12s, color 0.12s;
+    }
+    .folder-dd-item:hover { background: var(--gold-bg); color: var(--gold-lt); }
+    .folder-dd-divider { height: 1px; background: var(--gold-bd); margin: 4px 0; }
 
     /* ── Main layout ──────────────────────────────────────── */
     #main { padding: 28px 32px 120px; max-width: 1440px; margin: 0 auto; }
@@ -795,9 +809,7 @@
       opacity: 0; z-index: 2;
       transition: opacity 0.15s, border-color 0.15s, background 0.15s, color 0.15s;
     }
-    .idea-card:hover .card-sel,
-    .idea-card.sel   .card-sel { opacity: 1; }
-    .idea-card.sel   .card-sel { border-color: var(--gold); background: var(--gold); color: #111; }
+    .idea-card.sel .card-sel { opacity: 1; border-color: var(--gold); background: var(--gold); color: #111; }
     .idea-card.sel {
       border-color: var(--gold);
       box-shadow: 0 0 0 2px rgba(201,168,76,0.3);
@@ -901,15 +913,9 @@
 
     <div class="sidebar-label">Smart Folders</div>
     <div id="sidebar-folders"></div>
-    <button class="new-folder-btn" id="new-folder-btn">📁 + Smart Folder</button>
   </nav>
 
   <div class="content-area" id="content-area">
-    <div class="sel-bar" id="sel-bar">
-      <span id="sel-label">0 selected</span>
-      <button class="btn btn-outline" id="sel-clear" style="padding:5px 12px;font-size:12px">✕ Clear</button>
-      <button class="btn btn-gold" id="sel-folder-btn" style="padding:5px 12px;font-size:12px">📁 New Smart Folder</button>
-    </div>
     <div id="main"></div>
   </div>
 
@@ -1007,6 +1013,32 @@
 
 <!-- ── Toast ───────────────────────────────────────────────── -->
 <div id="toast"></div>
+
+<!-- ── Selection toolbar (fixed bottom) ───────────────────── -->
+<div class="sel-toolbar" id="sel-toolbar">
+  <span id="sel-label">0 selected</span>
+  <button class="btn btn-outline" id="sel-clear" style="padding:5px 12px;font-size:12px">✕ Clear</button>
+  <div class="folder-dropdown-wrap">
+    <div class="folder-dropdown" id="folder-dropdown" hidden></div>
+    <button class="btn btn-gold" id="sel-folder-btn" style="padding:5px 12px;font-size:12px">📁 Add to Folder</button>
+  </div>
+</div>
+
+<!-- ── New Smart Folder modal ─────────────────────────────── -->
+<div class="overlay" id="new-folder-overlay" hidden>
+  <div class="form-panel" style="max-width:380px">
+    <h2 class="modal-heading">New Smart Folder</h2>
+    <div class="form-group">
+      <label>Folder name <span style="color:var(--err)">*</span></label>
+      <input type="text" id="new-folder-input" placeholder="e.g. AR Concepts" maxlength="60">
+      <p id="new-folder-error" style="color:var(--err);font-size:12px;margin-top:6px;min-height:1.2em"></p>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" id="new-folder-cancel">Cancel</button>
+      <button class="btn btn-gold" id="new-folder-save">Create Folder</button>
+    </div>
+  </div>
+</div>
 
 <script>
   let categories = [];
@@ -1215,7 +1247,12 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       mainEl.innerHTML = `<div class="ideas-list">${filtered.map(listRowHTML).join('')}</div>`;
       mainEl.querySelectorAll('.list-row').forEach(el => {
         el.addEventListener('click', e => {
-          if (!e.target.closest('.star-btn')) openView(el.dataset.id);
+          if (e.target.closest('.star-btn')) return;
+          toggleCardSel(el);
+        });
+        el.addEventListener('dblclick', e => {
+          if (e.target.closest('.star-btn')) return;
+          openView(el.dataset.id);
         });
       });
     } else {
@@ -1246,7 +1283,12 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
       mainEl.querySelectorAll('.idea-card').forEach(el => {
         el.addEventListener('click', e => {
-          if (!e.target.closest('.star-btn')) openView(el.dataset.id);
+          if (e.target.closest('.star-btn')) return;
+          toggleCardSel(el);
+        });
+        el.addEventListener('dblclick', e => {
+          if (e.target.closest('.star-btn')) return;
+          openView(el.dataset.id);
         });
       });
     }
@@ -1267,19 +1309,6 @@ CREATE POLICY "allow all" ON ideas FOR ALL
         const id = btn.dataset.id;
         const newFav = btn.dataset.fav !== 'true';
         await toggleFavourite(id, newFav);
-      });
-    });
-
-    // Selection toggle handlers
-    mainEl.querySelectorAll('.card-sel, .row-sel').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        const id = btn.dataset.id;
-        if (selectedIds.has(id)) selectedIds.delete(id);
-        else selectedIds.add(id);
-        const card = mainEl.querySelector(`[data-id="${id}"].idea-card, [data-id="${id}"].list-row`);
-        if (card) card.classList.toggle('sel', selectedIds.has(id));
-        updateSelUI();
       });
     });
   }
@@ -1382,26 +1411,101 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     buildSidebarFolders();
   }
 
-  async function createSmartFolder() {
+  // ── Folder dropdown ──────────────────────────────────────
+  function showFolderDropdown() {
+    const dropdown = document.getElementById('folder-dropdown');
+    const items = smartFolders.map(f =>
+      `<button class="folder-dd-item" data-folder-id="${esc(f.id)}">📁 ${esc(f.name)}</button>`
+    ).join('');
+    const divider = smartFolders.length ? '<div class="folder-dd-divider"></div>' : '';
+    dropdown.innerHTML = items + divider +
+      `<button class="folder-dd-item" id="new-folder-option">＋ New Smart Folder…</button>`;
+    dropdown.removeAttribute('hidden');
+
+    dropdown.querySelectorAll('[data-folder-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        addToFolder(btn.dataset.folderId);
+        hideFolderDropdown();
+      });
+    });
+    document.getElementById('new-folder-option').addEventListener('click', () => {
+      hideFolderDropdown();
+      openNewFolder();
+    });
+  }
+
+  function hideFolderDropdown() {
+    document.getElementById('folder-dropdown').setAttribute('hidden', '');
+  }
+
+  async function addToFolder(folderId) {
     if (!selectedIds.size) return;
-    const name = prompt('Name for this smart folder:');
-    if (!name || !name.trim()) return;
+    const folder = smartFolders.find(f => f.id === folderId);
+    try {
+      await apiFetch(`/api/smart-folders/${folderId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ideaIds: [...selectedIds] }),
+      });
+      if (!smartFolderItems[folderId]) smartFolderItems[folderId] = new Set();
+      selectedIds.forEach(id => smartFolderItems[folderId].add(id));
+      clearSelection();
+      buildSidebarFolders();
+      toast(`Added to "${folder?.name}"`);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // ── New Smart Folder modal ───────────────────────────────
+  const newFolderOverlay = document.getElementById('new-folder-overlay');
+  const newFolderInput   = document.getElementById('new-folder-input');
+  const newFolderError   = document.getElementById('new-folder-error');
+
+  function openNewFolder() {
+    newFolderInput.value = '';
+    newFolderError.textContent = '';
+    newFolderOverlay.removeAttribute('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => newFolderInput.focus(), 60);
+  }
+
+  function closeNewFolder() {
+    newFolderOverlay.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+  }
+
+  async function saveNewFolder() {
+    const name = newFolderInput.value.trim();
+    if (!name) { newFolderError.textContent = 'Please enter a name'; return; }
+    const saveBtn = document.getElementById('new-folder-save');
+    saveBtn.disabled = true;
+    newFolderError.textContent = '';
     try {
       const data = await apiFetch('/api/smart-folders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), ideaIds: [...selectedIds] }),
+        body: JSON.stringify({ name, ideaIds: [...selectedIds] }),
       });
       const folder = data.folder;
       smartFolders.push(folder);
       smartFolderItems[folder.id] = new Set(selectedIds);
       clearSelection();
       buildSidebarFolders();
+      closeNewFolder();
       toast(`Smart folder "${folder.name}" created`);
     } catch (err) {
+      newFolderError.textContent = err.message;
       toast(err.message, true);
+    } finally {
+      saveBtn.disabled = false;
     }
   }
+
+  document.getElementById('new-folder-save').addEventListener('click', saveNewFolder);
+  document.getElementById('new-folder-cancel').addEventListener('click', closeNewFolder);
+  newFolderInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveNewFolder(); });
+  newFolderOverlay.addEventListener('click', e => { if (e.target === newFolderOverlay) closeNewFolder(); });
 
   async function deleteSmartFolder(id) {
     const folder = smartFolders.find(f => f.id === id);
@@ -1421,11 +1525,19 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   // ── Selection ────────────────────────────────────────────
+  function toggleCardSel(el) {
+    const id = el.dataset.id;
+    if (selectedIds.has(id)) selectedIds.delete(id);
+    else selectedIds.add(id);
+    el.classList.toggle('sel', selectedIds.has(id));
+    updateSelUI();
+  }
+
   function updateSelUI() {
     const n = selectedIds.size;
-    document.getElementById('sel-bar').classList.toggle('on', n > 0);
+    document.getElementById('sel-toolbar').classList.toggle('on', n > 0);
     document.getElementById('sel-label').textContent = `${n} selected`;
-    document.getElementById('new-folder-btn').style.display = n > 0 ? 'block' : 'none';
+    if (n === 0) hideFolderDropdown();
   }
 
   function clearSelection() {
@@ -1440,7 +1552,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
   document.getElementById('content-area').addEventListener('mousedown', e => {
     if (e.button !== 0) return;
-    if (e.target.closest('.idea-card,.list-row,.star-btn,.card-sel,.row-sel,.card-footer,.sel-bar,button,a')) return;
+    if (e.target.closest('.idea-card,.list-row,.star-btn,.card-sel,.row-sel,.card-footer,.sel-toolbar,button,a')) return;
     mqStart = { x: e.clientX, y: e.clientY };
     mqEl = document.createElement('div');
     mqEl.className = 'marquee';
@@ -1457,9 +1569,13 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   });
 
   document.addEventListener('mouseup', e => {
-    if (!mqStart || !mqEl) return;
-    const r = mqEl.getBoundingClientRect();
-    if (r.width > 5 || r.height > 5) {
+    if (!mqStart) return;
+    const wasDrag = mqEl && (mqEl.offsetWidth > 5 || mqEl.offsetHeight > 5);
+    const r = mqEl ? mqEl.getBoundingClientRect() : null;
+    if (mqEl) { mqEl.remove(); mqEl = null; }
+    mqStart = null;
+
+    if (wasDrag && r) {
       mainEl.querySelectorAll('.idea-card, .list-row').forEach(card => {
         const cr = card.getBoundingClientRect();
         if (!(r.right < cr.left || r.left > cr.right || r.bottom < cr.top || r.top > cr.bottom)) {
@@ -1468,8 +1584,9 @@ CREATE POLICY "allow all" ON ideas FOR ALL
         }
       });
       updateSelUI();
+    } else {
+      clearSelection();
     }
-    mqEl.remove(); mqEl = null; mqStart = null;
   });
 
   // ── View ─────────────────────────────────────────────────
@@ -1834,9 +1951,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     if (!viewOverlay.hidden) closeView();
+    else if (!newFolderOverlay.hidden) closeNewFolder();
     else if (!newCatOverlay.hidden) closeNewCat();
     else if (!formOverlay.hidden) closeForm();
     else if (!importOverlay.hidden) closeImport();
+    else hideFolderDropdown();
   });
 
   document.getElementById('sidebar').addEventListener('click', e => {
@@ -1860,8 +1979,16 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   });
 
   document.getElementById('sel-clear').addEventListener('click', clearSelection);
-  document.getElementById('sel-folder-btn').addEventListener('click', createSmartFolder);
-  document.getElementById('new-folder-btn').addEventListener('click', createSmartFolder);
+  document.getElementById('sel-folder-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    const dropdown = document.getElementById('folder-dropdown');
+    if (dropdown.hidden) showFolderDropdown();
+    else hideFolderDropdown();
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.folder-dropdown-wrap')) hideFolderDropdown();
+  });
 
   let searchTimer;
   searchEl.addEventListener('input', () => {
