@@ -35,7 +35,10 @@
       font-family: 'Inter', sans-serif;
       font-size: 14px;
       line-height: 1.6;
-      min-height: 100vh;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     /* ── Header ───────────────────────────────────────────── */
@@ -146,37 +149,120 @@
       color: var(--err);
     }
 
-    /* ── Filter bar ───────────────────────────────────────── */
-    .filter-bar {
-      position: sticky;
-      top: 65px;
-      z-index: 90;
-      background: var(--bg);
-      border-bottom: 1px solid rgba(255,255,255,0.04);
-      padding: 10px 32px;
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
-    .filter-bar::-webkit-scrollbar { display: none; }
+    /* ── Page layout ──────────────────────────────────────── */
+    .page-body { display: flex; flex: 1; overflow: hidden; }
 
-    .filter-btn {
-      padding: 5px 14px;
-      border-radius: 20px;
-      border: 1px solid var(--gold-bd);
-      background: transparent;
-      color: var(--text2);
-      font-size: 12px;
-      font-weight: 500;
-      font-family: 'Inter', sans-serif;
-      cursor: pointer;
-      transition: all 0.18s;
-      white-space: nowrap;
+    /* ── Sidebar ──────────────────────────────────────────── */
+    .sidebar {
+      width: 220px;
       flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--gold-bd);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      padding: 10px 0 80px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--gold-bd) transparent;
     }
-    .filter-btn:hover { border-color: var(--gold-bdh); color: var(--gold-lt); background: var(--gold-bg); }
-    .filter-btn.active { background: var(--gold-bg); border-color: var(--gold); color: var(--gold-lt); font-weight: 600; }
+
+    .sidebar-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text3);
+      padding: 12px 16px 4px;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 16px;
+      font-size: 13px;
+      color: var(--text2);
+      cursor: pointer;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+      font-family: 'Inter', sans-serif;
+      transition: background 0.15s, color 0.15s;
+    }
+    .sidebar-item:hover  { background: var(--bg3); color: var(--text); }
+    .sidebar-item.active { background: var(--gold-bg); color: var(--gold-lt); }
+
+    .si-icon { font-size: 13px; flex-shrink: 0; width: 18px; text-align: center; }
+    .si-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .si-count {
+      font-size: 10px; color: var(--text3);
+      background: var(--bg3); border: 1px solid var(--gold-bd);
+      border-radius: 8px; padding: 1px 6px; flex-shrink: 0;
+    }
+
+    .sidebar-divider { height: 1px; background: var(--gold-bd); margin: 8px 16px; }
+
+    .sidebar-action {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 16px;
+      font-size: 12px; color: var(--text3);
+      cursor: pointer; border: none; background: none;
+      width: 100%; text-align: left;
+      font-family: 'Inter', sans-serif;
+      transition: color 0.15s;
+    }
+    .sidebar-action:hover { color: var(--gold-lt); }
+
+    .folder-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 16px;
+      font-size: 13px; color: var(--text2);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .folder-row:hover  { background: var(--bg3); color: var(--text); }
+    .folder-row.active { background: var(--gold-bg); color: var(--gold-lt); }
+
+    .folder-del {
+      background: none; border: none;
+      color: transparent; cursor: pointer;
+      padding: 2px 4px; border-radius: 3px;
+      font-size: 11px; line-height: 1; flex-shrink: 0;
+      transition: color 0.15s;
+    }
+    .folder-row:hover .folder-del { color: var(--text3); }
+    .folder-del:hover { color: var(--err) !important; }
+
+    .new-folder-btn {
+      display: none;
+      margin: 6px 12px 0;
+      padding: 7px 12px;
+      background: var(--gold-bg);
+      border: 1px solid var(--gold-bdh);
+      border-radius: var(--radius-sm);
+      color: var(--gold-lt); font-size: 12px; font-weight: 500;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: background 0.15s; text-align: center;
+    }
+    .new-folder-btn:hover { background: rgba(201,168,76,0.18); }
+
+    /* ── Content area ─────────────────────────────────────── */
+    .content-area {
+      flex: 1; min-width: 0;
+      overflow-y: auto; overflow-x: hidden;
+      display: flex; flex-direction: column;
+    }
+
+    /* ── Selection bar ────────────────────────────────────── */
+    .sel-bar {
+      position: sticky; top: 0; z-index: 50;
+      background: var(--bg2); border-bottom: 1px solid var(--gold-bd);
+      padding: 8px 24px;
+      display: none; align-items: center; gap: 12px;
+      font-size: 13px; color: var(--text2);
+    }
+    .sel-bar.on { display: flex; }
 
     /* ── Main layout ──────────────────────────────────────── */
     #main { padding: 28px 32px 120px; max-width: 1440px; margin: 0 auto; }
@@ -219,6 +305,7 @@
       border-radius: var(--radius);
       overflow: hidden;
       cursor: pointer;
+      position: relative;
       transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
       animation: fadeUp 0.22s ease both;
     }
@@ -696,12 +783,53 @@
 
     .list-date { font-size: 11px; color: var(--text3); flex-shrink: 0; white-space: nowrap; }
 
+    /* ── Card selection ───────────────────────────────────── */
+    .card-sel {
+      position: absolute; top: 8px; left: 8px;
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.35);
+      background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      color: transparent; cursor: pointer;
+      opacity: 0; z-index: 2;
+      transition: opacity 0.15s, border-color 0.15s, background 0.15s, color 0.15s;
+    }
+    .idea-card:hover .card-sel,
+    .idea-card.sel   .card-sel { opacity: 1; }
+    .idea-card.sel   .card-sel { border-color: var(--gold); background: var(--gold); color: #111; }
+    .idea-card.sel {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px rgba(201,168,76,0.3);
+    }
+
+    .row-sel {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 1.5px solid var(--text3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: transparent;
+      flex-shrink: 0; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .list-row.sel .row-sel { border-color: var(--gold); background: var(--gold); color: #111; }
+    .list-row.sel { border-color: var(--gold); background: var(--gold-bg); }
+
+    /* ── Marquee ─────────────────────────────────────────── */
+    .marquee {
+      position: fixed;
+      border: 1.5px solid var(--gold);
+      background: rgba(201,168,76,0.06);
+      pointer-events: none; z-index: 9999;
+    }
+
     /* ── Responsive ───────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+    }
     @media (max-width: 600px) {
       .header { padding: 12px 16px; gap: 10px; }
       .brand small { display: none; }
       .search-wrap { max-width: 160px; }
-      .filter-bar { padding: 9px 16px; top: 59px; }
       #main { padding: 18px 14px 100px; }
       .view-bar { padding: 12px 16px; }
       .view-body { padding: 28px 16px 80px; }
@@ -747,18 +875,45 @@
     </div>
     <button class="btn btn-outline" id="import-btn">↑ Import</button>
     <input type="file" id="import-file" accept=".md,text/markdown,text/plain" style="display:none">
-    <button class="btn btn-outline" id="new-cat-btn">+ Category</button>
     <button class="btn btn-gold" id="add-btn">+ New Idea</button>
   </div>
 </header>
 
-<!-- ── Filters ─────────────────────────────────────────────── -->
-<div class="filter-bar" id="filter-bar">
-  <button class="filter-btn active" data-cat="All">All</button>
-</div>
+<!-- ── Page body ──────────────────────────────────────────── -->
+<div class="page-body">
 
-<!-- ── Main ───────────────────────────────────────────────── -->
-<div id="main"></div>
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-label">Library</div>
+    <button class="sidebar-item active" data-filter="All">
+      <span class="si-icon">💡</span><span class="si-label">All Ideas</span>
+    </button>
+    <button class="sidebar-item" data-filter="Favourites">
+      <span class="si-icon">★</span><span class="si-label">Favourites</span>
+    </button>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-label">Categories</div>
+    <div id="sidebar-cats"></div>
+    <button class="sidebar-action" id="sidebar-new-cat-btn">+ Category</button>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-label">Smart Folders</div>
+    <div id="sidebar-folders"></div>
+    <button class="new-folder-btn" id="new-folder-btn">📁 + Smart Folder</button>
+  </nav>
+
+  <div class="content-area" id="content-area">
+    <div class="sel-bar" id="sel-bar">
+      <span id="sel-label">0 selected</span>
+      <button class="btn btn-outline" id="sel-clear" style="padding:5px 12px;font-size:12px">✕ Clear</button>
+      <button class="btn btn-gold" id="sel-folder-btn" style="padding:5px 12px;font-size:12px">📁 New Smart Folder</button>
+    </div>
+    <div id="main"></div>
+  </div>
+
+</div>
 
 <!-- ── FAB ────────────────────────────────────────────────── -->
 <button id="fab" title="New Idea">+</button>
@@ -877,10 +1032,14 @@
   // ── State ────────────────────────────────────────────────
   let ideas = [];
   let activeFilter = 'All';
+  let activeFolderId = null;
   let viewingId  = null;
   let editingId  = null;
   let editFileRemoved = false;
   let viewMode = localStorage.getItem('ideas-view') || 'grid';
+  let smartFolders = [];
+  let smartFolderItems = {}; // { folderId: Set<ideaId> }
+  let selectedIds = new Set();
   document.getElementById('view-grid-btn').classList.toggle('active', viewMode === 'grid');
   document.getElementById('view-list-btn').classList.toggle('active', viewMode === 'list');
 
@@ -928,6 +1087,7 @@
     try {
       const data = await apiFetch('/api/ideas');
       ideas = data.ideas || [];
+      buildSidebar();
       render();
     } catch (err) {
       if (err.message && err.message.includes('Could not find')) {
@@ -970,28 +1130,48 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     } catch {
       categories = ['Marketing','Technology','Animation','Business','Artwork','Research','Other'];
     }
-    buildFilterBar();
+    buildSidebar();
     buildFormSelect();
   }
 
-  function buildFilterBar() {
-    const bar = document.getElementById('filter-bar');
-    bar.innerHTML = `<button class="filter-btn${activeFilter === 'All' ? ' active' : ''}" data-cat="All">All</button>`;
-    categories.forEach(c => {
-      const btn = document.createElement('button');
-      btn.className = 'filter-btn' + (activeFilter === c ? ' active' : '');
-      btn.dataset.cat = c;
-      btn.textContent = c;
-      bar.appendChild(btn);
+  function buildSidebarCategories() {
+    const el = document.getElementById('sidebar-cats');
+    el.innerHTML = categories.map(c => {
+      const color = catColor(c);
+      const count = ideas.filter(i => i.category === c).length;
+      const active = !activeFolderId && activeFilter === c;
+      return `<button class="sidebar-item${active ? ' active' : ''}" data-filter="${esc(c)}">
+        <span class="si-icon" style="color:${color}">●</span>
+        <span class="si-label">${esc(c)}</span>
+        ${count ? `<span class="si-count">${count}</span>` : ''}
+      </button>`;
+    }).join('');
+  }
+
+  function buildSidebarFolders() {
+    const el = document.getElementById('sidebar-folders');
+    if (!smartFolders.length) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 16px 6px">No folders yet</div>';
+    } else {
+      el.innerHTML = smartFolders.map(f => {
+        const count = smartFolderItems[f.id] ? smartFolderItems[f.id].size : 0;
+        const active = activeFolderId === f.id;
+        return `<div class="folder-row${active ? ' active' : ''}" data-folder-id="${esc(f.id)}">
+          <span class="si-icon">📁</span>
+          <span class="si-label">${esc(f.name)}</span>
+          ${count ? `<span class="si-count">${count}</span>` : ''}
+          <button class="folder-del" data-del-id="${esc(f.id)}" title="Delete">✕</button>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  function buildSidebar() {
+    document.querySelectorAll('#sidebar > .sidebar-item[data-filter]').forEach(btn => {
+      btn.classList.toggle('active', !activeFolderId && btn.dataset.filter === activeFilter);
     });
-    const sep = document.createElement('span');
-    sep.style.cssText = 'width:1px;background:var(--gold-bd);flex-shrink:0;align-self:stretch;margin:0 4px';
-    bar.appendChild(sep);
-    const favBtn = document.createElement('button');
-    favBtn.className = 'filter-btn' + (activeFilter === 'Favourites' ? ' active' : '');
-    favBtn.dataset.cat = 'Favourites';
-    favBtn.innerHTML = '★ Favourites';
-    bar.appendChild(favBtn);
+    buildSidebarCategories();
+    buildSidebarFolders();
   }
 
   function buildFormSelect() {
@@ -1001,7 +1181,10 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   // ── Render ───────────────────────────────────────────────
   function getFiltered() {
     let list = ideas;
-    if (activeFilter === 'Favourites') {
+    if (activeFolderId) {
+      const folderSet = smartFolderItems[activeFolderId] || new Set();
+      list = list.filter(i => folderSet.has(i.id));
+    } else if (activeFilter === 'Favourites') {
       list = list.filter(i => i.is_favourite);
     } else if (activeFilter !== 'All') {
       list = list.filter(i => i.category === activeFilter);
@@ -1036,7 +1219,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
         });
       });
     } else {
-      const groupByCat = activeFilter === 'All' && activeFilter !== 'Favourites' && !searchEl.value.trim();
+      const groupByCat = !activeFolderId && activeFilter === 'All' && !searchEl.value.trim();
 
       if (groupByCat) {
         const map = {};
@@ -1086,6 +1269,19 @@ CREATE POLICY "allow all" ON ideas FOR ALL
         await toggleFavourite(id, newFav);
       });
     });
+
+    // Selection toggle handlers
+    mainEl.querySelectorAll('.card-sel, .row-sel').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        if (selectedIds.has(id)) selectedIds.delete(id);
+        else selectedIds.add(id);
+        const card = mainEl.querySelector(`[data-id="${id}"].idea-card, [data-id="${id}"].list-row`);
+        if (card) card.classList.toggle('sel', selectedIds.has(id));
+        updateSelUI();
+      });
+    });
   }
 
   function cardHTML(idea) {
@@ -1103,7 +1299,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       }
     }
 
-    return `<div class="idea-card" data-id="${esc(idea.id)}">
+    return `<div class="idea-card${selectedIds.has(idea.id) ? ' sel' : ''}" data-id="${esc(idea.id)}">
+      <div class="card-sel" data-id="${esc(idea.id)}">✓</div>
       ${thumb}
       <div class="card-body">
         <div class="card-top">
@@ -1129,7 +1326,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
         thumb = `<div class="list-thumb"><video src="${esc(idea.file_url)}" preload="metadata" muted playsinline></video></div>`;
       }
     }
-    return `<div class="list-row" data-id="${esc(idea.id)}">
+    return `<div class="list-row${selectedIds.has(idea.id) ? ' sel' : ''}" data-id="${esc(idea.id)}">
+      <div class="row-sel" data-id="${esc(idea.id)}">✓</div>
       ${thumb}
       <span class="list-title">${esc(idea.title)}</span>
       <span class="cat-badge list-cat" style="color:${color};border-color:${color}60;background:${color}18">${esc(idea.category)}</span>
@@ -1166,6 +1364,113 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       toast('Failed to update favourite', true);
     }
   }
+
+  // ── Smart Folders ────────────────────────────────────────
+  async function loadSmartFolders() {
+    try {
+      const data = await apiFetch('/api/smart-folders');
+      smartFolders = data.folders || [];
+      smartFolderItems = {};
+      (data.items || []).forEach(item => {
+        if (!smartFolderItems[item.folder_id]) smartFolderItems[item.folder_id] = new Set();
+        smartFolderItems[item.folder_id].add(item.idea_id);
+      });
+    } catch {
+      smartFolders = [];
+      smartFolderItems = {};
+    }
+    buildSidebarFolders();
+  }
+
+  async function createSmartFolder() {
+    if (!selectedIds.size) return;
+    const name = prompt('Name for this smart folder:');
+    if (!name || !name.trim()) return;
+    try {
+      const data = await apiFetch('/api/smart-folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), ideaIds: [...selectedIds] }),
+      });
+      const folder = data.folder;
+      smartFolders.push(folder);
+      smartFolderItems[folder.id] = new Set(selectedIds);
+      clearSelection();
+      buildSidebarFolders();
+      toast(`Smart folder "${folder.name}" created`);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function deleteSmartFolder(id) {
+    const folder = smartFolders.find(f => f.id === id);
+    if (!folder) return;
+    if (!confirm(`Delete smart folder "${folder.name}"?\nThe ideas inside are not deleted.`)) return;
+    try {
+      await apiFetch(`/api/smart-folders/${id}`, { method: 'DELETE' });
+      smartFolders = smartFolders.filter(f => f.id !== id);
+      delete smartFolderItems[id];
+      if (activeFolderId === id) { activeFolderId = null; activeFilter = 'All'; }
+      buildSidebar();
+      render();
+      toast('Smart folder deleted');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // ── Selection ────────────────────────────────────────────
+  function updateSelUI() {
+    const n = selectedIds.size;
+    document.getElementById('sel-bar').classList.toggle('on', n > 0);
+    document.getElementById('sel-label').textContent = `${n} selected`;
+    document.getElementById('new-folder-btn').style.display = n > 0 ? 'block' : 'none';
+  }
+
+  function clearSelection() {
+    selectedIds.clear();
+    mainEl.querySelectorAll('.idea-card.sel, .list-row.sel').forEach(el => el.classList.remove('sel'));
+    updateSelUI();
+  }
+
+  // ── Marquee ──────────────────────────────────────────────
+  let mqStart = null;
+  let mqEl = null;
+
+  document.getElementById('content-area').addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.idea-card,.list-row,.star-btn,.card-sel,.row-sel,.card-footer,.sel-bar,button,a')) return;
+    mqStart = { x: e.clientX, y: e.clientY };
+    mqEl = document.createElement('div');
+    mqEl.className = 'marquee';
+    Object.assign(mqEl.style, { left: e.clientX+'px', top: e.clientY+'px', width:'0', height:'0' });
+    document.body.appendChild(mqEl);
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!mqStart || !mqEl) return;
+    const x1 = Math.min(e.clientX, mqStart.x), y1 = Math.min(e.clientY, mqStart.y);
+    const x2 = Math.max(e.clientX, mqStart.x), y2 = Math.max(e.clientY, mqStart.y);
+    Object.assign(mqEl.style, { left:x1+'px', top:y1+'px', width:(x2-x1)+'px', height:(y2-y1)+'px' });
+  });
+
+  document.addEventListener('mouseup', e => {
+    if (!mqStart || !mqEl) return;
+    const r = mqEl.getBoundingClientRect();
+    if (r.width > 5 || r.height > 5) {
+      mainEl.querySelectorAll('.idea-card, .list-row').forEach(card => {
+        const cr = card.getBoundingClientRect();
+        if (!(r.right < cr.left || r.left > cr.right || r.bottom < cr.top || r.top > cr.bottom)) {
+          selectedIds.add(card.dataset.id);
+          card.classList.add('sel');
+        }
+      });
+      updateSelUI();
+    }
+    mqEl.remove(); mqEl = null; mqStart = null;
+  });
 
   // ── View ─────────────────────────────────────────────────
   function openView(id) {
@@ -1462,7 +1767,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       });
       console.log('[NewCat] API response:', result);
       categories.push(name);
-      buildFilterBar();
+      buildSidebar();
       buildFormSelect();
       closeNewCat();
       toast(`Category "${name}" added`);
@@ -1482,7 +1787,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   } else {
     console.error('[NewCat] ERROR: #new-cat-save not found in DOM');
   }
-  document.getElementById('new-cat-btn').addEventListener('click', openNewCat);
+  document.getElementById('sidebar-new-cat-btn').addEventListener('click', openNewCat);
   document.getElementById('new-cat-cancel').addEventListener('click', closeNewCat);
   newCatInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveNewCat(); });
   newCatOverlay.addEventListener('click', e => { if (e.target === newCatOverlay) closeNewCat(); });
@@ -1534,14 +1839,29 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     else if (!importOverlay.hidden) closeImport();
   });
 
-  document.getElementById('filter-bar').addEventListener('click', e => {
-    const btn = e.target.closest('.filter-btn');
-    if (!btn) return;
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeFilter = btn.dataset.cat;
-    render();
+  document.getElementById('sidebar').addEventListener('click', e => {
+    const delBtn = e.target.closest('[data-del-id]');
+    if (delBtn) { deleteSmartFolder(delBtn.dataset.delId); return; }
+    const folderRow = e.target.closest('.folder-row');
+    if (folderRow && !e.target.closest('.folder-del')) {
+      activeFolderId = folderRow.dataset.folderId;
+      activeFilter = 'All';
+      buildSidebar();
+      render();
+      return;
+    }
+    const filterBtn = e.target.closest('.sidebar-item[data-filter]');
+    if (filterBtn) {
+      activeFolderId = null;
+      activeFilter = filterBtn.dataset.filter;
+      buildSidebar();
+      render();
+    }
   });
+
+  document.getElementById('sel-clear').addEventListener('click', clearSelection);
+  document.getElementById('sel-folder-btn').addEventListener('click', createSmartFolder);
+  document.getElementById('new-folder-btn').addEventListener('click', createSmartFolder);
 
   let searchTimer;
   searchEl.addEventListener('input', () => {
@@ -1563,7 +1883,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   // ── Boot ─────────────────────────────────────────────────
   async function init() {
     await loadCategories();
-    await loadIdeas();
+    await Promise.all([loadIdeas(), loadSmartFolders()]);
   }
   init();
 </script>

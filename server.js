@@ -712,6 +712,38 @@ app.patch('/api/ideas/:id/favourite', async (req, res) => {
   res.json({ idea: data })
 })
 
+// ── Smart Folders API ────────────────────────────────────────────────────────
+
+app.get('/api/smart-folders', async (req, res) => {
+  const [{ data: folders, error: fErr }, { data: items, error: iErr }] = await Promise.all([
+    supabase.from('smart_folders').select('id, name, created_at').order('created_at', { ascending: true }),
+    supabase.from('smart_folder_items').select('folder_id, idea_id'),
+  ])
+  if (fErr) return res.status(500).json({ error: fErr.message })
+  if (iErr) return res.status(500).json({ error: iErr.message })
+  res.json({ folders: folders || [], items: items || [] })
+})
+
+app.post('/api/smart-folders', async (req, res) => {
+  const { name, ideaIds = [] } = req.body
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' })
+  const { data: folder, error: fErr } = await supabase
+    .from('smart_folders').insert({ name: name.trim() }).select().single()
+  if (fErr) return res.status(500).json({ error: fErr.message })
+  if (ideaIds.length) {
+    const rows = ideaIds.map(idea_id => ({ folder_id: folder.id, idea_id }))
+    const { error: iErr } = await supabase.from('smart_folder_items').insert(rows)
+    if (iErr) console.warn('[SmartFolders] item insert warning:', iErr.message)
+  }
+  res.json({ folder })
+})
+
+app.delete('/api/smart-folders/:id', async (req, res) => {
+  const { error } = await supabase.from('smart_folders').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
 // ── Static / Admin page ───────────────────────────────────────────────────────
 
 app.use('/public', express.static(path.join(__dirname, 'public')))
