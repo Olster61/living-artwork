@@ -581,6 +581,36 @@
     #toast.show { opacity: 1; transform: translateY(0); }
     #toast.err  { border-color: rgba(217,83,79,0.5); color: var(--err); }
 
+    /* ── Import preview ──────────────────────────────────── */
+    .import-summary {
+      font-size: 13px;
+      color: var(--text2);
+      margin-bottom: 18px;
+      line-height: 1.6;
+    }
+    .import-summary strong { color: var(--text); }
+    .import-cat-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+    .import-cat-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--bg3);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--gold-bd);
+      font-size: 13px;
+    }
+    .import-cat-name { display: flex; align-items: center; gap: 8px; }
+    .import-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .import-count { font-size: 11px; color: var(--text3); background: var(--bg2); border: 1px solid var(--gold-bd); border-radius: 10px; padding: 1px 8px; }
+    .import-progress { font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 10px; padding: 16px 0; }
+
     /* ── Responsive ───────────────────────────────────────── */
     @media (max-width: 600px) {
       .header { padding: 12px 16px; gap: 10px; }
@@ -611,7 +641,11 @@
     <input type="search" id="search" placeholder="Search ideas…" autocomplete="off">
   </div>
 
-  <button class="btn btn-gold" id="add-btn" style="margin-left:auto">+ New Idea</button>
+  <div style="display:flex;gap:8px;margin-left:auto">
+    <button class="btn btn-outline" id="import-btn">↑ Import</button>
+    <input type="file" id="import-file" accept=".md,text/markdown,text/plain" style="display:none">
+    <button class="btn btn-gold" id="add-btn">+ New Idea</button>
+  </div>
 </header>
 
 <!-- ── Filters ─────────────────────────────────────────────── -->
@@ -694,6 +728,18 @@
     <h1 id="view-title"></h1>
     <div id="view-notes"></div>
     <div class="view-media" id="view-media" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ── Import modal ───────────────────────────────────────── -->
+<div class="overlay" id="import-overlay" hidden>
+  <div class="form-panel" style="max-width:480px">
+    <h2 class="modal-heading">Import from Markdown</h2>
+    <div id="import-preview"></div>
+    <div class="form-actions" id="import-actions" style="display:none">
+      <button class="btn btn-outline" id="import-cancel">Cancel</button>
+      <button class="btn btn-gold" id="import-confirm">Import all</button>
+    </div>
   </div>
 </div>
 
@@ -1020,6 +1066,115 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
   });
 
+  // ── Import ───────────────────────────────────────────────
+  const importOverlay  = document.getElementById('import-overlay');
+  const importPreview  = document.getElementById('import-preview');
+  const importActions  = document.getElementById('import-actions');
+  const importFileEl   = document.getElementById('import-file');
+  let parsedEntries    = [];
+
+  function parseMarkdown(text) {
+    const VALID = ['Marketing','Technology','Animation','Business','Artwork','Research','Other'];
+    const entries = [];
+    let cat = 'Other', title = null, lines = [];
+
+    function flush() {
+      if (!title) return;
+      entries.push({ title, category: cat, notes: lines.join('\n').trim() || null });
+      title = null; lines = [];
+    }
+
+    for (const raw of text.split('\n')) {
+      const line = raw.trimEnd();
+      if (line.startsWith('## ')) {
+        flush();
+        const label = line.slice(3).trim();
+        cat = VALID.find(c => c.toLowerCase() === label.toLowerCase()) || 'Other';
+      } else if (line.startsWith('### ')) {
+        flush();
+        title = line.slice(4).trim();
+      } else if (title !== null) {
+        lines.push(line);
+      }
+    }
+    flush();
+    return entries;
+  }
+
+  function showImportPreview(entries) {
+    if (!entries.length) {
+      importPreview.innerHTML = `<p class="import-summary">No entries found. Make sure the file uses <code>## Category</code> and <code>### Title</code> headings.</p>`;
+      importActions.style.display = 'none';
+      return;
+    }
+
+    const byCat = {};
+    entries.forEach(e => { (byCat[e.category] = byCat[e.category] || []).push(e); });
+
+    const rows = Object.entries(byCat).map(([cat, list]) => `
+      <li class="import-cat-row">
+        <span class="import-cat-name">
+          <span class="import-dot" style="background:${COLORS[cat] || COLORS.Other}"></span>
+          ${esc(cat)}
+        </span>
+        <span class="import-count">${list.length} ${list.length === 1 ? 'entry' : 'entries'}</span>
+      </li>`).join('');
+
+    importPreview.innerHTML = `
+      <p class="import-summary">Found <strong>${entries.length}</strong> ${entries.length === 1 ? 'entry' : 'entries'} across <strong>${Object.keys(byCat).length}</strong> ${Object.keys(byCat).length === 1 ? 'category' : 'categories'}:</p>
+      <ul class="import-cat-list">${rows}</ul>`;
+    importActions.style.display = 'flex';
+    document.getElementById('import-confirm').textContent = `Import ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
+  }
+
+  function closeImport() {
+    importOverlay.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+    parsedEntries = [];
+    importFileEl.value = '';
+  }
+
+  importFileEl.addEventListener('change', () => {
+    const file = importFileEl.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      parsedEntries = parseMarkdown(e.target.result);
+      showImportPreview(parsedEntries);
+      importOverlay.removeAttribute('hidden');
+      document.body.style.overflow = 'hidden';
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('import-btn').addEventListener('click', () => importFileEl.click());
+  document.getElementById('import-cancel').addEventListener('click', closeImport);
+  importOverlay.addEventListener('click', e => { if (e.target === importOverlay) closeImport(); });
+
+  document.getElementById('import-confirm').addEventListener('click', async () => {
+    if (!parsedEntries.length) return;
+    const btn = document.getElementById('import-confirm');
+    btn.disabled = true;
+    importActions.style.display = 'none';
+    importPreview.innerHTML = `<div class="import-progress"><div class="mini-spin"></div>Importing ${parsedEntries.length} ${parsedEntries.length === 1 ? 'entry' : 'entries'}…</div>`;
+
+    try {
+      const result = await apiFetch('/api/ideas/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries: parsedEntries }),
+      });
+      toast(`Imported ${result.imported} ${result.imported === 1 ? 'idea' : 'ideas'} successfully`);
+      closeImport();
+      await loadIdeas();
+    } catch (err) {
+      toast(err.message, true);
+      btn.disabled = false;
+      importActions.style.display = 'flex';
+      importPreview.innerHTML = `<p class="import-summary" style="color:var(--err)">${esc(err.message)}</p>`;
+    }
+  });
+
   // ── Event wiring ─────────────────────────────────────────
   document.getElementById('add-btn').addEventListener('click', openForm);
   document.getElementById('fab').addEventListener('click', openForm);
@@ -1032,6 +1187,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     if (e.key !== 'Escape') return;
     if (!viewOverlay.hidden) closeView();
     else if (!formOverlay.hidden) closeForm();
+    else if (!importOverlay.hidden) closeImport();
   });
 
   document.getElementById('filter-bar').addEventListener('click', e => {

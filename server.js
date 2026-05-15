@@ -541,6 +541,22 @@ async function compileWithMindAR (imageUrls) {
 
 // ── Ideas API ─────────────────────────────────────────────────────────────────
 
+app.post('/api/ideas/import', express.json(), async (req, res) => {
+  const { entries } = req.body
+  if (!Array.isArray(entries) || !entries.length)
+    return res.status(400).json({ error: 'No entries provided' })
+
+  const rows = entries
+    .filter(e => e.title && e.category)
+    .map(e => ({ title: e.title, category: e.category, notes: e.notes || null, file_url: null, file_type: null }))
+
+  if (!rows.length) return res.status(400).json({ error: 'No valid entries found' })
+
+  const { data, error } = await supabase.from('ideas').insert(rows).select()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ imported: data.length })
+})
+
 app.get('/api/ideas', async (req, res) => {
   const { data, error } = await supabase
     .from('ideas')
