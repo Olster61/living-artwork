@@ -1200,6 +1200,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   const newCatError   = document.getElementById('new-cat-error');
 
   function openNewCat() {
+    console.log('[NewCat] dialog opened');
     newCatInput.value = '';
     newCatError.textContent = '';
     newCatOverlay.removeAttribute('hidden');
@@ -1213,32 +1214,44 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   async function saveNewCat() {
+    console.log('[NewCat] save clicked');
     const name = newCatInput.value.trim();
+    console.log('[NewCat] name:', JSON.stringify(name));
     if (!name) { newCatError.textContent = 'Please enter a name'; return; }
     const saveBtn = document.getElementById('new-cat-save');
     saveBtn.disabled = true;
     newCatError.textContent = '';
     try {
-      await apiFetch('/api/ideas/categories', {
+      console.log('[NewCat] posting to /api/ideas/categories...');
+      const result = await apiFetch('/api/ideas/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
+      console.log('[NewCat] API response:', result);
       categories.push(name);
       buildFilterBar();
       buildFormSelect();
       closeNewCat();
       toast(`Category "${name}" added`);
     } catch (err) {
+      console.error('[NewCat] API error:', err.message);
       newCatError.textContent = err.message;
+      toast(err.message, true);
     } finally {
       saveBtn.disabled = false;
     }
   }
 
+  const newCatSaveBtn = document.getElementById('new-cat-save');
+  if (newCatSaveBtn) {
+    newCatSaveBtn.addEventListener('click', saveNewCat);
+    console.log('[NewCat] save listener attached');
+  } else {
+    console.error('[NewCat] ERROR: #new-cat-save not found in DOM');
+  }
   document.getElementById('new-cat-btn').addEventListener('click', openNewCat);
   document.getElementById('new-cat-cancel').addEventListener('click', closeNewCat);
-  document.getElementById('new-cat-save').addEventListener('click', saveNewCat);
   newCatInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveNewCat(); });
   newCatOverlay.addEventListener('click', e => { if (e.target === newCatOverlay) closeNewCat(); });
 
