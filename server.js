@@ -52,6 +52,39 @@ function publicUrl (bucket, storagePath) {
   return data.publicUrl
 }
 
+// ── Ideas-files helpers ───────────────────────────────────────────────────────
+
+const IDEAS_BUCKET   = 'ideas-files'
+const IDEAS_PUB_BASE = `${SUPABASE_URL}/storage/v1/object/public/${IDEAS_BUCKET}/`
+
+// Extract the bare storage path from whatever is stored in file_url.
+// Handles old records (full public URL) and new records (plain path).
+function ideasFilePath (fileUrl) {
+  if (!fileUrl) return null
+  if (fileUrl.startsWith(IDEAS_PUB_BASE)) return fileUrl.slice(IDEAS_PUB_BASE.length)
+  return fileUrl
+}
+
+// Replace file_url on each idea with a 1-hour signed URL (single batch call).
+async function withSignedUrls (ideas) {
+  const withFiles = ideas.filter(i => i.file_url)
+  if (!withFiles.length) return ideas
+
+  const paths = withFiles.map(i => ideasFilePath(i.file_url))
+  const { data: signed } = await supabase.storage
+    .from(IDEAS_BUCKET)
+    .createSignedUrls(paths, 3600)
+
+  const urlMap = {}
+  if (signed) signed.forEach(s => { if (s.signedUrl) urlMap[s.path] = s.signedUrl })
+
+  return ideas.map(idea => {
+    if (!idea.file_url) return idea
+    const path = ideasFilePath(idea.file_url)
+    return { ...idea, file_url: urlMap[path] || idea.file_url }
+  })
+}
+
 // ── Trackability scoring ──────────────────────────────────────────────────────
 
 function normalize10 (value, min, max) {
@@ -514,7 +547,7 @@ app.get('/api/ideas', async (req, res) => {
     .select('*')
     .order('created_at', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
-  res.json({ ideas: data })
+  res.json({ ideas: await withSignedUrls(data) })
 })
 
 app.post('/api/ideas', upload.single('file'), async (req, res) => {
@@ -534,7 +567,7 @@ app.post('/api/ideas', upload.single('file'), async (req, res) => {
         upsert: false,
       })
     if (upErr) return res.status(500).json({ error: 'Upload failed: ' + upErr.message })
-    file_url  = publicUrl('ideas-files', storagePath)
+    file_url  = storagePath   // store bare path; signed URL generated on read
     file_type = req.file.mimetype.startsWith('video/') ? 'video' : 'image'
   }
 
@@ -545,7 +578,8 @@ app.post('/api/ideas', upload.single('file'), async (req, res) => {
     .single()
 
   if (error) return res.status(500).json({ error: error.message })
-  res.json({ idea: data })
+  const [ideaWithUrl] = await withSignedUrls([data])
+  res.json({ idea: ideaWithUrl })
 })
 
 app.delete('/api/ideas/:id', async (req, res) => {
@@ -558,9 +592,8 @@ app.delete('/api/ideas/:id', async (req, res) => {
   if (fetchErr) return res.status(404).json({ error: 'Not found' })
 
   if (idea.file_url) {
-    const base = publicUrl('ideas-files', '')
-    const filePath = idea.file_url.startsWith(base) ? idea.file_url.slice(base.length) : null
-    if (filePath) await supabase.storage.from('ideas-files').remove([filePath]).catch(() => {})
+    const filePath = ideasFilePath(idea.file_url)
+    if (filePath) await supabase.storage.from(IDEAS_BUCKET).remove([filePath]).catch(() => {})
   }
 
   const { error } = await supabase.from('ideas').delete().eq('id', req.params.id)
