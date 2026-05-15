@@ -35,7 +35,7 @@ const upload = multer({ storage: multer.memoryStorage() })
 // ── Storage init ──────────────────────────────────────────────────────────────
 
 async function initBuckets () {
-  for (const [name, isPublic] of [['artworks', true], ['minds', true]]) {
+  for (const [name, isPublic] of [['artworks', true], ['minds', true], ['ideas-files', true]]) {
     const { error } = await supabase.storage.createBucket(name, { public: isPublic })
     if (error && !error.message.includes('already exists')) {
       console.error(`  ✗ bucket '${name}':`, error.message)
@@ -506,12 +506,78 @@ async function compileWithMindAR (imageUrls) {
   }
 }
 
+// ── Ideas API ─────────────────────────────────────────────────────────────────
+
+app.get('/api/ideas', async (req, res) => {
+  const { data, error } = await supabase
+    .from('ideas')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ideas: data })
+})
+
+app.post('/api/ideas', upload.single('file'), async (req, res) => {
+  const { title, category, notes } = req.body
+  if (!title || !category) return res.status(400).json({ error: 'title and category required' })
+
+  let file_url = null, file_type = null
+
+  if (req.file) {
+    const ext = (req.file.originalname.split('.').pop() || 'bin').toLowerCase()
+    const storagePath = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from('ideas-files')
+      .upload(storagePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '3600',
+        upsert: false,
+      })
+    if (upErr) return res.status(500).json({ error: 'Upload failed: ' + upErr.message })
+    file_url  = publicUrl('ideas-files', storagePath)
+    file_type = req.file.mimetype.startsWith('video/') ? 'video' : 'image'
+  }
+
+  const { data, error } = await supabase
+    .from('ideas')
+    .insert({ title, category, notes: notes || null, file_url, file_type })
+    .select()
+    .single()
+
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ idea: data })
+})
+
+app.delete('/api/ideas/:id', async (req, res) => {
+  const { data: idea, error: fetchErr } = await supabase
+    .from('ideas')
+    .select('file_url')
+    .eq('id', req.params.id)
+    .single()
+
+  if (fetchErr) return res.status(404).json({ error: 'Not found' })
+
+  if (idea.file_url) {
+    const base = publicUrl('ideas-files', '')
+    const filePath = idea.file_url.startsWith(base) ? idea.file_url.slice(base.length) : null
+    if (filePath) await supabase.storage.from('ideas-files').remove([filePath]).catch(() => {})
+  }
+
+  const { error } = await supabase.from('ideas').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
 // ── Static / Admin page ───────────────────────────────────────────────────────
 
 app.use('/public', express.static(path.join(__dirname, 'public')))
 
 app.get('/olly/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'))
+})
+
+app.get('/olly/ideas', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'ideas.html'))
 })
 
 app.get('/olly/ar', (req, res) => {
@@ -528,6 +594,7 @@ app.listen(PORT, async () => {
   console.log(`Server:  http://localhost:${PORT}`)
   console.log(`Admin:   http://localhost:${PORT}/olly/admin`)
   console.log(`AR:      http://localhost:${PORT}/olly/ar`)
+  console.log(`Ideas:   http://localhost:${PORT}/olly/ideas`)
   console.log(`═══════════════════════════════════`)
   console.log('Initialising Supabase storage...')
   await initBuckets()
