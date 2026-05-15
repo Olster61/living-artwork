@@ -311,7 +311,9 @@
   ];
 
   // ── State ───────────────────────────────────────────────────
-  let artworks        = [];     // [{name, slug, trigger_url, video_url}, …]
+  let artworks        = [];     // [{name, slug, trigger_url, video_url, id}, …]
+  let artworkById     = {};     // { uuid: artwork }
+  let targetManifest  = null;   // { "0": uuid, "1": uuid, … } — null = positional fallback
   let compiledMindUrl = null;   // blob: URL for MindAR imageTargetSrc
   let aframeLoaded    = false;
   let isVideoPlaying  = false;
@@ -362,12 +364,14 @@
       if (!data.artworks || !data.artworks.length)
         throw new Error('No artworks found. Add artworks via the admin panel first.');
       artworks = data.artworks;
+      artworkById = {};
+      artworks.forEach(a => { artworkById[a.id] = a; });
 
-      // 2. Create one <video> element per artwork (ready before AR loads)
+      // 2. Create one <video> element per artwork, keyed by artwork UUID
       videoScreen.innerHTML = '';
-      artworks.forEach((art, i) => {
+      artworks.forEach(art => {
         const vid = document.createElement('video');
-        vid.id = 'video-' + i;
+        vid.id = 'video-' + art.id;
         vid.loop = true;
         vid.muted = false;
         vid.playsInline = true;
@@ -377,13 +381,22 @@
         videoScreen.appendChild(vid);
       });
 
-      // 3. Download mind file → blob URL (avoids CORS in MindAR)
-      const mindSrc = SUPABASE_MINDS + '/customers/' + CUSTOMER_SLUG + '/targets.mind';
-      const mindRes = await fetch(mindSrc);
+      // 3. Download mind file + manifest in parallel
+      const mindSrc     = SUPABASE_MINDS + '/customers/' + CUSTOMER_SLUG + '/targets.mind';
+      const manifestSrc = SUPABASE_MINDS + '/customers/' + CUSTOMER_SLUG + '/targets-manifest.json';
+
+      const [mindRes, manifestRes] = await Promise.all([
+        fetch(mindSrc),
+        fetch(manifestSrc),
+      ]);
       if (!mindRes.ok) throw new Error(
         'AR targets not compiled yet. Use the admin panel → Compile Targets, then reload.');
+
       if (compiledMindUrl) URL.revokeObjectURL(compiledMindUrl);
       compiledMindUrl = URL.createObjectURL(new Blob([await mindRes.arrayBuffer()]));
+
+      targetManifest = manifestRes.ok ? await manifestRes.json() : null;
+      console.log('[AR] manifest:', targetManifest ? JSON.stringify(targetManifest) : 'none (positional fallback)');
 
       // 4. Ready
       startBtn.disabled = false;
@@ -505,13 +518,22 @@
         requestAnimationFrame(() => requestAnimationFrame(() => {
           console.log('[AR] targetFound idx=' + idx);
 
+          // Resolve artwork via manifest (uuid-stable) or fall back to positional
+          const artId = targetManifest ? targetManifest[String(idx)] : (artworks[idx] && artworks[idx].id);
+          const art   = artId ? artworkById[artId] : null;
+
+          if (!art) {
+            console.warn('[AR] No artwork for targetIndex ' + idx + ' — recompile may be needed');
+            return;
+          }
+
           // Pause any previously-active video
           document.querySelectorAll('#video-screen video').forEach(v => {
             if (!v.paused) v.pause();
             v.classList.remove('active');
           });
 
-          const vid = document.getElementById('video-' + idx);
+          const vid = document.getElementById('video-' + art.id);
           if (vid) vid.classList.add('active');
 
           // Immediately show black screen + spinner for instant feedback
@@ -524,11 +546,11 @@
 
           if (vid) {
             vid.loop = true;
-            vid.src  = artworks[idx].video_url;
+            vid.src  = art.video_url;
             vid.load();
             vid.addEventListener('loadeddata', function onLoaded() {
               vid.removeEventListener('loadeddata', onLoaded);
-              console.log('[AR] loadeddata → play() on video-' + idx);
+              console.log('[AR] loadeddata → play() on video-' + art.id);
               vid.muted = false;
               vid.play()
                 .then(() => { videoSpinner.style.display = 'none'; })

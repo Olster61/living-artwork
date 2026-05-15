@@ -354,7 +354,8 @@ app.post('/api/compile/:slug', async (req, res) => {
     if (custErr || !customer) return res.status(404).json({ error: 'Customer not found' })
 
     const { data: artworks, error: artErr } = await supabase
-      .from('artworks').select('trigger_url, slug, name').eq('customer_id', customer.id)
+      .from('artworks').select('id, trigger_url, slug, name').eq('customer_id', customer.id)
+      .order('created_at', { ascending: true })
     if (artErr) return res.status(500).json({ error: artErr.message })
     if (!artworks?.length) return res.status(400).json({ error: 'No artworks found for this customer' })
 
@@ -366,19 +367,30 @@ app.post('/api/compile/:slug', async (req, res) => {
     const mindBuffer = await compileWithMindAR(imageUrls)
     console.log(`Compiled OK — ${(mindBuffer.length / 1024).toFixed(0)} KB`)
 
-    // 3. Upload .mind file to Supabase (pass Buffer directly — avoids flaky FormData+Blob path)
-    const mindPath = `customers/${slug}/targets.mind`
-    const { error: uploadErr } = await supabase.storage.from('minds')
-      .upload(mindPath, mindBuffer, { contentType: 'application/octet-stream', upsert: true })
-    if (uploadErr) throw new Error(`Storage upload failed: ${uploadErr.message}`)
+    // 3. Upload .mind file + manifest to Supabase
+    const mindPath     = `customers/${slug}/targets.mind`
+    const manifestPath = `customers/${slug}/targets-manifest.json`
+
+    // Build manifest: { "0": artworkId, "1": artworkId, … }
+    const manifest = {}
+    artworks.forEach((a, i) => { manifest[String(i)] = a.id })
+    const manifestBuf = Buffer.from(JSON.stringify(manifest))
+
+    const [{ error: uploadErr }, { error: manifestErr }] = await Promise.all([
+      supabase.storage.from('minds').upload(mindPath, mindBuffer, { contentType: 'application/octet-stream', upsert: true }),
+      supabase.storage.from('minds').upload(manifestPath, manifestBuf, { contentType: 'application/json', upsert: true }),
+    ])
+    if (uploadErr)   throw new Error(`Storage upload failed: ${uploadErr.message}`)
+    if (manifestErr) console.warn('Manifest upload warning:', manifestErr.message)
 
     const mindUrl = publicUrl('minds', mindPath)
+    console.log('Manifest:', JSON.stringify(manifest))
 
     // 4. Stamp mind_url on every artwork row for this customer
     await supabase.from('artworks').update({ mind_url: mindUrl }).eq('customer_id', customer.id)
 
     console.log(`Uploaded → ${mindUrl}`)
-    res.json({ success: true, mindUrl, imageCount: artworks.length })
+    res.json({ success: true, mindUrl, imageCount: artworks.length, manifest })
 
   } catch (err) {
     console.error('Compile ERROR:', err.message)
@@ -434,6 +446,29 @@ app.post('/api/compile/:slug/upload',
     console.log('Public URL:', mindUrl)
     const { error: updateErr } = await supabase.from('artworks').update({ mind_url: mindUrl }).eq('customer_id', customer.id)
     if (updateErr) console.log('WARN: mind_url update failed:', updateErr.message)
+
+    // Upload manifest if provided by compile-local.js
+    const manifestPath = `customers/${slug}/targets-manifest.json`
+    if (req.body?.manifest) {
+      const manifestBuf = Buffer.from(req.body.manifest)
+      const { error: mErr } = await supabase.storage.from('minds')
+        .upload(manifestPath, manifestBuf, { contentType: 'application/json', upsert: true })
+      if (mErr) console.log('WARN: manifest upload failed:', mErr.message)
+      else console.log('Manifest uploaded OK')
+    } else {
+      // Fallback: generate manifest from current artwork order in DB
+      const { data: aws } = await supabase.from('artworks').select('id')
+        .eq('customer_id', customer.id).order('created_at', { ascending: true })
+      if (aws?.length) {
+        const manifest = {}
+        aws.forEach((a, i) => { manifest[String(i)] = a.id })
+        const manifestBuf = Buffer.from(JSON.stringify(manifest))
+        const { error: mErr } = await supabase.storage.from('minds')
+          .upload(manifestPath, manifestBuf, { contentType: 'application/json', upsert: true })
+        if (mErr) console.log('WARN: manifest upload failed:', mErr.message)
+        else console.log('Manifest generated + uploaded:', JSON.stringify(manifest))
+      }
+    }
 
     console.log(`Uploaded .mind → ${mindUrl}`)
     res.json({ success: true, mindUrl })
