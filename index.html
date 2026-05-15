@@ -190,6 +190,27 @@
     }
     @keyframes vidSpin { to { transform: rotate(360deg); } }
 
+    /* ── Unmute button ─────────────────────────────────────── */
+    #unmute-btn {
+      position: fixed;
+      bottom: 72px; right: 20px;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.65);
+      border: 1.5px solid rgba(201,168,76,0.55);
+      color: var(--gold);
+      font-size: 20px;
+      cursor: pointer;
+      display: none;
+      z-index: 170;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #unmute-btn.show { display: flex; }
+    #unmute-btn:active { background: rgba(201,168,76,0.25); }
+
     /* ── Expanding gold rings ───────────────────────────────── */
     #ring-overlay {
       position: fixed;
@@ -287,6 +308,9 @@
 <!-- Buffering spinner -->
 <div id="video-spinner"></div>
 
+<!-- Unmute button — shown if audio could not be auto-unlocked -->
+<button id="unmute-btn" title="Tap to unmute">🔇</button>
+
 <!-- Expanding gold rings -->
 <div id="ring-overlay">
   <div class="ring"></div>
@@ -326,6 +350,7 @@
   const scanOverlay  = document.getElementById('scan-overlay');
   const videoScreen  = document.getElementById('video-screen');
   const videoSpinner = document.getElementById('video-spinner');
+  const unmuteBtn    = document.getElementById('unmute-btn');
   const ringOverlay  = document.getElementById('ring-overlay');
   const closeBtn     = document.getElementById('close-btn');
 
@@ -363,17 +388,17 @@
         throw new Error('No artworks found. Add artworks via the admin panel first.');
       artworks = data.artworks;
 
-      // 2. Create one looping <video> element per artwork
+      // 2. Create one <video> element per artwork (ready before AR loads)
       videoScreen.innerHTML = '';
       artworks.forEach((art, i) => {
         const vid = document.createElement('video');
         vid.id = 'video-' + i;
+        vid.loop = true;
+        vid.muted = false;
         vid.playsInline = true;
         vid.setAttribute('playsinline', '');
         vid.setAttribute('webkit-playsinline', '');
-        vid.loop = true;
-        vid.setAttribute('loop', '');
-        vid.preload = 'auto';
+        vid.preload = 'none';
         videoScreen.appendChild(vid);
       });
 
@@ -402,6 +427,20 @@
   // ── Start button tap ────────────────────────────────────────
   startBtn.addEventListener('pointerup', async () => {
     if (startBtn.disabled) return;
+
+    // Unlock audio on iOS — must happen inside a direct user gesture
+    try {
+      const _AC = window.AudioContext || window.webkitAudioContext;
+      if (_AC) {
+        const _ctx = new _AC();
+        const _buf = _ctx.createBuffer(1, 1, 22050);
+        const _src = _ctx.createBufferSource();
+        _src.buffer = _buf;
+        _src.connect(_ctx.destination);
+        _src.start(0);
+        _ctx.resume().catch(() => {});
+      }
+    } catch (_) {}
 
     // Retry if we had an error
     if (errorMsg.style.display !== 'none') {
@@ -491,13 +530,14 @@
         requestAnimationFrame(() => requestAnimationFrame(() => {
           console.log('[AR] targetFound idx=' + idx);
 
-          // Pause all videos and clear active state
+          // Pause any previously-active video
           document.querySelectorAll('#video-screen video').forEach(v => {
-            v.pause();
+            if (!v.paused) v.pause();
             v.classList.remove('active');
           });
 
           const vid = document.getElementById('video-' + idx);
+          if (vid) vid.classList.add('active');
 
           // Immediately show black screen + spinner for instant feedback
           scanOverlay.style.display  = 'none';
@@ -508,24 +548,25 @@
           fireRings();
 
           if (vid) {
-            vid.src = artworks[idx].video_url;
-            vid.muted = false;
             vid.loop = true;
-            vid.classList.add('active');
+            vid.src  = artworks[idx].video_url;
             vid.load();
-            vid.addEventListener('ended', function() {
-              vid.currentTime = 0;
-              vid.load();
-              vid.play().catch(() => {});
-            });
             vid.addEventListener('loadeddata', function onLoaded() {
               vid.removeEventListener('loadeddata', onLoaded);
               console.log('[AR] loadeddata → play() on video-' + idx);
+              vid.muted = false;
               vid.play()
-                .then(() => { videoSpinner.style.display = 'none'; })
+                .then(() => {
+                  videoSpinner.style.display = 'none';
+                  unmuteBtn.classList.remove('show');
+                })
                 .catch(() => {
+                  // Audio blocked — play muted and offer tap-to-unmute
                   vid.muted = true;
-                  vid.play().then(() => { videoSpinner.style.display = 'none'; });
+                  vid.play().then(() => {
+                    videoSpinner.style.display = 'none';
+                    unmuteBtn.classList.add('show');
+                  });
                 });
             });
           }
@@ -554,9 +595,12 @@
   // During scanner: exit AR entirely and return to welcome.
   closeBtn.addEventListener('click', () => {
     if (isVideoPlaying) {
+      const vid = document.querySelector('#video-screen video.active');
       isVideoPlaying = false;
-      document.querySelectorAll('#video-screen video').forEach(v => { v.pause(); v.classList.remove('active'); });
+      if (vid) { vid.pause(); vid.currentTime = 0; }
+      document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
       videoSpinner.style.display = 'none';
+      unmuteBtn.classList.remove('show');
       videoScreen.style.display  = 'none';
       cameraFeedEl.style.display = 'block';
       scanOverlay.style.display  = 'block';
@@ -575,6 +619,7 @@
     scanOverlay.style.display  = 'none';
     videoScreen.style.display  = 'none';
     videoSpinner.style.display = 'none';
+    unmuteBtn.classList.remove('show');
     ringOverlay.style.display  = 'none';
     closeBtn.style.display     = 'none';
     document.querySelectorAll('#video-screen video').forEach(v => v.pause());
@@ -584,6 +629,13 @@
     }
     welcome.style.display = 'flex';
     startBtn.disabled     = false;
+  });
+
+  // ── Unmute button ────────────────────────────────────────────
+  unmuteBtn.addEventListener('click', () => {
+    const vid = document.querySelector('#video-screen video.active');
+    if (vid) vid.muted = false;
+    unmuteBtn.classList.remove('show');
   });
 
   // ── Boot ─────────────────────────────────────────────────────
