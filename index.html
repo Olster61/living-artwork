@@ -190,27 +190,6 @@
     }
     @keyframes vidSpin { to { transform: rotate(360deg); } }
 
-    /* ── Unmute button ─────────────────────────────────────── */
-    #unmute-btn {
-      position: fixed;
-      bottom: 72px; right: 20px;
-      width: 44px; height: 44px;
-      border-radius: 50%;
-      background: rgba(0,0,0,0.65);
-      border: 1.5px solid rgba(201,168,76,0.55);
-      color: var(--gold);
-      font-size: 20px;
-      cursor: pointer;
-      display: none;
-      z-index: 170;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.2s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    #unmute-btn.show { display: flex; }
-    #unmute-btn:active { background: rgba(201,168,76,0.25); }
-
     /* ── Expanding gold rings ───────────────────────────────── */
     #ring-overlay {
       position: fixed;
@@ -308,9 +287,6 @@
 <!-- Buffering spinner -->
 <div id="video-spinner"></div>
 
-<!-- Unmute button — shown if audio could not be auto-unlocked -->
-<button id="unmute-btn" title="Tap to unmute">🔇</button>
-
 <!-- Expanding gold rings -->
 <div id="ring-overlay">
   <div class="ring"></div>
@@ -350,7 +326,6 @@
   const scanOverlay  = document.getElementById('scan-overlay');
   const videoScreen  = document.getElementById('video-screen');
   const videoSpinner = document.getElementById('video-spinner');
-  const unmuteBtn    = document.getElementById('unmute-btn');
   const ringOverlay  = document.getElementById('ring-overlay');
   const closeBtn     = document.getElementById('close-btn');
 
@@ -556,17 +531,10 @@
               console.log('[AR] loadeddata → play() on video-' + idx);
               vid.muted = false;
               vid.play()
-                .then(() => {
+                .then(() => { videoSpinner.style.display = 'none'; })
+                .catch(err => {
+                  console.warn('[AR] play() rejected:', err);
                   videoSpinner.style.display = 'none';
-                  unmuteBtn.classList.remove('show');
-                })
-                .catch(() => {
-                  // Audio blocked — play muted and offer tap-to-unmute
-                  vid.muted = true;
-                  vid.play().then(() => {
-                    videoSpinner.style.display = 'none';
-                    unmuteBtn.classList.add('show');
-                  });
                 });
             });
           }
@@ -600,7 +568,6 @@
       if (vid) { vid.pause(); vid.currentTime = 0; }
       document.querySelectorAll('#video-screen video').forEach(v => v.classList.remove('active'));
       videoSpinner.style.display = 'none';
-      unmuteBtn.classList.remove('show');
       videoScreen.style.display  = 'none';
       cameraFeedEl.style.display = 'block';
       scanOverlay.style.display  = 'block';
@@ -619,7 +586,6 @@
     scanOverlay.style.display  = 'none';
     videoScreen.style.display  = 'none';
     videoSpinner.style.display = 'none';
-    unmuteBtn.classList.remove('show');
     ringOverlay.style.display  = 'none';
     closeBtn.style.display     = 'none';
     document.querySelectorAll('#video-screen video').forEach(v => v.pause());
@@ -629,13 +595,6 @@
     }
     welcome.style.display = 'flex';
     startBtn.disabled     = false;
-  });
-
-  // ── Unmute button ────────────────────────────────────────────
-  unmuteBtn.addEventListener('click', () => {
-    const vid = document.querySelector('#video-screen video.active');
-    if (vid) vid.muted = false;
-    unmuteBtn.classList.remove('show');
   });
 
   // ── Boot ─────────────────────────────────────────────────────
