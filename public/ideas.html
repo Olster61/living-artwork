@@ -644,6 +644,7 @@
   <div style="display:flex;gap:8px;margin-left:auto">
     <button class="btn btn-outline" id="import-btn">↑ Import</button>
     <input type="file" id="import-file" accept=".md,text/markdown,text/plain" style="display:none">
+    <button class="btn btn-outline" id="new-cat-btn">+ Category</button>
     <button class="btn btn-gold" id="add-btn">+ New Idea</button>
   </div>
 </header>
@@ -651,13 +652,6 @@
 <!-- ── Filters ─────────────────────────────────────────────── -->
 <div class="filter-bar" id="filter-bar">
   <button class="filter-btn active" data-cat="All">All</button>
-  <button class="filter-btn" data-cat="Marketing">Marketing</button>
-  <button class="filter-btn" data-cat="Technology">Technology</button>
-  <button class="filter-btn" data-cat="Animation">Animation</button>
-  <button class="filter-btn" data-cat="Business">Business</button>
-  <button class="filter-btn" data-cat="Artwork">Artwork</button>
-  <button class="filter-btn" data-cat="Research">Research</button>
-  <button class="filter-btn" data-cat="Other">Other</button>
 </div>
 
 <!-- ── Main ───────────────────────────────────────────────── -->
@@ -679,13 +673,6 @@
     <div class="form-group">
       <label>Category</label>
       <select id="form-category">
-        <option value="Marketing">Marketing</option>
-        <option value="Technology">Technology</option>
-        <option value="Animation">Animation</option>
-        <option value="Business">Business</option>
-        <option value="Artwork">Artwork</option>
-        <option value="Research">Research</option>
-        <option value="Other">Other</option>
       </select>
     </div>
 
@@ -743,12 +730,28 @@
   </div>
 </div>
 
+<!-- ── New Category modal ─────────────────────────────────── -->
+<div class="overlay" id="new-cat-overlay" hidden>
+  <div class="form-panel" style="max-width:380px">
+    <h2 class="modal-heading">New Category</h2>
+    <div class="form-group">
+      <label>Category name <span style="color:var(--err)">*</span></label>
+      <input type="text" id="new-cat-input" placeholder="e.g. Strategy" maxlength="60">
+      <p id="new-cat-error" style="color:var(--err);font-size:12px;margin-top:6px;min-height:1.2em"></p>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" id="new-cat-cancel">Cancel</button>
+      <button class="btn btn-gold" id="new-cat-save">Add Category</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Toast ───────────────────────────────────────────────── -->
 <div id="toast"></div>
 
 <script>
-  const CATEGORIES = ['Marketing','Technology','Animation','Business','Artwork','Research','Other'];
-  const COLORS = {
+  let categories = [];
+  const DEFAULT_COLORS = {
     Marketing:  '#4a90d9',
     Technology: '#7c4dff',
     Animation:  '#ff6b35',
@@ -757,6 +760,15 @@
     Research:   '#00cec9',
     Other:      '#9b9baa',
   };
+  const COLOR_PALETTE = ['#e74c3c','#e67e22','#27ae60','#8e44ad','#16a085','#2980b9','#d35400','#1abc9c','#f39c12','#fd79a8'];
+  const colorAssignments = {};
+  function catColor(name) {
+    if (DEFAULT_COLORS[name]) return DEFAULT_COLORS[name];
+    if (!colorAssignments[name]) {
+      colorAssignments[name] = COLOR_PALETTE[Object.keys(colorAssignments).length % COLOR_PALETTE.length];
+    }
+    return colorAssignments[name];
+  }
 
   // ── State ────────────────────────────────────────────────
   let ideas = [];
@@ -841,6 +853,34 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     </div>`;
   }
 
+  // ── Categories ───────────────────────────────────────────
+  async function loadCategories() {
+    try {
+      const data = await apiFetch('/api/ideas/categories');
+      categories = data.categories || [];
+    } catch {
+      categories = ['Marketing','Technology','Animation','Business','Artwork','Research','Other'];
+    }
+    buildFilterBar();
+    buildFormSelect();
+  }
+
+  function buildFilterBar() {
+    const bar = document.getElementById('filter-bar');
+    bar.innerHTML = `<button class="filter-btn${activeFilter === 'All' ? ' active' : ''}" data-cat="All">All</button>`;
+    categories.forEach(c => {
+      const btn = document.createElement('button');
+      btn.className = 'filter-btn' + (activeFilter === c ? ' active' : '');
+      btn.dataset.cat = c;
+      btn.textContent = c;
+      bar.appendChild(btn);
+    });
+  }
+
+  function buildFormSelect() {
+    formCatEl.innerHTML = categories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  }
+
   // ── Render ───────────────────────────────────────────────
   function getFiltered() {
     let list = ideas;
@@ -870,13 +910,16 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
     if (groupByCat) {
       const map = {};
-      CATEGORIES.forEach(c => { map[c] = []; });
+      categories.forEach(c => { map[c] = []; });
       filtered.forEach(i => { (map[i.category] = map[i.category] || []).push(i); });
 
-      mainEl.innerHTML = CATEGORIES
+      // Include any categories found in ideas that aren't in the known list
+      const allCats = [...categories, ...Object.keys(map).filter(c => !categories.includes(c))];
+
+      mainEl.innerHTML = allCats
         .filter(c => map[c] && map[c].length)
         .map(c => {
-          const color = COLORS[c] || COLORS.Other;
+          const color = catColor(c);
           return `<div class="cat-section">
             <div class="cat-heading" style="color:${color}">
               ${esc(c)}
@@ -896,7 +939,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   function cardHTML(idea) {
-    const color   = COLORS[idea.category] || COLORS.Other;
+    const color   = catColor(idea.category);
     const preview = idea.notes
       ? (idea.notes.length > 150 ? idea.notes.slice(0, 150) + '…' : idea.notes)
       : '';
@@ -929,7 +972,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     if (!idea) return;
     viewingId = id;
 
-    const color = COLORS[idea.category] || COLORS.Other;
+    const color = catColor(idea.category);
 
     document.getElementById('view-bar-meta').innerHTML = `
       <span class="cat-badge" style="color:${color};border-color:${color}60;background:${color}18">${esc(idea.category)}</span>
@@ -984,7 +1027,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   // ── Form open / close ────────────────────────────────────
   function openForm() {
     formTitleEl.value  = '';
-    formCatEl.value    = 'Marketing';
+    formCatEl.value    = categories[0] || '';
     formNotesEl.value  = '';
     formFileEl.value   = '';
     filePreviewEl.innerHTML  = '';
@@ -1074,7 +1117,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   let parsedEntries    = [];
 
   function parseMarkdown(text) {
-    const VALID = ['Marketing','Technology','Animation','Business','Artwork','Research','Other'];
+    const VALID = categories.length ? categories : ['Marketing','Technology','Animation','Business','Artwork','Research','Other'];
     const entries = [];
     let cat = 'Other', title = null, lines = [];
 
@@ -1114,7 +1157,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     const rows = Object.entries(byCat).map(([cat, list]) => `
       <li class="import-cat-row">
         <span class="import-cat-name">
-          <span class="import-dot" style="background:${COLORS[cat] || COLORS.Other}"></span>
+          <span class="import-dot" style="background:${catColor(cat)}"></span>
           ${esc(cat)}
         </span>
         <span class="import-count">${list.length} ${list.length === 1 ? 'entry' : 'entries'}</span>
@@ -1151,6 +1194,54 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.getElementById('import-cancel').addEventListener('click', closeImport);
   importOverlay.addEventListener('click', e => { if (e.target === importOverlay) closeImport(); });
 
+  // ── New Category ─────────────────────────────────────────
+  const newCatOverlay = document.getElementById('new-cat-overlay');
+  const newCatInput   = document.getElementById('new-cat-input');
+  const newCatError   = document.getElementById('new-cat-error');
+
+  function openNewCat() {
+    newCatInput.value = '';
+    newCatError.textContent = '';
+    newCatOverlay.removeAttribute('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => newCatInput.focus(), 60);
+  }
+
+  function closeNewCat() {
+    newCatOverlay.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+  }
+
+  async function saveNewCat() {
+    const name = newCatInput.value.trim();
+    if (!name) { newCatError.textContent = 'Please enter a name'; return; }
+    const saveBtn = document.getElementById('new-cat-save');
+    saveBtn.disabled = true;
+    newCatError.textContent = '';
+    try {
+      await apiFetch('/api/ideas/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      categories.push(name);
+      buildFilterBar();
+      buildFormSelect();
+      closeNewCat();
+      toast(`Category "${name}" added`);
+    } catch (err) {
+      newCatError.textContent = err.message;
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  document.getElementById('new-cat-btn').addEventListener('click', openNewCat);
+  document.getElementById('new-cat-cancel').addEventListener('click', closeNewCat);
+  document.getElementById('new-cat-save').addEventListener('click', saveNewCat);
+  newCatInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveNewCat(); });
+  newCatOverlay.addEventListener('click', e => { if (e.target === newCatOverlay) closeNewCat(); });
+
   document.getElementById('import-confirm').addEventListener('click', async () => {
     if (!parsedEntries.length) return;
     const btn = document.getElementById('import-confirm');
@@ -1186,6 +1277,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     if (!viewOverlay.hidden) closeView();
+    else if (!newCatOverlay.hidden) closeNewCat();
     else if (!formOverlay.hidden) closeForm();
     else if (!importOverlay.hidden) closeImport();
   });
@@ -1206,7 +1298,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   });
 
   // ── Boot ─────────────────────────────────────────────────
-  loadIdeas();
+  async function init() {
+    await loadCategories();
+    await loadIdeas();
+  }
+  init();
 </script>
 </body>
 </html>
