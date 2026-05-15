@@ -513,6 +513,11 @@
             vid.loop = true;
             vid.classList.add('active');
             vid.load();
+            vid.addEventListener('ended', function() {
+              vid.currentTime = 0;
+              vid.load();
+              vid.play().catch(() => {});
+            });
             vid.addEventListener('loadeddata', function onLoaded() {
               vid.removeEventListener('loadeddata', onLoaded);
               console.log('[AR] loadeddata → play() on video-' + idx);
