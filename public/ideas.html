@@ -707,7 +707,8 @@
   <div class="view-bar">
     <button class="btn btn-outline" id="view-close" style="padding:7px 14px;font-size:13px">← Back</button>
     <div class="view-bar-meta" id="view-bar-meta"></div>
-    <div style="margin-left:auto">
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-outline" id="view-edit" style="padding:7px 14px;font-size:13px">Edit</button>
       <button class="btn btn-danger" id="view-delete">Delete</button>
     </div>
   </div>
@@ -773,7 +774,9 @@
   // ── State ────────────────────────────────────────────────
   let ideas = [];
   let activeFilter = 'All';
-  let viewingId = null;
+  let viewingId  = null;
+  let editingId  = null;
+  let editFileRemoved = false;
 
   // ── DOM ──────────────────────────────────────────────────
   const mainEl        = document.getElementById('main');
@@ -936,6 +939,15 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     mainEl.querySelectorAll('.idea-card').forEach(el => {
       el.addEventListener('click', () => openView(el.dataset.id));
     });
+
+    // Seek video thumbnails to first frame once metadata is loaded
+    mainEl.querySelectorAll('.card-thumb.is-video video').forEach(vid => {
+      if (vid.readyState >= 1) {
+        vid.currentTime = 0;
+      } else {
+        vid.addEventListener('loadedmetadata', () => { vid.currentTime = 0; }, { once: true });
+      }
+    });
   }
 
   function cardHTML(idea) {
@@ -949,7 +961,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       if (idea.file_type === 'image') {
         thumb = `<div class="card-thumb"><img src="${esc(idea.file_url)}" alt="" loading="lazy"></div>`;
       } else {
-        thumb = `<div class="card-thumb is-video"><video src="${esc(idea.file_url)}" preload="none" muted></video></div>`;
+        thumb = `<div class="card-thumb is-video"><video src="${esc(idea.file_url)}" preload="metadata" muted playsinline></video></div>`;
       }
     }
 
@@ -1025,12 +1037,21 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   });
 
   // ── Form open / close ────────────────────────────────────
-  function openForm() {
-    formTitleEl.value  = '';
-    formCatEl.value    = categories[0] || '';
-    formNotesEl.value  = '';
-    formFileEl.value   = '';
-    filePreviewEl.innerHTML  = '';
+  function openForm(idea = null) {
+    editingId       = idea ? idea.id : null;
+    editFileRemoved = false;
+
+    formOverlay.querySelector('.modal-heading').textContent = idea ? 'Edit Idea' : 'New Idea';
+    document.getElementById('form-save').textContent        = idea ? 'Save Changes' : 'Save Idea';
+
+    formTitleEl.value = idea ? idea.title      : '';
+    formCatEl.value   = idea ? idea.category   : (categories[0] || '');
+    formNotesEl.value = idea ? (idea.notes || '') : '';
+    formFileEl.value  = '';
+    filePreviewEl.innerHTML = '';
+
+    if (idea && idea.file_url) showExistingFile(idea);
+
     uploadRowEl.style.display = 'none';
     document.getElementById('form-save').disabled = false;
     formOverlay.removeAttribute('hidden');
@@ -1041,6 +1062,24 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   function closeForm() {
     formOverlay.setAttribute('hidden', '');
     document.body.style.overflow = '';
+    editingId = null;
+  }
+
+  function showExistingFile(idea) {
+    const isVid = idea.file_type === 'video';
+    filePreviewEl.innerHTML = `<div class="file-preview-wrap">
+      ${isVid
+        ? `<video src="${esc(idea.file_url)}" muted preload="metadata" playsinline></video>`
+        : `<img src="${esc(idea.file_url)}" alt="">`}
+      <div class="file-preview-footer">
+        <span>Current ${isVid ? 'video' : 'image'} — pick a new file below to replace</span>
+        <button class="remove-file" id="rm-file">✕ Remove</button>
+      </div>
+    </div>`;
+    document.getElementById('rm-file').addEventListener('click', () => {
+      editFileRemoved = true;
+      filePreviewEl.innerHTML = '<p style="font-size:12px;color:var(--text3);margin-top:8px">File will be removed on save.</p>';
+    });
   }
 
   // ── File preview ─────────────────────────────────────────
@@ -1077,7 +1116,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
   });
 
-  // ── Save ─────────────────────────────────────────────────
+  // ── Save (create or update) ──────────────────────────────
   document.getElementById('form-save').addEventListener('click', async () => {
     const title    = formTitleEl.value.trim();
     const category = formCatEl.value;
@@ -1096,9 +1135,13 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       fd.append('category', category);
       if (notes) fd.append('notes', notes);
       if (file)  fd.append('file', file);
+      if (editingId && editFileRemoved) fd.append('remove_file', 'true');
 
-      await apiFetch('/api/ideas', { method: 'POST', body: fd });
-      toast('Idea saved!');
+      const url    = editingId ? `/api/ideas/${editingId}` : '/api/ideas';
+      const method = editingId ? 'PUT' : 'POST';
+
+      await apiFetch(url, { method, body: fd });
+      toast(editingId ? 'Idea updated!' : 'Idea saved!');
       closeForm();
       await loadIdeas();
     } catch (err) {
@@ -1280,10 +1323,17 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   });
 
   // ── Event wiring ─────────────────────────────────────────
-  document.getElementById('add-btn').addEventListener('click', openForm);
-  document.getElementById('fab').addEventListener('click', openForm);
+  document.getElementById('add-btn').addEventListener('click', () => openForm());
+  document.getElementById('fab').addEventListener('click', () => openForm());
   document.getElementById('form-cancel').addEventListener('click', closeForm);
   document.getElementById('view-close').addEventListener('click', closeView);
+
+  document.getElementById('view-edit').addEventListener('click', () => {
+    const idea = ideas.find(i => i.id === viewingId);
+    if (!idea) return;
+    closeView();
+    openForm(idea);
+  });
 
   formOverlay.addEventListener('click', e => { if (e.target === formOverlay) closeForm(); });
 

@@ -629,6 +629,57 @@ app.post('/api/ideas', upload.single('file'), async (req, res) => {
   res.json({ idea: ideaWithUrl })
 })
 
+app.put('/api/ideas/:id', upload.single('file'), async (req, res) => {
+  const { id } = req.params
+  const { title, category, notes, remove_file } = req.body
+  if (!title || !category) return res.status(400).json({ error: 'title and category required' })
+
+  const { data: existing, error: fetchErr } = await supabase
+    .from('ideas').select('file_url, file_type').eq('id', id).single()
+  if (fetchErr) return res.status(404).json({ error: 'Not found' })
+
+  let file_url  = existing.file_url
+  let file_type = existing.file_type
+
+  if (req.file) {
+    // Delete old file then upload replacement
+    if (existing.file_url) {
+      const oldPath = ideasFilePath(existing.file_url)
+      if (oldPath) await supabase.storage.from(IDEAS_BUCKET).remove([oldPath]).catch(() => {})
+    }
+    const ext = (req.file.originalname.split('.').pop() || 'bin').toLowerCase()
+    const storagePath = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from(IDEAS_BUCKET)
+      .upload(storagePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '3600',
+        upsert: false,
+      })
+    if (upErr) return res.status(500).json({ error: 'Upload failed: ' + upErr.message })
+    file_url  = storagePath
+    file_type = req.file.mimetype.startsWith('video/') ? 'video' : 'image'
+  } else if (remove_file === 'true') {
+    if (existing.file_url) {
+      const oldPath = ideasFilePath(existing.file_url)
+      if (oldPath) await supabase.storage.from(IDEAS_BUCKET).remove([oldPath]).catch(() => {})
+    }
+    file_url  = null
+    file_type = null
+  }
+
+  const { data, error } = await supabase
+    .from('ideas')
+    .update({ title, category, notes: notes || null, file_url, file_type })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) return res.status(500).json({ error: error.message })
+  const [ideaWithUrl] = await withSignedUrls([data])
+  res.json({ idea: ideaWithUrl })
+})
+
 app.delete('/api/ideas/:id', async (req, res) => {
   const { data: idea, error: fetchErr } = await supabase
     .from('ideas')
