@@ -699,6 +699,19 @@ app.delete('/api/ideas/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
+app.patch('/api/ideas/:id/favourite', async (req, res) => {
+  const { is_favourite } = req.body
+  if (typeof is_favourite !== 'boolean') return res.status(400).json({ error: 'is_favourite (boolean) required' })
+  const { data, error } = await supabase
+    .from('ideas')
+    .update({ is_favourite })
+    .eq('id', req.params.id)
+    .select('id, is_favourite')
+    .single()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ idea: data })
+})
+
 // ── Static / Admin page ───────────────────────────────────────────────────────
 
 app.use('/public', express.static(path.join(__dirname, 'public')))

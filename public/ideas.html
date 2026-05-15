@@ -611,6 +611,91 @@
     .import-count { font-size: 11px; color: var(--text3); background: var(--bg2); border: 1px solid var(--gold-bd); border-radius: 10px; padding: 1px 8px; }
     .import-progress { font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 10px; padding: 16px 0; }
 
+    /* ── Star button ──────────────────────────────────────── */
+    .card-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
+    .star-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 17px;
+      color: var(--text3);
+      line-height: 1;
+      padding: 3px 5px;
+      border-radius: 4px;
+      transition: color 0.15s, transform 0.15s;
+    }
+    .star-btn:hover { color: var(--gold); transform: scale(1.2); }
+    .star-btn.fav   { color: var(--gold); }
+
+    /* ── View toggle ──────────────────────────────────────── */
+    .view-toggle {
+      display: flex;
+      gap: 2px;
+      background: var(--bg3);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+    }
+    .view-toggle-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 5px 7px;
+      border-radius: 5px;
+      color: var(--text3);
+      line-height: 1;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+    }
+    .view-toggle-btn:hover  { color: var(--gold-lt); }
+    .view-toggle-btn.active { background: var(--gold-bg); color: var(--gold-lt); }
+
+    /* ── List view ────────────────────────────────────────── */
+    .ideas-list { display: flex; flex-direction: column; gap: 3px; }
+
+    .list-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: var(--card);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: border-color 0.18s, background 0.18s;
+      animation: fadeUp 0.18s ease both;
+    }
+    .list-row:hover { border-color: var(--gold-bdh); background: var(--bg3); }
+
+    .list-thumb {
+      width: 52px;
+      height: 34px;
+      border-radius: 4px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: var(--bg3);
+    }
+    .list-thumb img,
+    .list-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    .list-title {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .list-date { font-size: 11px; color: var(--text3); flex-shrink: 0; white-space: nowrap; }
+
     /* ── Responsive ───────────────────────────────────────── */
     @media (max-width: 600px) {
       .header { padding: 12px 16px; gap: 10px; }
@@ -622,6 +707,7 @@
       .view-body { padding: 28px 16px 80px; }
       #view-title { font-size: 26px; }
       #fab { bottom: 20px; right: 20px; width: 48px; height: 48px; font-size: 22px; }
+      .list-date { display: none; }
     }
   </style>
 </head>
@@ -641,7 +727,24 @@
     <input type="search" id="search" placeholder="Search ideas…" autocomplete="off">
   </div>
 
-  <div style="display:flex;gap:8px;margin-left:auto">
+  <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+    <div class="view-toggle">
+      <button class="view-toggle-btn" id="view-grid-btn" title="Grid view">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor">
+          <rect x="0" y="0" width="5.5" height="5.5" rx="1"/>
+          <rect x="7.5" y="0" width="5.5" height="5.5" rx="1"/>
+          <rect x="0" y="7.5" width="5.5" height="5.5" rx="1"/>
+          <rect x="7.5" y="7.5" width="5.5" height="5.5" rx="1"/>
+        </svg>
+      </button>
+      <button class="view-toggle-btn" id="view-list-btn" title="List view">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor">
+          <rect x="0" y="1" width="13" height="2" rx="1"/>
+          <rect x="0" y="5.5" width="13" height="2" rx="1"/>
+          <rect x="0" y="10" width="13" height="2" rx="1"/>
+        </svg>
+      </button>
+    </div>
     <button class="btn btn-outline" id="import-btn">↑ Import</button>
     <input type="file" id="import-file" accept=".md,text/markdown,text/plain" style="display:none">
     <button class="btn btn-outline" id="new-cat-btn">+ Category</button>
@@ -777,6 +880,9 @@
   let viewingId  = null;
   let editingId  = null;
   let editFileRemoved = false;
+  let viewMode = localStorage.getItem('ideas-view') || 'grid';
+  document.getElementById('view-grid-btn').classList.toggle('active', viewMode === 'grid');
+  document.getElementById('view-list-btn').classList.toggle('active', viewMode === 'list');
 
   // ── DOM ──────────────────────────────────────────────────
   const mainEl        = document.getElementById('main');
@@ -878,6 +984,14 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       btn.textContent = c;
       bar.appendChild(btn);
     });
+    const sep = document.createElement('span');
+    sep.style.cssText = 'width:1px;background:var(--gold-bd);flex-shrink:0;align-self:stretch;margin:0 4px';
+    bar.appendChild(sep);
+    const favBtn = document.createElement('button');
+    favBtn.className = 'filter-btn' + (activeFilter === 'Favourites' ? ' active' : '');
+    favBtn.dataset.cat = 'Favourites';
+    favBtn.innerHTML = '★ Favourites';
+    bar.appendChild(favBtn);
   }
 
   function buildFormSelect() {
@@ -887,7 +1001,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   // ── Render ───────────────────────────────────────────────
   function getFiltered() {
     let list = ideas;
-    if (activeFilter !== 'All') list = list.filter(i => i.category === activeFilter);
+    if (activeFilter === 'Favourites') {
+      list = list.filter(i => i.is_favourite);
+    } else if (activeFilter !== 'All') {
+      list = list.filter(i => i.category === activeFilter);
+    }
     const q = searchEl.value.trim().toLowerCase();
     if (q) list = list.filter(i =>
       i.title.toLowerCase().includes(q) ||
@@ -901,52 +1019,72 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
     if (!filtered.length) {
       const q = searchEl.value.trim();
+      const isFav = activeFilter === 'Favourites';
       mainEl.innerHTML = `<div class="state-box">
-        <div class="state-icon">💡</div>
-        <h3>${q ? 'No results' : 'No ideas yet'}</h3>
-        <p>${q ? `Nothing matches "${esc(q)}"` : 'Tap <strong>+ New Idea</strong> to capture your first thought.'}</p>
+        <div class="state-icon">${isFav ? '★' : '💡'}</div>
+        <h3>${q ? 'No results' : isFav ? 'No favourites yet' : 'No ideas yet'}</h3>
+        <p>${q ? `Nothing matches "${esc(q)}"` : isFav ? 'Click ☆ on any idea card to star it.' : 'Tap <strong>+ New Idea</strong> to capture your first thought.'}</p>
       </div>`;
       return;
     }
 
-    const groupByCat = activeFilter === 'All' && !searchEl.value.trim();
-
-    if (groupByCat) {
-      const map = {};
-      categories.forEach(c => { map[c] = []; });
-      filtered.forEach(i => { (map[i.category] = map[i.category] || []).push(i); });
-
-      // Include any categories found in ideas that aren't in the known list
-      const allCats = [...categories, ...Object.keys(map).filter(c => !categories.includes(c))];
-
-      mainEl.innerHTML = allCats
-        .filter(c => map[c] && map[c].length)
-        .map(c => {
-          const color = catColor(c);
-          return `<div class="cat-section">
-            <div class="cat-heading" style="color:${color}">
-              ${esc(c)}
-              <span class="cat-count">${map[c].length}</span>
-              <div class="cat-rule" style="background:${color}"></div>
-            </div>
-            <div class="cards-grid">${map[c].map(cardHTML).join('')}</div>
-          </div>`;
-        }).join('');
+    if (viewMode === 'list') {
+      mainEl.innerHTML = `<div class="ideas-list">${filtered.map(listRowHTML).join('')}</div>`;
+      mainEl.querySelectorAll('.list-row').forEach(el => {
+        el.addEventListener('click', e => {
+          if (!e.target.closest('.star-btn')) openView(el.dataset.id);
+        });
+      });
     } else {
-      mainEl.innerHTML = `<div class="cards-grid">${filtered.map(cardHTML).join('')}</div>`;
+      const groupByCat = activeFilter === 'All' && activeFilter !== 'Favourites' && !searchEl.value.trim();
+
+      if (groupByCat) {
+        const map = {};
+        categories.forEach(c => { map[c] = []; });
+        filtered.forEach(i => { (map[i.category] = map[i.category] || []).push(i); });
+        const allCats = [...categories, ...Object.keys(map).filter(c => !categories.includes(c))];
+
+        mainEl.innerHTML = allCats
+          .filter(c => map[c] && map[c].length)
+          .map(c => {
+            const color = catColor(c);
+            return `<div class="cat-section">
+              <div class="cat-heading" style="color:${color}">
+                ${esc(c)}
+                <span class="cat-count">${map[c].length}</span>
+                <div class="cat-rule" style="background:${color}"></div>
+              </div>
+              <div class="cards-grid">${map[c].map(cardHTML).join('')}</div>
+            </div>`;
+          }).join('');
+      } else {
+        mainEl.innerHTML = `<div class="cards-grid">${filtered.map(cardHTML).join('')}</div>`;
+      }
+
+      mainEl.querySelectorAll('.idea-card').forEach(el => {
+        el.addEventListener('click', e => {
+          if (!e.target.closest('.star-btn')) openView(el.dataset.id);
+        });
+      });
     }
 
-    mainEl.querySelectorAll('.idea-card').forEach(el => {
-      el.addEventListener('click', () => openView(el.dataset.id));
-    });
-
-    // Seek video thumbnails to first frame once metadata is loaded
-    mainEl.querySelectorAll('.card-thumb.is-video video').forEach(vid => {
+    // Video thumbnails — first frame
+    mainEl.querySelectorAll('.card-thumb.is-video video, .list-thumb video').forEach(vid => {
       if (vid.readyState >= 1) {
         vid.currentTime = 0;
       } else {
         vid.addEventListener('loadedmetadata', () => { vid.currentTime = 0; }, { once: true });
       }
+    });
+
+    // Star button click handlers
+    mainEl.querySelectorAll('.star-btn').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const newFav = btn.dataset.fav !== 'true';
+        await toggleFavourite(id, newFav);
+      });
     });
   }
 
@@ -974,8 +1112,59 @@ CREATE POLICY "allow all" ON ideas FOR ALL
         </div>
         <h3 class="card-title">${esc(idea.title)}</h3>
         ${preview ? `<p class="card-preview">${esc(preview)}</p>` : ''}
+        <div class="card-footer">
+          <button class="star-btn${idea.is_favourite ? ' fav' : ''}" data-id="${esc(idea.id)}" data-fav="${idea.is_favourite ? 'true' : 'false'}" title="${idea.is_favourite ? 'Remove from favourites' : 'Add to favourites'}">${idea.is_favourite ? '★' : '☆'}</button>
+        </div>
       </div>
     </div>`;
+  }
+
+  function listRowHTML(idea) {
+    const color = catColor(idea.category);
+    let thumb = '';
+    if (idea.file_url) {
+      if (idea.file_type === 'image') {
+        thumb = `<div class="list-thumb"><img src="${esc(idea.file_url)}" alt="" loading="lazy"></div>`;
+      } else {
+        thumb = `<div class="list-thumb"><video src="${esc(idea.file_url)}" preload="metadata" muted playsinline></video></div>`;
+      }
+    }
+    return `<div class="list-row" data-id="${esc(idea.id)}">
+      ${thumb}
+      <span class="list-title">${esc(idea.title)}</span>
+      <span class="cat-badge list-cat" style="color:${color};border-color:${color}60;background:${color}18">${esc(idea.category)}</span>
+      <span class="list-date">${fmtDate(idea.created_at)}</span>
+      <button class="star-btn${idea.is_favourite ? ' fav' : ''}" data-id="${esc(idea.id)}" data-fav="${idea.is_favourite ? 'true' : 'false'}" title="${idea.is_favourite ? 'Remove from favourites' : 'Add to favourites'}">${idea.is_favourite ? '★' : '☆'}</button>
+    </div>`;
+  }
+
+  async function toggleFavourite(id, isFav) {
+    const idea = ideas.find(i => i.id === id);
+    if (!idea) return;
+    idea.is_favourite = isFav;
+
+    // Optimistic UI update on all matching star buttons
+    document.querySelectorAll(`.star-btn[data-id="${id}"]`).forEach(btn => {
+      btn.dataset.fav = isFav ? 'true' : 'false';
+      btn.classList.toggle('fav', isFav);
+      btn.textContent = isFav ? '★' : '☆';
+      btn.title = isFav ? 'Remove from favourites' : 'Add to favourites';
+    });
+
+    // If on Favourites tab, re-render to hide/show
+    if (activeFilter === 'Favourites') render();
+
+    try {
+      await apiFetch(`/api/ideas/${id}/favourite`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_favourite: isFav }),
+      });
+    } catch (err) {
+      idea.is_favourite = !isFav;
+      render();
+      toast('Failed to update favourite', true);
+    }
   }
 
   // ── View ─────────────────────────────────────────────────
@@ -1359,6 +1548,17 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     clearTimeout(searchTimer);
     searchTimer = setTimeout(render, 160);
   });
+
+  // ── View mode toggle ─────────────────────────────────────
+  function setViewMode(mode) {
+    viewMode = mode;
+    localStorage.setItem('ideas-view', mode);
+    document.getElementById('view-grid-btn').classList.toggle('active', mode === 'grid');
+    document.getElementById('view-list-btn').classList.toggle('active', mode === 'list');
+    render();
+  }
+  document.getElementById('view-grid-btn').addEventListener('click', () => setViewMode('grid'));
+  document.getElementById('view-list-btn').addEventListener('click', () => setViewMode('list'));
 
   // ── Boot ─────────────────────────────────────────────────
   async function init() {
