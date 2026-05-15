@@ -170,9 +170,9 @@
       width: 100%;
       height: 100%;
       object-fit: contain;
-      display: none;
+      opacity: 0;
     }
-    #video-screen video.active { display: block; }
+    #video-screen video.active { opacity: 1; }
 
     /* Buffering spinner — bottom-right, shown while video loads */
     #video-spinner {
@@ -316,7 +316,7 @@
   let aframeLoaded    = false;
   let isVideoPlaying  = false;
   let gumOriginal     = null;
-  let loopHandler     = null;   // {vid, fn} — active timeupdate handler for seamless loop
+  let loopHandler     = null;   // {cancel: fn} — cancel the rAF-based seamless loop
 
   // ── DOM refs ────────────────────────────────────────────────
   const welcome      = document.getElementById('welcome');
@@ -492,16 +492,15 @@
         requestAnimationFrame(() => requestAnimationFrame(() => {
           console.log('[AR] targetFound idx=' + idx);
 
-          // Pause any previously-active video and clear seamless-loop handler
-          if (loopHandler) { loopHandler.vid.removeEventListener('timeupdate', loopHandler.fn); loopHandler = null; }
+          // Stop any active loop and pause all videos
+          if (loopHandler) { loopHandler.cancel(); loopHandler = null; }
           document.querySelectorAll('#video-screen video').forEach(v => {
-            if (!v.paused) v.pause();
+            v.pause();
             v.classList.remove('active');
           });
 
           const vidA = document.getElementById('video-' + idx + '-a');
           const vidB = document.getElementById('video-' + idx + '-b');
-          if (vidA) vidA.classList.add('active');
 
           // Immediately show black screen + spinner for instant feedback
           scanOverlay.style.display  = 'none';
@@ -514,59 +513,59 @@
           if (vidA && vidB) {
             const url = artworks[idx].video_url;
             let current = vidA, next = vidB;
+            let switching = false;
+            let rafId;
 
-            function switchToNext() {
-              next.classList.add('active');
-              current.classList.remove('active');
-              const prev = current;
-              current = next;
-              next = prev;
-              next.currentTime = 0;
-              next.load();
+            function rafLoop() {
+              if (!isVideoPlaying) return;
+              if (!switching && current.duration && current.currentTime >= current.duration - 0.5) {
+                switching = true;
+                next.currentTime = 0;
+                next.muted = false;
+                next.play()
+                  .then(() => {
+                    next.classList.add('active');
+                    current.classList.remove('active');
+                    const prev = current;
+                    current = next;
+                    next = prev;
+                    next.pause();
+                    next.currentTime = 0;
+                    switching = false;
+                  })
+                  .catch(() => { switching = false; });
+              }
+              rafId = requestAnimationFrame(rafLoop);
             }
 
-            function setupLoop(vid) {
-              const fn = function() {
-                if (vid.duration && vid.currentTime >= vid.duration - 0.4) {
-                  vid.removeEventListener('timeupdate', fn);
-                  const ready = next.readyState >= 3;
-                  switchToNext();
-                  if (ready) {
-                    current.play().catch(() => {});
-                  } else {
-                    current.addEventListener('canplay', function onCan() {
-                      current.removeEventListener('canplay', onCan);
-                      current.play().catch(() => {});
-                    });
-                  }
-                  setupLoop(current);
-                }
-              };
-              loopHandler = { vid, fn };
-              vid.addEventListener('timeupdate', fn);
-            }
+            loopHandler = { cancel: () => cancelAnimationFrame(rafId) };
 
+            // Pre-load next video in background; don't play it yet
+            vidA.src = url;
+            vidA.muted = false;
             vidB.src = url;
+            vidB.muted = false;
             vidB.load();
 
-            vidA.src = url;
-            vidA.load();
             vidA.addEventListener('loadeddata', function onLoaded() {
               vidA.removeEventListener('loadeddata', onLoaded);
               console.log('[AR] loadeddata → play() on video-' + idx);
+              vidA.classList.add('active');
               vidA.play()
                 .then(() => {
                   videoSpinner.style.display = 'none';
-                  setupLoop(vidA);
+                  rafId = requestAnimationFrame(rafLoop);
                 })
                 .catch(() => {
                   vidA.muted = true;
+                  vidB.muted = true;
                   vidA.play().then(() => {
                     videoSpinner.style.display = 'none';
-                    setupLoop(vidA);
+                    rafId = requestAnimationFrame(rafLoop);
                   });
                 });
             });
+            vidA.load();
           }
         }));
       });
@@ -593,7 +592,7 @@
   // During scanner: exit AR entirely and return to welcome.
   closeBtn.addEventListener('click', () => {
     if (isVideoPlaying) {
-      if (loopHandler) { loopHandler.vid.removeEventListener('timeupdate', loopHandler.fn); loopHandler = null; }
+      if (loopHandler) { loopHandler.cancel(); loopHandler = null; }
       isVideoPlaying = false;
       document.querySelectorAll('#video-screen video').forEach(v => { if (!v.paused) v.pause(); v.classList.remove('active'); });
       videoSpinner.style.display = 'none';
