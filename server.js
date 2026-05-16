@@ -65,6 +65,20 @@ function ideasFilePath (fileUrl) {
   return fileUrl
 }
 
+// Replace file_url on each idea_files row with a 1-hour signed URL (single batch call).
+async function withSignedUrlsForFiles (files) {
+  if (!files || !files.length) return files || []
+  const paths = files.map(f => ideasFilePath(f.file_url)).filter(Boolean)
+  if (!paths.length) return files
+  const { data: signed } = await supabase.storage.from(IDEAS_BUCKET).createSignedUrls(paths, 3600)
+  const urlMap = {}
+  if (signed) signed.forEach(s => { if (s.signedUrl) urlMap[s.path] = s.signedUrl })
+  return files.map(f => {
+    const path = ideasFilePath(f.file_url)
+    return { ...f, file_url: (path && urlMap[path]) || f.file_url }
+  })
+}
+
 // Replace file_url on each idea with a 1-hour signed URL (single batch call).
 async function withSignedUrls (ideas) {
   const withFiles = ideas.filter(i => i.file_url)
@@ -623,6 +637,16 @@ app.post('/api/ideas/import', express.json(), async (req, res) => {
   res.json({ imported: data.length })
 })
 
+app.get('/api/ideas/files/all', async (req, res) => {
+  const { data, error } = await supabase
+    .from('idea_files')
+    .select('*')
+    .order('position', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ files: await withSignedUrlsForFiles(data || []) })
+})
+
 app.get('/api/ideas', async (req, res) => {
   const { data, error } = await supabase
     .from('ideas')
@@ -643,25 +667,24 @@ app.get('/api/ideas/trash', async (req, res) => {
   res.json({ ideas: await withSignedUrls(data) })
 })
 
-app.post('/api/ideas', upload.single('file'), async (req, res) => {
+app.post('/api/ideas', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'files', maxCount: 20 }]), async (req, res) => {
   const { title, category, notes } = req.body
   if (!title || !category) return res.status(400).json({ error: 'title and category required' })
 
   let file_url = null, file_type = null
 
-  if (req.file) {
-    const ext = (req.file.originalname.split('.').pop() || 'bin').toLowerCase()
+  const primaryFile = req.files?.file?.[0]
+  const extraFiles  = req.files?.files || []
+
+  if (primaryFile) {
+    const ext = (primaryFile.originalname.split('.').pop() || 'bin').toLowerCase()
     const storagePath = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
     const { error: upErr } = await supabase.storage
-      .from('ideas-files')
-      .upload(storagePath, req.file.buffer, {
-        contentType: req.file.mimetype,
-        cacheControl: '3600',
-        upsert: false,
-      })
+      .from(IDEAS_BUCKET)
+      .upload(storagePath, primaryFile.buffer, { contentType: primaryFile.mimetype, cacheControl: '3600', upsert: false })
     if (upErr) return res.status(500).json({ error: 'Upload failed: ' + upErr.message })
-    file_url  = storagePath   // store bare path; signed URL generated on read
-    file_type = req.file.mimetype.startsWith('video/') ? 'video' : 'image'
+    file_url  = storagePath
+    file_type = primaryFile.mimetype.startsWith('video/') ? 'video' : 'image'
   }
 
   const { data, error } = await supabase
@@ -671,11 +694,27 @@ app.post('/api/ideas', upload.single('file'), async (req, res) => {
     .single()
 
   if (error) return res.status(500).json({ error: error.message })
+
+  // Upload extra gallery files
+  const galleryFiles = []
+  for (let i = 0; i < extraFiles.length; i++) {
+    const f = extraFiles[i]
+    const ext = (f.originalname.split('.').pop() || 'bin').toLowerCase()
+    const sp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const { error: upErr } = await supabase.storage.from(IDEAS_BUCKET).upload(sp, f.buffer, { contentType: f.mimetype, cacheControl: '3600', upsert: false })
+    if (!upErr) galleryFiles.push({ idea_id: data.id, file_url: sp, file_type: f.mimetype.startsWith('video/') ? 'video' : 'image', position: i })
+  }
+  let signedGalleryFiles = []
+  if (galleryFiles.length) {
+    const { data: inserted } = await supabase.from('idea_files').insert(galleryFiles).select()
+    signedGalleryFiles = await withSignedUrlsForFiles(inserted || [])
+  }
+
   const [ideaWithUrl] = await withSignedUrls([data])
-  res.json({ idea: ideaWithUrl })
+  res.json({ idea: ideaWithUrl, files: signedGalleryFiles })
 })
 
-app.put('/api/ideas/:id', upload.single('file'), async (req, res) => {
+app.put('/api/ideas/:id', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'files', maxCount: 20 }]), async (req, res) => {
   const { id } = req.params
   const { title, category, notes, remove_file } = req.body
   if (!title || !category) return res.status(400).json({ error: 'title and category required' })
@@ -687,24 +726,27 @@ app.put('/api/ideas/:id', upload.single('file'), async (req, res) => {
   let file_url  = existing.file_url
   let file_type = existing.file_type
 
-  if (req.file) {
+  const primaryFile = req.files?.file?.[0]
+  const extraFiles  = req.files?.files || []
+
+  if (primaryFile) {
     // Delete old file then upload replacement
     if (existing.file_url) {
       const oldPath = ideasFilePath(existing.file_url)
       if (oldPath) await supabase.storage.from(IDEAS_BUCKET).remove([oldPath]).catch(() => {})
     }
-    const ext = (req.file.originalname.split('.').pop() || 'bin').toLowerCase()
+    const ext = (primaryFile.originalname.split('.').pop() || 'bin').toLowerCase()
     const storagePath = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
     const { error: upErr } = await supabase.storage
       .from(IDEAS_BUCKET)
-      .upload(storagePath, req.file.buffer, {
-        contentType: req.file.mimetype,
+      .upload(storagePath, primaryFile.buffer, {
+        contentType: primaryFile.mimetype,
         cacheControl: '3600',
         upsert: false,
       })
     if (upErr) return res.status(500).json({ error: 'Upload failed: ' + upErr.message })
     file_url  = storagePath
-    file_type = req.file.mimetype.startsWith('video/') ? 'video' : 'image'
+    file_type = primaryFile.mimetype.startsWith('video/') ? 'video' : 'image'
   } else if (remove_file === 'true') {
     if (existing.file_url) {
       const oldPath = ideasFilePath(existing.file_url)
@@ -722,8 +764,33 @@ app.put('/api/ideas/:id', upload.single('file'), async (req, res) => {
     .single()
 
   if (error) return res.status(500).json({ error: error.message })
+
+  // Handle gallery file deletions
+  let deleteIds = []
+  try { deleteIds = JSON.parse(req.body.delete_file_ids || '[]') } catch {}
+  for (const fid of deleteIds) {
+    const { data: row } = await supabase.from('idea_files').select('file_url').eq('id', fid).single()
+    if (row?.file_url) { const p = ideasFilePath(row.file_url); if (p) await supabase.storage.from(IDEAS_BUCKET).remove([p]).catch(() => {}) }
+    await supabase.from('idea_files').delete().eq('id', fid)
+  }
+
+  // Upload extra gallery files
+  const galleryFiles = []
+  for (let i = 0; i < extraFiles.length; i++) {
+    const f = extraFiles[i]
+    const ext = (f.originalname.split('.').pop() || 'bin').toLowerCase()
+    const sp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const { error: upErr } = await supabase.storage.from(IDEAS_BUCKET).upload(sp, f.buffer, { contentType: f.mimetype, cacheControl: '3600', upsert: false })
+    if (!upErr) galleryFiles.push({ idea_id: id, file_url: sp, file_type: f.mimetype.startsWith('video/') ? 'video' : 'image', position: i })
+  }
+  let signedGalleryFiles = []
+  if (galleryFiles.length) {
+    const { data: inserted } = await supabase.from('idea_files').insert(galleryFiles).select()
+    signedGalleryFiles = await withSignedUrlsForFiles(inserted || [])
+  }
+
   const [ideaWithUrl] = await withSignedUrls([data])
-  res.json({ idea: ideaWithUrl })
+  res.json({ idea: ideaWithUrl, files: signedGalleryFiles })
 })
 
 app.patch('/api/ideas/:id/trash', async (req, res) => {
@@ -747,6 +814,19 @@ app.delete('/api/ideas/trash', async (req, res) => {
   const filePaths = (trashed || []).filter(i => i.file_url).map(i => ideasFilePath(i.file_url)).filter(Boolean)
   if (filePaths.length) await supabase.storage.from(IDEAS_BUCKET).remove(filePaths).catch(() => {})
   const { error } = await supabase.from('ideas').delete().not('deleted_at', 'is', null)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
+app.delete('/api/ideas/:id/files/:fileId', async (req, res) => {
+  const { data: row, error: fetchErr } = await supabase
+    .from('idea_files').select('file_url').eq('id', req.params.fileId).single()
+  if (fetchErr) return res.status(404).json({ error: 'Not found' })
+  if (row.file_url) {
+    const p = ideasFilePath(row.file_url)
+    if (p) await supabase.storage.from(IDEAS_BUCKET).remove([p]).catch(() => {})
+  }
+  const { error } = await supabase.from('idea_files').delete().eq('id', req.params.fileId)
   if (error) return res.status(500).json({ error: error.message })
   res.json({ ok: true })
 })

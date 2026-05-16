@@ -969,6 +969,72 @@
       white-space: nowrap; flex-shrink: 0;
     }
     .restore-btn:hover { color: var(--ok); border-color: var(--ok); }
+
+    /* ── Inline edit ──────────────────────────────────────── */
+    [contenteditable="true"] {
+      outline: 1px solid var(--gold-bd);
+      border-radius: 3px;
+      padding: 2px 5px;
+      cursor: text;
+      min-width: 20px;
+      display: inline-block;
+    }
+    [contenteditable="true"]:focus {
+      outline: 1px solid var(--gold);
+      box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+    }
+    .inline-cat-select {
+      background: var(--bg3);
+      border: 1px solid var(--gold);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 11px;
+      font-family: 'Inter', sans-serif;
+      padding: 2px 6px;
+      cursor: pointer;
+      outline: none;
+    }
+
+    /* ── Gallery nav ──────────────────────────────────────── */
+    .card-gallery { position: relative; }
+    .card-gallery .card-thumb { margin: 0; }
+    .gal-nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: rgba(0,0,0,0.55); border: none; color: #fff;
+      width: 28px; height: 28px; border-radius: 50%;
+      font-size: 12px; cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      z-index: 5; opacity: 0;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .card-gallery:hover .gal-nav { opacity: 1; }
+    .gal-nav:hover { background: rgba(0,0,0,0.8); }
+    .gal-prev { left: 6px; }
+    .gal-next { right: 6px; }
+    .gal-indicator {
+      position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.6); color: #fff;
+      font-size: 10px; padding: 2px 7px; border-radius: 10px;
+      pointer-events: none; opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .card-gallery:hover .gal-indicator { opacity: 1; }
+    /* Gallery grid in form */
+    .gallery-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .gallery-thumb {
+      position: relative; width: 72px; height: 72px;
+      border-radius: var(--radius-sm); overflow: hidden;
+      border: 1px solid var(--gold-bd); flex-shrink: 0;
+    }
+    .gallery-thumb img, .gallery-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .gallery-thumb-del {
+      position: absolute; top: 2px; right: 2px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: rgba(217,83,79,0.85); border: none;
+      color: #fff; font-size: 11px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1;
+    }
   </style>
 </head>
 <body>
@@ -1077,11 +1143,19 @@
     <div class="form-group">
       <label>Attach <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">— image or video (optional)</span></label>
       <div class="file-drop" id="file-drop">
-        <input type="file" id="form-file" accept="image/*,video/*">
+        <input type="file" id="form-file" accept="image/*,video/*" multiple>
         <div class="drop-label">Drop a file or <strong>browse</strong></div>
         <div class="drop-hint">Images and videos</div>
       </div>
       <div id="file-preview-wrap"></div>
+      <div id="gallery-existing" style="display:none">
+        <label style="margin-top:12px;display:block">Gallery images</label>
+        <div class="gallery-grid" id="gallery-existing-grid"></div>
+      </div>
+      <div id="gallery-new" style="display:none">
+        <label style="margin-top:12px;display:block">New images to add</label>
+        <div class="gallery-grid" id="gallery-new-grid"></div>
+      </div>
       <div class="upload-row" id="upload-row" style="display:none">
         <div class="mini-spin"></div>
         Saving…
@@ -1209,6 +1283,9 @@
   let smartFolderItems = {}; // { folderId: Set<ideaId> }
   let selectedIds = new Set();
   let dragIdeaId = null;
+  let ideaFiles = {};        // { ideaId: [{id, file_url, file_type, position}, ...] }
+  let galleryNewFiles = [];  // File objects staged for upload
+  let galleryDeleteIds = new Set(); // idea_files IDs to delete on save
   let activeTrash = false;
   let trashedIdeas = [];
   let ctxTargetId = null;
@@ -1254,10 +1331,21 @@
   }
 
   // ── Load ─────────────────────────────────────────────────
+  async function loadAllIdeaFiles() {
+    try {
+      const data = await apiFetch('/api/ideas/files/all');
+      ideaFiles = {};
+      (data.files || []).forEach(f => {
+        if (!ideaFiles[f.idea_id]) ideaFiles[f.idea_id] = [];
+        ideaFiles[f.idea_id].push(f);
+      });
+    } catch { ideaFiles = {}; }
+  }
+
   async function loadIdeas() {
     mainEl.innerHTML = '<div class="state-box"><div class="spinner"></div></div>';
     try {
-      const data = await apiFetch('/api/ideas');
+      const [data] = await Promise.all([apiFetch('/api/ideas'), loadAllIdeaFiles()]);
       ideas = data.ideas || [];
       buildSidebar();
       render();
@@ -1401,12 +1489,14 @@ CREATE POLICY "allow all" ON ideas FOR ALL
           toggleCardSel(el);
         });
         el.addEventListener('dblclick', e => {
-          if (e.target.closest('.star-btn,.list-drag-handle')) return;
+          if (e.target.closest('.star-btn,.list-drag-handle,.list-title,.cat-badge')) return;
           openView(el.dataset.id);
         });
         el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
         el.addEventListener('dragstart', e => startCardDrag(e, el));
         el.addEventListener('dragend', endCardDrag);
+        el.querySelectorAll('.list-title').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineEditField(el.dataset.id, f, 'title'); }));
+        el.querySelectorAll('.cat-badge').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineCatEdit(el.dataset.id, f); }));
       });
     } else {
       const groupByCat = !activeFolderId && activeFilter === 'All' && !searchEl.value.trim();
@@ -1440,12 +1530,15 @@ CREATE POLICY "allow all" ON ideas FOR ALL
           toggleCardSel(el);
         });
         el.addEventListener('dblclick', e => {
-          if (e.target.closest('.star-btn,.card-del')) return;
+          if (e.target.closest('.star-btn,.card-del,.card-title,.card-preview,.cat-badge,.list-title')) return;
           openView(el.dataset.id);
         });
         el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
         el.addEventListener('dragstart', e => startCardDrag(e, el));
         el.addEventListener('dragend', endCardDrag);
+        el.querySelectorAll('.card-title').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineEditField(el.dataset.id, f, 'title'); }));
+        el.querySelectorAll('.card-preview').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineEditField(el.dataset.id, f, 'notes'); }));
+        el.querySelectorAll('.cat-badge').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineCatEdit(el.dataset.id, f); }));
       });
 
       mainEl.querySelectorAll('.card-del').forEach(btn => {
@@ -1482,12 +1575,28 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       ? (idea.notes.length > 150 ? idea.notes.slice(0, 150) + '…' : idea.notes)
       : '';
 
+    // Build unified file list: idea_files entries first, then legacy file_url as fallback
+    const galFiles = ideaFiles[idea.id] || [];
+    const allFiles = galFiles.length
+      ? galFiles.map(f => ({ url: f.file_url, type: f.file_type }))
+      : (idea.file_url ? [{ url: idea.file_url, type: idea.file_type }] : []);
+
     let thumb = '';
-    if (idea.file_url) {
-      if (idea.file_type === 'image') {
-        thumb = `<div class="card-thumb"><img src="${esc(idea.file_url)}" alt="" loading="lazy"></div>`;
+    if (allFiles.length) {
+      const f0 = allFiles[0];
+      const thumbInner = f0.type === 'video'
+        ? `<div class="card-thumb is-video"><video src="${esc(f0.url)}" preload="metadata" muted playsinline></video></div>`
+        : `<div class="card-thumb"><img src="${esc(f0.url)}" alt="" loading="lazy"></div>`;
+      if (allFiles.length > 1) {
+        const filesJson = esc(JSON.stringify(allFiles));
+        thumb = `<div class="card-gallery" data-files="${filesJson}" data-idx="0">
+          ${thumbInner}
+          <button class="gal-nav gal-prev" title="Previous">&#9664;</button>
+          <button class="gal-nav gal-next" title="Next">&#9654;</button>
+          <div class="gal-indicator">1 / ${allFiles.length}</div>
+        </div>`;
       } else {
-        thumb = `<div class="card-thumb is-video"><video src="${esc(idea.file_url)}" preload="metadata" muted playsinline></video></div>`;
+        thumb = thumbInner;
       }
     }
 
@@ -1766,7 +1875,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       toggleCardSel(el);
     });
     el.addEventListener('dblclick', e => {
-      if (e.target.closest('.star-btn,.card-del')) return;
+      if (e.target.closest('.star-btn,.card-del,.card-title,.card-preview,.cat-badge,.list-title')) return;
       openView(el.dataset.id);
     });
     el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
@@ -1782,6 +1891,9 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       e.stopPropagation();
       await toggleFavourite(starBtn.dataset.id, starBtn.dataset.fav !== 'true');
     });
+    el.querySelectorAll('.card-title').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineEditField(el.dataset.id, f, 'title'); }));
+    el.querySelectorAll('.card-preview').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineEditField(el.dataset.id, f, 'notes'); }));
+    el.querySelectorAll('.cat-badge').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineCatEdit(el.dataset.id, f); }));
   }
 
   // ── Card delete button — soft deletes to trash ──────────
@@ -2018,8 +2130,39 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     formNotesEl.value = idea ? (idea.notes || '') : '';
     formFileEl.value  = '';
     filePreviewEl.innerHTML = '';
+    galleryNewFiles = [];
+    galleryDeleteIds = new Set();
 
     if (idea && idea.file_url) showExistingFile(idea);
+
+    // Show existing gallery
+    const existingFiles = editingId ? (ideaFiles[editingId] || []) : [];
+    const existingGalleryEl = document.getElementById('gallery-existing');
+    const existingGridEl = document.getElementById('gallery-existing-grid');
+
+    if (existingFiles.length) {
+      existingGridEl.innerHTML = existingFiles.map(f => `
+        <div class="gallery-thumb" data-file-id="${esc(f.id)}">
+          ${f.file_type === 'video'
+            ? `<video src="${esc(f.file_url)}" muted preload="metadata"></video>`
+            : `<img src="${esc(f.file_url)}" alt="">`}
+          <button class="gallery-thumb-del" data-file-id="${esc(f.id)}" title="Remove">×</button>
+        </div>`).join('');
+      existingGridEl.querySelectorAll('.gallery-thumb-del').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const fid = btn.dataset.fileId;
+          galleryDeleteIds.add(fid);
+          btn.closest('.gallery-thumb').remove();
+          if (!existingGridEl.children.length) existingGalleryEl.style.display = 'none';
+        });
+      });
+      existingGalleryEl.style.display = '';
+    } else {
+      existingGalleryEl.style.display = 'none';
+    }
+
+    document.getElementById('gallery-new').style.display = 'none';
+    document.getElementById('gallery-new-grid').innerHTML = '';
 
     uploadRowEl.style.display = 'none';
     document.getElementById('form-save').disabled = false;
@@ -2032,6 +2175,10 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     formOverlay.setAttribute('hidden', '');
     document.body.style.overflow = '';
     editingId = null;
+    galleryNewFiles = [];
+    galleryDeleteIds = new Set();
+    document.getElementById('gallery-new').style.display = 'none';
+    document.getElementById('gallery-existing').style.display = 'none';
   }
 
   function showExistingFile(idea) {
@@ -2069,7 +2216,40 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     });
   }
 
-  formFileEl.addEventListener('change', () => showFilePreview(formFileEl.files[0]));
+  formFileEl.addEventListener('change', () => {
+    const files = Array.from(formFileEl.files);
+    if (!files.length) return;
+
+    // First file: show in existing single-file preview (backwards compat)
+    showFilePreview(files[0]);
+
+    // Additional files: show in gallery-new section
+    galleryNewFiles = files.slice(1);
+    const newGalleryEl = document.getElementById('gallery-new');
+    const newGridEl = document.getElementById('gallery-new-grid');
+
+    if (galleryNewFiles.length) {
+      newGridEl.innerHTML = '';
+      galleryNewFiles.forEach((f, i) => {
+        const url = URL.createObjectURL(f);
+        const div = document.createElement('div');
+        div.className = 'gallery-thumb';
+        div.innerHTML = (f.type.startsWith('video/')
+          ? `<video src="${url}" muted></video>`
+          : `<img src="${url}" alt="">`) +
+          `<button class="gallery-thumb-del" title="Remove">×</button>`;
+        div.querySelector('.gallery-thumb-del').addEventListener('click', () => {
+          galleryNewFiles.splice(i, 1);
+          div.remove();
+          if (!newGridEl.children.length) newGalleryEl.style.display = 'none';
+        });
+        newGridEl.appendChild(div);
+      });
+      newGalleryEl.style.display = '';
+    } else {
+      newGalleryEl.style.display = 'none';
+    }
+  });
 
   fileDropEl.addEventListener('dragover',  e => { e.preventDefault(); fileDropEl.classList.add('over'); });
   fileDropEl.addEventListener('dragleave', () => fileDropEl.classList.remove('over'));
@@ -2106,11 +2286,33 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       if (file)  fd.append('file', file);
       if (editingId && editFileRemoved) fd.append('remove_file', 'true');
 
+      // Append gallery new files
+      galleryNewFiles.forEach(f => fd.append('files', f));
+      // Send delete IDs
+      if (galleryDeleteIds.size > 0) fd.append('delete_file_ids', JSON.stringify([...galleryDeleteIds]));
+
       const url    = editingId ? `/api/ideas/${editingId}` : '/api/ideas';
       const method = editingId ? 'PUT' : 'POST';
+      const savedEditingId = editingId;
 
-      await apiFetch(url, { method, body: fd });
-      toast(editingId ? 'Idea updated!' : 'Idea saved!');
+      const result = await apiFetch(url, { method, body: fd });
+      if (result.files && result.files.length) {
+        const id = savedEditingId || result.idea?.id;
+        if (id) {
+          if (!ideaFiles[id]) ideaFiles[id] = [];
+          ideaFiles[id].push(...result.files);
+        }
+      }
+      // Remove deleted files from ideaFiles
+      galleryDeleteIds.forEach(fid => {
+        Object.keys(ideaFiles).forEach(ideaId => {
+          ideaFiles[ideaId] = (ideaFiles[ideaId] || []).filter(f => f.id !== fid);
+        });
+      });
+      galleryNewFiles = [];
+      galleryDeleteIds = new Set();
+
+      toast(savedEditingId ? 'Idea updated!' : 'Idea saved!');
       closeForm();
       await loadIdeas();
     } catch (err) {
@@ -2504,60 +2706,99 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
   }
 
-  // ── Inline title edit ────────────────────────────────────
-  function startInlineEdit(id) {
+  // ── Inline edit ──────────────────────────────────────────
+  async function saveIdeaField(id, updates) {
     const idea = ideas.find(i => i.id === id);
     if (!idea) return;
-    const titleEl = mainEl.querySelector(`.idea-card[data-id="${id}"] .card-title`) ||
-                    mainEl.querySelector(`.list-row[data-id="${id}"] .list-title`);
-    if (!titleEl) { openForm(idea); return; }
-    const original = idea.title;
-    titleEl.contentEditable = 'true';
-    titleEl.style.cssText += ';outline:1px solid var(--gold-bd);border-radius:3px;padding:2px 4px;';
-    titleEl.focus();
+    const fd = new FormData();
+    fd.append('title',    updates.title    ?? idea.title);
+    fd.append('category', updates.category ?? idea.category);
+    if ((updates.notes ?? idea.notes) != null) fd.append('notes', updates.notes ?? idea.notes);
+    try {
+      await apiFetch(`/api/ideas/${id}`, { method: 'PUT', body: fd });
+      Object.assign(idea, updates);
+      toast('Saved');
+      buildSidebarCategories();
+    } catch (err) {
+      toast(err.message, true);
+      throw err;
+    }
+  }
+
+  function startInlineEditField(id, fieldEl, field) {
+    const idea = ideas.find(i => i.id === id);
+    if (!idea) return;
+    const original = idea[field] || '';
+    fieldEl.contentEditable = 'true';
+    fieldEl.focus();
     const range = document.createRange();
-    range.selectNodeContents(titleEl);
+    range.selectNodeContents(fieldEl);
     window.getSelection().removeAllRanges();
     window.getSelection().addRange(range);
 
     let committed = false;
-    async function commitEdit() {
-      if (committed) return;
-      committed = true;
-      titleEl.removeEventListener('keydown', onKeyDown);
-      const newTitle = titleEl.textContent.trim();
-      titleEl.contentEditable = 'false';
-      titleEl.style.outline = '';
-      titleEl.style.borderRadius = '';
-      titleEl.style.padding = '';
-      if (!newTitle || newTitle === original) { titleEl.textContent = original; return; }
-      idea.title = newTitle;
-      try {
-        const fd = new FormData();
-        fd.append('title', newTitle);
-        fd.append('category', idea.category);
-        if (idea.notes) fd.append('notes', idea.notes);
-        await apiFetch(`/api/ideas/${id}`, { method: 'PUT', body: fd });
-        toast('Title updated');
-      } catch (err) {
-        idea.title = original;
-        titleEl.textContent = original;
-        toast(err.message, true);
-      }
-    }
-
-    function onKeyDown(e) {
-      if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+    function onKey(e) {
+      if (e.key === 'Enter' && field !== 'notes') { e.preventDefault(); fieldEl.blur(); }
       if (e.key === 'Escape') {
         committed = true;
-        titleEl.removeEventListener('keydown', onKeyDown);
-        titleEl.textContent = original;
-        titleEl.contentEditable = 'false';
-        titleEl.style.outline = '';
+        fieldEl.textContent = original;
+        fieldEl.contentEditable = 'false';
+        fieldEl.removeEventListener('keydown', onKey);
       }
     }
-    titleEl.addEventListener('keydown', onKeyDown);
-    titleEl.addEventListener('blur', commitEdit, { once: true });
+    fieldEl.addEventListener('keydown', onKey);
+    fieldEl.addEventListener('blur', async () => {
+      if (committed) return;
+      committed = true;
+      fieldEl.removeEventListener('keydown', onKey);
+      const newVal = fieldEl.textContent.trim();
+      fieldEl.contentEditable = 'false';
+      if (!newVal || newVal === original) { fieldEl.textContent = original || ''; return; }
+      fieldEl.textContent = newVal;
+      try { await saveIdeaField(id, { [field]: newVal }); }
+      catch { fieldEl.textContent = original; }
+    }, { once: true });
+  }
+
+  function startInlineCatEdit(id, badgeEl) {
+    const idea = ideas.find(i => i.id === id);
+    if (!idea) return;
+    const original = idea.category;
+    const sel = document.createElement('select');
+    sel.className = 'inline-cat-select';
+    categories.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      if (c === original) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    badgeEl.replaceWith(sel);
+    sel.focus();
+
+    async function commit() {
+      const newCat = sel.value;
+      const color = catColor(newCat);
+      const newBadge = document.createElement('span');
+      newBadge.className = badgeEl.className;
+      newBadge.style.cssText = `color:${color};border-color:${color}60;background:${color}18`;
+      newBadge.textContent = newCat;
+      newBadge.addEventListener('dblclick', e => { e.stopPropagation(); startInlineCatEdit(id, newBadge); });
+      sel.replaceWith(newBadge);
+      if (newCat !== original) {
+        try { await saveIdeaField(id, { category: newCat }); }
+        catch { newBadge.textContent = original; Object.assign(newBadge.style, { color: catColor(original) }); }
+      }
+    }
+    sel.addEventListener('change', commit);
+    sel.addEventListener('blur', () => setTimeout(commit, 80), { once: true });
+    sel.addEventListener('keydown', e => { if (e.key === 'Escape') { sel.value = original; sel.blur(); } });
+  }
+
+  function startInlineEdit(id) {
+    const titleEl = mainEl.querySelector(`.idea-card[data-id="${id}"] .card-title`) ||
+                    mainEl.querySelector(`.list-row[data-id="${id}"] .list-title`);
+    if (!titleEl) { const idea = ideas.find(i => i.id === id); if (idea) openForm(idea); return; }
+    startInlineEditField(id, titleEl, 'title');
   }
 
   // ── Context menu ─────────────────────────────────────────
@@ -2598,6 +2839,28 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') hideCtxMenu();
   }, true);
+
+  // ── Gallery navigation (registered once) ─────────────────
+  document.getElementById('content-area').addEventListener('click', e => {
+    const btn = e.target.closest('.gal-prev,.gal-next');
+    if (!btn) return;
+    e.stopPropagation();
+    const gal = btn.closest('.card-gallery');
+    if (!gal) return;
+    let files;
+    try { files = JSON.parse(gal.dataset.files); } catch { return; }
+    let idx = parseInt(gal.dataset.idx) || 0;
+    idx = btn.classList.contains('gal-next') ? (idx + 1) % files.length : (idx - 1 + files.length) % files.length;
+    gal.dataset.idx = idx;
+    const f = files[idx];
+    const thumb = gal.querySelector('.card-thumb');
+    thumb.className = 'card-thumb' + (f.type === 'video' ? ' is-video' : '');
+    thumb.innerHTML = f.type === 'video'
+      ? `<video src="${f.url}" preload="metadata" muted playsinline></video>`
+      : `<img src="${f.url}" alt="" loading="lazy">`;
+    const ind = gal.querySelector('.gal-indicator');
+    if (ind) ind.textContent = `${idx + 1} / ${files.length}`;
+  });
 
   // ── Boot ─────────────────────────────────────────────────
   async function init() {
