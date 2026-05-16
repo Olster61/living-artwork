@@ -1,0 +1,2130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ideas · Living Artwork</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #080808;
+      --bg2:      #111111;
+      --bg3:      #181818;
+      --card:     #141414;
+      --gold:     #c9a84c;
+      --gold-lt:  #e8c97a;
+      --gold-dk:  #8b6914;
+      --gold-bg:  rgba(201,168,76,0.07);
+      --gold-bd:  rgba(201,168,76,0.18);
+      --gold-bdh: rgba(201,168,76,0.5);
+      --text:     #f0ebe0;
+      --text2:    #8a8070;
+      --text3:    #554f45;
+      --err:      #d9534f;
+      --ok:       #5cb85c;
+      --radius:   12px;
+      --radius-sm:8px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--gold-bd);
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .brand {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      color: var(--gold-lt);
+      letter-spacing: 0.02em;
+      flex-shrink: 0;
+    }
+    .brand small {
+      display: block;
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      font-weight: 400;
+      color: var(--text3);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: -3px;
+    }
+
+    .search-wrap {
+      flex: 1;
+      max-width: 400px;
+      position: relative;
+    }
+    .search-icon {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text3);
+      pointer-events: none;
+    }
+    #search {
+      width: 100%;
+      padding: 8px 14px 8px 34px;
+      background: var(--bg3);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #search::placeholder { color: var(--text3); }
+    #search:focus { border-color: var(--gold-bd); box-shadow: 0 0 0 3px rgba(201,168,76,0.07); }
+
+    /* ── Buttons ──────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      border: none;
+      transition: all 0.18s;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-gold {
+      background: linear-gradient(135deg, var(--gold-lt), var(--gold));
+      color: #111;
+    }
+    .btn-gold:hover:not(:disabled) {
+      background: linear-gradient(135deg, #f5d98a, var(--gold-lt));
+      box-shadow: 0 0 20px rgba(201,168,76,0.35);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--gold-bd);
+      color: var(--text2);
+    }
+    .btn-outline:hover:not(:disabled) {
+      border-color: var(--gold-bdh);
+      color: var(--gold-lt);
+      background: var(--gold-bg);
+    }
+
+    .btn-danger {
+      background: transparent;
+      border: 1px solid rgba(217,83,79,0.25);
+      color: rgba(217,83,79,0.7);
+      padding: 8px 16px;
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(217,83,79,0.1);
+      border-color: var(--err);
+      color: var(--err);
+    }
+
+    /* ── Page layout ──────────────────────────────────────── */
+    .page-body { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ──────────────────────────────────────────── */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-right: 1px solid var(--gold-bd);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      padding: 10px 0 80px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--gold-bd) transparent;
+    }
+
+    .sidebar-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text3);
+      padding: 12px 16px 4px;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 16px;
+      font-size: 13px;
+      color: var(--text2);
+      cursor: pointer;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+      font-family: 'Inter', sans-serif;
+      transition: background 0.15s, color 0.15s;
+    }
+    .sidebar-item:hover  { background: var(--bg3); color: var(--text); }
+    .sidebar-item.active { background: var(--gold-bg); color: var(--gold-lt); }
+
+    .si-icon { font-size: 13px; flex-shrink: 0; width: 18px; text-align: center; }
+    .si-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .si-count {
+      font-size: 10px; color: var(--text3);
+      background: var(--bg3); border: 1px solid var(--gold-bd);
+      border-radius: 8px; padding: 1px 6px; flex-shrink: 0;
+    }
+
+    .sidebar-divider { height: 1px; background: var(--gold-bd); margin: 8px 16px; }
+
+    .sidebar-action {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 16px;
+      font-size: 12px; color: var(--text3);
+      cursor: pointer; border: none; background: none;
+      width: 100%; text-align: left;
+      font-family: 'Inter', sans-serif;
+      transition: color 0.15s;
+    }
+    .sidebar-action:hover { color: var(--gold-lt); }
+
+    .folder-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 16px;
+      font-size: 13px; color: var(--text2);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .folder-row:hover  { background: var(--bg3); color: var(--text); }
+    .folder-row.active { background: var(--gold-bg); color: var(--gold-lt); }
+
+    .folder-del {
+      background: none; border: none;
+      color: transparent; cursor: pointer;
+      padding: 2px 4px; border-radius: 3px;
+      font-size: 11px; line-height: 1; flex-shrink: 0;
+      transition: color 0.15s;
+    }
+    .folder-row:hover .folder-del { color: var(--text3); }
+    .folder-del:hover { color: var(--err) !important; }
+
+    /* ── Content area ─────────────────────────────────────── */
+    .content-area {
+      flex: 1; min-width: 0;
+      overflow-y: auto; overflow-x: hidden;
+      display: flex; flex-direction: column;
+    }
+
+    /* ── Selection toolbar (fixed bottom) ──────────────────── */
+    .sel-toolbar {
+      position: fixed;
+      bottom: 30px; left: 50%; transform: translateX(-50%) translateY(120px);
+      z-index: 500;
+      background: var(--bg2); border: 1px solid var(--gold-bd);
+      border-radius: 40px; padding: 10px 16px 10px 22px;
+      display: flex; align-items: center; gap: 12px;
+      font-size: 13px; color: var(--text2);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.65);
+      opacity: 0; pointer-events: none;
+      transition: transform 0.25s cubic-bezier(.34,1.56,.64,1), opacity 0.2s;
+    }
+    .sel-toolbar.on {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1; pointer-events: auto;
+    }
+
+    /* ── Folder dropdown ────────────────────────────────────── */
+    .folder-dropdown-wrap { position: relative; }
+    .folder-dropdown {
+      position: absolute; bottom: calc(100% + 8px); right: 0;
+      background: var(--bg2); border: 1px solid var(--gold-bd);
+      border-radius: var(--radius-sm); min-width: 210px;
+      padding: 4px 0;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55); z-index: 600;
+    }
+    .folder-dropdown[hidden] { display: none; }
+    .folder-dd-item {
+      display: block; width: 100%; text-align: left;
+      padding: 9px 14px; background: none; border: none;
+      color: var(--text2); font-size: 13px; font-family: 'Inter', sans-serif;
+      cursor: pointer; transition: background 0.12s, color 0.12s;
+    }
+    .folder-dd-item:hover { background: var(--gold-bg); color: var(--gold-lt); }
+    .folder-dd-divider { height: 1px; background: var(--gold-bd); margin: 4px 0; }
+
+    /* ── Main layout ──────────────────────────────────────── */
+    #main { padding: 28px 32px 120px; max-width: 1440px; margin: 0 auto; }
+
+    /* ── Category sections ────────────────────────────────── */
+    .cat-section { margin-bottom: 44px; }
+
+    .cat-heading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .cat-rule { flex: 1; height: 1px; opacity: 0.3; }
+    .cat-count {
+      font-size: 10px;
+      color: var(--text3);
+      background: var(--bg3);
+      border: 1px solid var(--gold-bd);
+      border-radius: 10px;
+      padding: 1px 7px;
+      font-weight: 400;
+    }
+
+    /* ── Cards grid ───────────────────────────────────────── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+      gap: 14px;
+    }
+
+    /* ── Idea card ────────────────────────────────────────── */
+    .idea-card {
+      background: var(--card);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+      animation: fadeUp 0.22s ease both;
+    }
+    .idea-card:hover {
+      border-color: var(--gold-bdh);
+      transform: translateY(-3px);
+      box-shadow: 0 10px 36px rgba(0,0,0,0.5);
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-thumb {
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: var(--bg3);
+      overflow: hidden;
+      position: relative;
+    }
+    .card-thumb img,
+    .card-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .card-thumb.is-video::after {
+      content: '▶';
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+      color: rgba(255,255,255,0.85);
+      background: rgba(0,0,0,0.38);
+    }
+
+    .card-body { padding: 14px 16px 16px; }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 7px;
+    }
+
+    .cat-badge {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 10px;
+      border: 1px solid;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .card-date { font-size: 11px; color: var(--text3); white-space: nowrap; }
+
+    .card-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 5px;
+      line-height: 1.35;
+    }
+
+    .card-preview {
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.55;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* ── States ───────────────────────────────────────────── */
+    .state-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 32px;
+      text-align: center;
+      gap: 14px;
+    }
+    .state-icon { font-size: 44px; opacity: 0.35; }
+    .state-box h3 { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--text2); }
+    .state-box p  { font-size: 13px; color: var(--text3); max-width: 300px; }
+
+    .spinner {
+      width: 30px; height: 30px;
+      border: 2px solid var(--gold-bd);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Setup notice ─────────────────────────────────────── */
+    .setup-box {
+      background: var(--bg2);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius);
+      padding: 32px;
+      max-width: 640px;
+      margin: 40px auto;
+    }
+    .setup-box h3 { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--gold-lt); margin-bottom: 10px; }
+    .setup-box p  { font-size: 13px; color: var(--text2); margin-bottom: 16px; line-height: 1.6; }
+    .setup-box a  { color: var(--gold); }
+    .setup-box pre {
+      background: var(--bg3);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      font-size: 12px;
+      color: var(--text2);
+      overflow-x: auto;
+      line-height: 1.65;
+      white-space: pre;
+      margin-bottom: 18px;
+    }
+
+    /* ── FAB ──────────────────────────────────────────────── */
+    #fab {
+      position: fixed;
+      bottom: 30px; right: 30px;
+      width: 54px; height: 54px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold-lt), var(--gold));
+      border: none;
+      color: #111;
+      font-size: 26px;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(201,168,76,0.5);
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    #fab:hover { transform: scale(1.1); box-shadow: 0 8px 32px rgba(201,168,76,0.65); }
+
+    /* ── Modal overlay ────────────────────────────────────── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.78);
+      z-index: 300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      backdrop-filter: blur(4px);
+    }
+    .overlay[hidden] { display: none; }
+
+    /* ── Form panel ───────────────────────────────────────── */
+    .form-panel {
+      background: var(--bg2);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius);
+      padding: 32px;
+      width: 100%;
+      max-width: 520px;
+      max-height: 92vh;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--gold-bd) transparent;
+    }
+    .modal-heading {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px;
+      color: var(--gold-lt);
+      margin-bottom: 24px;
+    }
+
+    .form-group { margin-bottom: 16px; }
+
+    label {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text2);
+      margin-bottom: 6px;
+    }
+
+    input[type=text], select, textarea {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg3);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.18s, box-shadow 0.18s;
+    }
+    input[type=text]:focus, select:focus, textarea:focus {
+      border-color: var(--gold-bd);
+      box-shadow: 0 0 0 3px rgba(201,168,76,0.08);
+    }
+    input::placeholder, textarea::placeholder { color: var(--text3); }
+
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a8070' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 34px;
+      cursor: pointer;
+    }
+    select option { background: var(--bg3); }
+
+    textarea { resize: vertical; min-height: 130px; line-height: 1.65; }
+
+    /* ── File drop zone ───────────────────────────────────── */
+    .file-drop {
+      position: relative;
+      border: 2px dashed var(--gold-bd);
+      border-radius: var(--radius-sm);
+      padding: 22px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.18s, background 0.18s;
+    }
+    .file-drop:hover, .file-drop.over { border-color: var(--gold); background: var(--gold-bg); }
+    .file-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .drop-label { font-size: 13px; color: var(--text2); }
+    .drop-label strong { color: var(--gold); }
+    .drop-hint { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+    .file-preview-wrap {
+      margin-top: 10px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--gold-bd);
+    }
+    .file-preview-wrap img,
+    .file-preview-wrap video {
+      display: block; width: 100%; max-height: 180px; object-fit: contain; background: var(--bg3);
+    }
+    .file-preview-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: var(--bg3);
+      font-size: 11px;
+      color: var(--text2);
+    }
+    .remove-file { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px; }
+    .remove-file:hover { color: var(--err); }
+
+    .upload-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text2);
+      margin-top: 8px;
+    }
+    .mini-spin {
+      width: 13px; height: 13px;
+      border: 2px solid var(--gold-bd);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      flex-shrink: 0;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--gold-bd);
+    }
+
+    /* ── View overlay ─────────────────────────────────────── */
+    .view-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(4,4,4,0.95);
+      z-index: 400;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .view-overlay[hidden] { display: none; }
+
+    .view-bar {
+      position: sticky;
+      top: 0;
+      background: rgba(8,8,8,0.96);
+      border-bottom: 1px solid var(--gold-bd);
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      z-index: 10;
+      backdrop-filter: blur(10px);
+      flex-shrink: 0;
+    }
+    .view-bar-meta { display: flex; align-items: center; gap: 10px; margin-left: 10px; }
+    .view-bar-date { font-size: 12px; color: var(--text3); }
+
+    .view-body { max-width: 740px; width: 100%; margin: 0 auto; padding: 44px 32px 100px; }
+
+    #view-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 34px;
+      font-weight: 600;
+      line-height: 1.2;
+      color: var(--text);
+      margin-bottom: 26px;
+    }
+
+    #view-notes {
+      font-size: 15px;
+      line-height: 1.8;
+      color: var(--text2);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .view-media {
+      margin-top: 32px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--bg2);
+      border: 1px solid var(--gold-bd);
+    }
+    .view-media img   { display: block; width: 100%; height: auto; }
+    .view-media video { display: block; width: 100%; }
+
+    /* ── Toast ────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 96px; right: 30px;
+      background: var(--bg2);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius-sm);
+      padding: 11px 18px;
+      font-size: 13px;
+      color: var(--text);
+      z-index: 600;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.22s, transform 0.22s;
+      pointer-events: none;
+      max-width: 280px;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.err  { border-color: rgba(217,83,79,0.5); color: var(--err); }
+
+    /* ── Import preview ──────────────────────────────────── */
+    .import-summary {
+      font-size: 13px;
+      color: var(--text2);
+      margin-bottom: 18px;
+      line-height: 1.6;
+    }
+    .import-summary strong { color: var(--text); }
+    .import-cat-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+    .import-cat-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--bg3);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--gold-bd);
+      font-size: 13px;
+    }
+    .import-cat-name { display: flex; align-items: center; gap: 8px; }
+    .import-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .import-count { font-size: 11px; color: var(--text3); background: var(--bg2); border: 1px solid var(--gold-bd); border-radius: 10px; padding: 1px 8px; }
+    .import-progress { font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 10px; padding: 16px 0; }
+
+    /* ── Card delete button ──────────────────────────────────── */
+    .card-del {
+      position: absolute;
+      top: 6px; right: 6px;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: rgba(217,83,79,0.88);
+      border: none;
+      color: #fff;
+      font-size: 15px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      z-index: 3;
+      padding: 0;
+      transition: opacity 0.15s, background 0.15s, transform 0.15s;
+    }
+    .idea-card:hover .card-del { opacity: 1; }
+    .card-del:hover { background: var(--err); transform: scale(1.15); }
+
+    /* ── Folder drag targets ──────────────────────────────────── */
+    .folder-row.drag-target {
+      box-shadow: 0 0 0 1px var(--gold-bdh), 0 0 8px rgba(201,168,76,0.35);
+      color: var(--gold-lt);
+    }
+    .folder-row.drag-hover {
+      background: rgba(201,168,76,0.2) !important;
+      box-shadow: 0 0 0 2px var(--gold), 0 0 14px rgba(201,168,76,0.5) !important;
+      color: var(--gold-lt) !important;
+    }
+
+    /* ── Star button ──────────────────────────────────────── */
+    .card-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
+    .star-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 17px;
+      color: var(--text3);
+      line-height: 1;
+      padding: 3px 5px;
+      border-radius: 4px;
+      transition: color 0.15s, transform 0.15s;
+    }
+    .star-btn:hover { color: var(--gold); transform: scale(1.2); }
+    .star-btn.fav   { color: var(--gold); }
+
+    /* ── View toggle ──────────────────────────────────────── */
+    .view-toggle {
+      display: flex;
+      gap: 2px;
+      background: var(--bg3);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+    }
+    .view-toggle-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 5px 7px;
+      border-radius: 5px;
+      color: var(--text3);
+      line-height: 1;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+    }
+    .view-toggle-btn:hover  { color: var(--gold-lt); }
+    .view-toggle-btn.active { background: var(--gold-bg); color: var(--gold-lt); }
+
+    /* ── List view ────────────────────────────────────────── */
+    .ideas-list { display: flex; flex-direction: column; gap: 3px; }
+
+    .list-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: var(--card);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: border-color 0.18s, background 0.18s;
+      animation: fadeUp 0.18s ease both;
+    }
+    .list-row:hover { border-color: var(--gold-bdh); background: var(--bg3); }
+
+    .list-thumb {
+      width: 52px;
+      height: 34px;
+      border-radius: 4px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: var(--bg3);
+    }
+    .list-thumb img,
+    .list-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    .list-title {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .list-date { font-size: 11px; color: var(--text3); flex-shrink: 0; white-space: nowrap; }
+
+    /* ── Card selection ───────────────────────────────────── */
+    .card-sel {
+      position: absolute; top: 8px; left: 8px;
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.35);
+      background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      color: transparent; cursor: pointer;
+      opacity: 0; z-index: 2;
+      transition: opacity 0.15s, border-color 0.15s, background 0.15s, color 0.15s;
+    }
+    .idea-card.sel .card-sel { opacity: 1; border-color: var(--gold); background: var(--gold); color: #111; }
+    .idea-card.sel {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px rgba(201,168,76,0.3);
+    }
+
+    .row-sel {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 1.5px solid var(--text3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: transparent;
+      flex-shrink: 0; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .list-row.sel .row-sel { border-color: var(--gold); background: var(--gold); color: #111; }
+    .list-row.sel { border-color: var(--gold); background: var(--gold-bg); }
+
+    /* ── Marquee ─────────────────────────────────────────── */
+    .marquee {
+      position: fixed;
+      border: 1.5px solid var(--gold);
+      background: rgba(201,168,76,0.06);
+      pointer-events: none; z-index: 9999;
+    }
+
+    /* ── Responsive ───────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+    }
+    @media (max-width: 600px) {
+      .header { padding: 12px 16px; gap: 10px; }
+      .brand small { display: none; }
+      .search-wrap { max-width: 160px; }
+      #main { padding: 18px 14px 100px; }
+      .view-bar { padding: 12px 16px; }
+      .view-body { padding: 28px 16px 80px; }
+      #view-title { font-size: 26px; }
+      #fab { bottom: 20px; right: 20px; width: 48px; height: 48px; font-size: 22px; }
+      .list-date { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<header class="header">
+  <div class="brand">
+    Ideas
+    <small>Knowledge Base</small>
+  </div>
+
+  <div class="search-wrap">
+    <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="search" id="search" placeholder="Search ideas…" autocomplete="off">
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+    <div class="view-toggle">
+      <button class="view-toggle-btn" id="view-grid-btn" title="Grid view">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor">
+          <rect x="0" y="0" width="5.5" height="5.5" rx="1"/>
+          <rect x="7.5" y="0" width="5.5" height="5.5" rx="1"/>
+          <rect x="0" y="7.5" width="5.5" height="5.5" rx="1"/>
+          <rect x="7.5" y="7.5" width="5.5" height="5.5" rx="1"/>
+        </svg>
+      </button>
+      <button class="view-toggle-btn" id="view-list-btn" title="List view">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor">
+          <rect x="0" y="1" width="13" height="2" rx="1"/>
+          <rect x="0" y="5.5" width="13" height="2" rx="1"/>
+          <rect x="0" y="10" width="13" height="2" rx="1"/>
+        </svg>
+      </button>
+    </div>
+    <button class="btn btn-outline" id="import-btn">↑ Import</button>
+    <input type="file" id="import-file" accept=".md,text/markdown,text/plain" style="display:none">
+    <button class="btn btn-gold" id="add-btn">+ New Idea</button>
+  </div>
+</header>
+
+<!-- ── Page body ──────────────────────────────────────────── -->
+<div class="page-body">
+
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-label">Library</div>
+    <button class="sidebar-item active" data-filter="All">
+      <span class="si-icon">💡</span><span class="si-label">All Ideas</span>
+    </button>
+    <button class="sidebar-item" data-filter="Favourites">
+      <span class="si-icon">★</span><span class="si-label">Favourites</span>
+    </button>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-label">Categories</div>
+    <div id="sidebar-cats"></div>
+    <button class="sidebar-action" id="sidebar-new-cat-btn">+ Category</button>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-label">Smart Folders</div>
+    <div id="sidebar-folders"></div>
+  </nav>
+
+  <div class="content-area" id="content-area">
+    <div id="main"></div>
+  </div>
+
+</div>
+
+<!-- ── FAB ────────────────────────────────────────────────── -->
+<button id="fab" title="New Idea">+</button>
+
+<!-- ── Form modal ─────────────────────────────────────────── -->
+<div class="overlay" id="form-overlay" hidden>
+  <div class="form-panel">
+    <h2 class="modal-heading">New Idea</h2>
+
+    <div class="form-group">
+      <label>Title <span style="color:var(--err)">*</span></label>
+      <input type="text" id="form-title" placeholder="Give your idea a title…" maxlength="200">
+    </div>
+
+    <div class="form-group">
+      <label>Category</label>
+      <select id="form-category">
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="form-notes" placeholder="Write your thoughts, links, details…"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Attach <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">— image or video (optional)</span></label>
+      <div class="file-drop" id="file-drop">
+        <input type="file" id="form-file" accept="image/*,video/*">
+        <div class="drop-label">Drop a file or <strong>browse</strong></div>
+        <div class="drop-hint">Images and videos</div>
+      </div>
+      <div id="file-preview-wrap"></div>
+      <div class="upload-row" id="upload-row" style="display:none">
+        <div class="mini-spin"></div>
+        Saving…
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-outline" id="form-cancel">Cancel</button>
+      <button class="btn btn-gold" id="form-save">Save Idea</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── View overlay ────────────────────────────────────────── -->
+<div class="view-overlay" id="view-overlay" hidden>
+  <div class="view-bar">
+    <button class="btn btn-outline" id="view-close" style="padding:7px 14px;font-size:13px">← Back</button>
+    <div class="view-bar-meta" id="view-bar-meta"></div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-outline" id="view-edit" style="padding:7px 14px;font-size:13px">Edit</button>
+      <button class="btn btn-danger" id="view-delete">Delete</button>
+    </div>
+  </div>
+  <div class="view-body">
+    <h1 id="view-title"></h1>
+    <div id="view-notes"></div>
+    <div class="view-media" id="view-media" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ── Import modal ───────────────────────────────────────── -->
+<div class="overlay" id="import-overlay" hidden>
+  <div class="form-panel" style="max-width:480px">
+    <h2 class="modal-heading">Import from Markdown</h2>
+    <div id="import-preview"></div>
+    <div class="form-actions" id="import-actions" style="display:none">
+      <button class="btn btn-outline" id="import-cancel">Cancel</button>
+      <button class="btn btn-gold" id="import-confirm">Import all</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── New Category modal ─────────────────────────────────── -->
+<div class="overlay" id="new-cat-overlay" hidden>
+  <div class="form-panel" style="max-width:380px">
+    <h2 class="modal-heading">New Category</h2>
+    <div class="form-group">
+      <label>Category name <span style="color:var(--err)">*</span></label>
+      <input type="text" id="new-cat-input" placeholder="e.g. Strategy" maxlength="60">
+      <p id="new-cat-error" style="color:var(--err);font-size:12px;margin-top:6px;min-height:1.2em"></p>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" id="new-cat-cancel">Cancel</button>
+      <button class="btn btn-gold" id="new-cat-save">Add Category</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ───────────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<!-- ── Selection toolbar (fixed bottom) ───────────────────── -->
+<div class="sel-toolbar" id="sel-toolbar">
+  <span id="sel-label">0 selected</span>
+  <button class="btn btn-outline" id="sel-clear" style="padding:5px 12px;font-size:12px">✕ Clear</button>
+  <div class="folder-dropdown-wrap">
+    <div class="folder-dropdown" id="folder-dropdown" hidden></div>
+    <button class="btn btn-gold" id="sel-folder-btn" style="padding:5px 12px;font-size:12px">📁 Add to Folder</button>
+  </div>
+</div>
+
+<!-- ── New Smart Folder modal ─────────────────────────────── -->
+<div class="overlay" id="new-folder-overlay" hidden>
+  <div class="form-panel" style="max-width:380px">
+    <h2 class="modal-heading">New Smart Folder</h2>
+    <div class="form-group">
+      <label>Folder name <span style="color:var(--err)">*</span></label>
+      <input type="text" id="new-folder-input" placeholder="e.g. AR Concepts" maxlength="60">
+      <p id="new-folder-error" style="color:var(--err);font-size:12px;margin-top:6px;min-height:1.2em"></p>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" id="new-folder-cancel">Cancel</button>
+      <button class="btn btn-gold" id="new-folder-save">Create Folder</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let categories = [];
+  const DEFAULT_COLORS = {
+    Marketing:  '#4a90d9',
+    Technology: '#7c4dff',
+    Animation:  '#ff6b35',
+    Business:   '#00b894',
+    Artwork:    '#c9a84c',
+    Research:   '#00cec9',
+    Other:      '#9b9baa',
+  };
+  const COLOR_PALETTE = ['#e74c3c','#e67e22','#27ae60','#8e44ad','#16a085','#2980b9','#d35400','#1abc9c','#f39c12','#fd79a8'];
+  const colorAssignments = {};
+  function catColor(name) {
+    if (DEFAULT_COLORS[name]) return DEFAULT_COLORS[name];
+    if (!colorAssignments[name]) {
+      colorAssignments[name] = COLOR_PALETTE[Object.keys(colorAssignments).length % COLOR_PALETTE.length];
+    }
+    return colorAssignments[name];
+  }
+
+  // ── State ────────────────────────────────────────────────
+  let ideas = [];
+  let activeFilter = 'All';
+  let activeFolderId = null;
+  let viewingId  = null;
+  let editingId  = null;
+  let editFileRemoved = false;
+  let viewMode = localStorage.getItem('ideas-view') || 'grid';
+  let smartFolders = [];
+  let smartFolderItems = {}; // { folderId: Set<ideaId> }
+  let selectedIds = new Set();
+  document.getElementById('view-grid-btn').classList.toggle('active', viewMode === 'grid');
+  document.getElementById('view-list-btn').classList.toggle('active', viewMode === 'list');
+
+  // ── DOM ──────────────────────────────────────────────────
+  const mainEl        = document.getElementById('main');
+  const searchEl      = document.getElementById('search');
+  const formOverlay   = document.getElementById('form-overlay');
+  const viewOverlay   = document.getElementById('view-overlay');
+  const formTitleEl   = document.getElementById('form-title');
+  const formCatEl     = document.getElementById('form-category');
+  const formNotesEl   = document.getElementById('form-notes');
+  const formFileEl    = document.getElementById('form-file');
+  const fileDropEl    = document.getElementById('file-drop');
+  const filePreviewEl = document.getElementById('file-preview-wrap');
+  const uploadRowEl   = document.getElementById('upload-row');
+  const toastEl       = document.getElementById('toast');
+
+  // ── Utilities ────────────────────────────────────────────
+  function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function fmtDate(iso) {
+    return new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  }
+
+  let toastTimer;
+  function toast(msg, err = false) {
+    toastEl.textContent = msg;
+    toastEl.className = 'show' + (err ? ' err' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toastEl.className = ''; }, 3200);
+  }
+
+  async function apiFetch(url, opts = {}) {
+    const res = await fetch(url, opts);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || res.statusText);
+    return json;
+  }
+
+  // ── Load ─────────────────────────────────────────────────
+  async function loadIdeas() {
+    mainEl.innerHTML = '<div class="state-box"><div class="spinner"></div></div>';
+    try {
+      const data = await apiFetch('/api/ideas');
+      ideas = data.ideas || [];
+      buildSidebar();
+      render();
+    } catch (err) {
+      if (err.message && err.message.includes('Could not find')) {
+        showSetup();
+      } else {
+        mainEl.innerHTML = `<div class="state-box"><p style="color:var(--err)">${esc(err.message)}</p></div>`;
+      }
+    }
+  }
+
+  function showSetup() {
+    mainEl.innerHTML = `<div class="setup-box">
+      <h3>One-time database setup needed</h3>
+      <p>The <strong>ideas</strong> table doesn't exist yet in your Supabase project.
+         Run the SQL below in the
+         <a href="https://app.supabase.com/project/adwluvwvemzrfpgukhtc/sql" target="_blank">Supabase SQL Editor</a>,
+         then click <strong>Check again</strong>.</p>
+      <pre>CREATE TABLE IF NOT EXISTS ideas (
+  id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  title      text        NOT NULL,
+  category   text        NOT NULL,
+  notes      text,
+  file_url   text,
+  file_type  text,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE ideas ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow all" ON ideas FOR ALL
+  USING (true) WITH CHECK (true);</pre>
+      <button class="btn btn-gold" onclick="loadIdeas()">Check again</button>
+    </div>`;
+  }
+
+  // ── Categories ───────────────────────────────────────────
+  async function loadCategories() {
+    try {
+      const data = await apiFetch('/api/ideas/categories');
+      categories = data.categories || [];
+    } catch {
+      categories = ['Marketing','Technology','Animation','Business','Artwork','Research','Other'];
+    }
+    buildSidebar();
+    buildFormSelect();
+  }
+
+  function buildSidebarCategories() {
+    const el = document.getElementById('sidebar-cats');
+    el.innerHTML = categories.map(c => {
+      const color = catColor(c);
+      const count = ideas.filter(i => i.category === c).length;
+      const active = !activeFolderId && activeFilter === c;
+      return `<button class="sidebar-item${active ? ' active' : ''}" data-filter="${esc(c)}">
+        <span class="si-icon" style="color:${color}">●</span>
+        <span class="si-label">${esc(c)}</span>
+        ${count ? `<span class="si-count">${count}</span>` : ''}
+      </button>`;
+    }).join('');
+  }
+
+  function buildSidebarFolders() {
+    const el = document.getElementById('sidebar-folders');
+    if (!smartFolders.length) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 16px 6px">No folders yet</div>';
+    } else {
+      el.innerHTML = smartFolders.map(f => {
+        const count = smartFolderItems[f.id] ? smartFolderItems[f.id].size : 0;
+        const active = activeFolderId === f.id;
+        return `<div class="folder-row${active ? ' active' : ''}" data-folder-id="${esc(f.id)}">
+          <span class="si-icon">📁</span>
+          <span class="si-label">${esc(f.name)}</span>
+          ${count ? `<span class="si-count">${count}</span>` : ''}
+          <button class="folder-del" data-del-id="${esc(f.id)}" title="Delete">✕</button>
+        </div>`;
+      }).join('');
+    }
+    initFolderDropTargets();
+  }
+
+  function buildSidebar() {
+    document.querySelectorAll('#sidebar > .sidebar-item[data-filter]').forEach(btn => {
+      btn.classList.toggle('active', !activeFolderId && btn.dataset.filter === activeFilter);
+    });
+    buildSidebarCategories();
+    buildSidebarFolders();
+  }
+
+  function buildFormSelect() {
+    formCatEl.innerHTML = categories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  }
+
+  // ── Render ───────────────────────────────────────────────
+  function getFiltered() {
+    let list = ideas;
+    if (activeFolderId) {
+      const folderSet = smartFolderItems[activeFolderId] || new Set();
+      list = list.filter(i => folderSet.has(i.id));
+    } else if (activeFilter === 'Favourites') {
+      list = list.filter(i => i.is_favourite);
+    } else if (activeFilter !== 'All') {
+      list = list.filter(i => i.category === activeFilter);
+    }
+    const q = searchEl.value.trim().toLowerCase();
+    if (q) list = list.filter(i =>
+      i.title.toLowerCase().includes(q) ||
+      (i.notes && i.notes.toLowerCase().includes(q))
+    );
+    return list;
+  }
+
+  function render() {
+    const filtered = getFiltered();
+
+    if (!filtered.length) {
+      const q = searchEl.value.trim();
+      const isFav = activeFilter === 'Favourites';
+      mainEl.innerHTML = `<div class="state-box">
+        <div class="state-icon">${isFav ? '★' : '💡'}</div>
+        <h3>${q ? 'No results' : isFav ? 'No favourites yet' : 'No ideas yet'}</h3>
+        <p>${q ? `Nothing matches "${esc(q)}"` : isFav ? 'Click ☆ on any idea card to star it.' : 'Tap <strong>+ New Idea</strong> to capture your first thought.'}</p>
+      </div>`;
+      return;
+    }
+
+    if (viewMode === 'list') {
+      mainEl.innerHTML = `<div class="ideas-list">${filtered.map(listRowHTML).join('')}</div>`;
+      mainEl.querySelectorAll('.list-row').forEach(el => {
+        el.addEventListener('click', e => {
+          if (e.target.closest('.star-btn')) return;
+          toggleCardSel(el);
+        });
+        el.addEventListener('dblclick', e => {
+          if (e.target.closest('.star-btn')) return;
+          openView(el.dataset.id);
+        });
+      });
+    } else {
+      const groupByCat = !activeFolderId && activeFilter === 'All' && !searchEl.value.trim();
+
+      if (groupByCat) {
+        const map = {};
+        categories.forEach(c => { map[c] = []; });
+        filtered.forEach(i => { (map[i.category] = map[i.category] || []).push(i); });
+        const allCats = [...categories, ...Object.keys(map).filter(c => !categories.includes(c))];
+
+        mainEl.innerHTML = allCats
+          .filter(c => map[c] && map[c].length)
+          .map(c => {
+            const color = catColor(c);
+            return `<div class="cat-section">
+              <div class="cat-heading" style="color:${color}">
+                ${esc(c)}
+                <span class="cat-count">${map[c].length}</span>
+                <div class="cat-rule" style="background:${color}"></div>
+              </div>
+              <div class="cards-grid">${map[c].map(cardHTML).join('')}</div>
+            </div>`;
+          }).join('');
+      } else {
+        mainEl.innerHTML = `<div class="cards-grid">${filtered.map(cardHTML).join('')}</div>`;
+      }
+
+      mainEl.querySelectorAll('.idea-card').forEach(el => {
+        el.addEventListener('click', e => {
+          if (e.target.closest('.star-btn,.card-del')) return;
+          toggleCardSel(el);
+        });
+        el.addEventListener('dblclick', e => {
+          if (e.target.closest('.star-btn,.card-del')) return;
+          openView(el.dataset.id);
+        });
+        el.addEventListener('dragstart', e => startCardDrag(e, el));
+        el.addEventListener('dragend', endCardDrag);
+      });
+
+      mainEl.querySelectorAll('.card-del').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          deleteIdeaFromCard(btn.dataset.delId);
+        });
+      });
+    }
+
+    // Video thumbnails — first frame
+    mainEl.querySelectorAll('.card-thumb.is-video video, .list-thumb video').forEach(vid => {
+      if (vid.readyState >= 1) {
+        vid.currentTime = 0;
+      } else {
+        vid.addEventListener('loadedmetadata', () => { vid.currentTime = 0; }, { once: true });
+      }
+    });
+
+    // Star button click handlers
+    mainEl.querySelectorAll('.star-btn').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        const newFav = btn.dataset.fav !== 'true';
+        await toggleFavourite(id, newFav);
+      });
+    });
+  }
+
+  function cardHTML(idea) {
+    const color   = catColor(idea.category);
+    const preview = idea.notes
+      ? (idea.notes.length > 150 ? idea.notes.slice(0, 150) + '…' : idea.notes)
+      : '';
+
+    let thumb = '';
+    if (idea.file_url) {
+      if (idea.file_type === 'image') {
+        thumb = `<div class="card-thumb"><img src="${esc(idea.file_url)}" alt="" loading="lazy"></div>`;
+      } else {
+        thumb = `<div class="card-thumb is-video"><video src="${esc(idea.file_url)}" preload="metadata" muted playsinline></video></div>`;
+      }
+    }
+
+    return `<div class="idea-card${selectedIds.has(idea.id) ? ' sel' : ''}" data-id="${esc(idea.id)}" draggable="true">
+      <div class="card-sel" data-id="${esc(idea.id)}">✓</div>
+      <button class="card-del" data-del-id="${esc(idea.id)}" title="Delete idea">×</button>
+      ${thumb}
+      <div class="card-body">
+        <div class="card-top">
+          <span class="cat-badge" style="color:${color};border-color:${color}60;background:${color}18">${esc(idea.category)}</span>
+          <span class="card-date">${fmtDate(idea.created_at)}</span>
+        </div>
+        <h3 class="card-title">${esc(idea.title)}</h3>
+        ${preview ? `<p class="card-preview">${esc(preview)}</p>` : ''}
+        <div class="card-footer">
+          <button class="star-btn${idea.is_favourite ? ' fav' : ''}" data-id="${esc(idea.id)}" data-fav="${idea.is_favourite ? 'true' : 'false'}" title="${idea.is_favourite ? 'Remove from favourites' : 'Add to favourites'}">${idea.is_favourite ? '★' : '☆'}</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function listRowHTML(idea) {
+    const color = catColor(idea.category);
+    let thumb = '';
+    if (idea.file_url) {
+      if (idea.file_type === 'image') {
+        thumb = `<div class="list-thumb"><img src="${esc(idea.file_url)}" alt="" loading="lazy"></div>`;
+      } else {
+        thumb = `<div class="list-thumb"><video src="${esc(idea.file_url)}" preload="metadata" muted playsinline></video></div>`;
+      }
+    }
+    return `<div class="list-row${selectedIds.has(idea.id) ? ' sel' : ''}" data-id="${esc(idea.id)}">
+      <div class="row-sel" data-id="${esc(idea.id)}">✓</div>
+      ${thumb}
+      <span class="list-title">${esc(idea.title)}</span>
+      <span class="cat-badge list-cat" style="color:${color};border-color:${color}60;background:${color}18">${esc(idea.category)}</span>
+      <span class="list-date">${fmtDate(idea.created_at)}</span>
+      <button class="star-btn${idea.is_favourite ? ' fav' : ''}" data-id="${esc(idea.id)}" data-fav="${idea.is_favourite ? 'true' : 'false'}" title="${idea.is_favourite ? 'Remove from favourites' : 'Add to favourites'}">${idea.is_favourite ? '★' : '☆'}</button>
+    </div>`;
+  }
+
+  async function toggleFavourite(id, isFav) {
+    const idea = ideas.find(i => i.id === id);
+    if (!idea) return;
+    idea.is_favourite = isFav;
+
+    // Optimistic UI update on all matching star buttons
+    document.querySelectorAll(`.star-btn[data-id="${id}"]`).forEach(btn => {
+      btn.dataset.fav = isFav ? 'true' : 'false';
+      btn.classList.toggle('fav', isFav);
+      btn.textContent = isFav ? '★' : '☆';
+      btn.title = isFav ? 'Remove from favourites' : 'Add to favourites';
+    });
+
+    // If on Favourites tab, re-render to hide/show
+    if (activeFilter === 'Favourites') render();
+
+    try {
+      await apiFetch(`/api/ideas/${id}/favourite`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_favourite: isFav }),
+      });
+    } catch (err) {
+      idea.is_favourite = !isFav;
+      render();
+      toast('Failed to update favourite', true);
+    }
+  }
+
+  // ── Smart Folders ────────────────────────────────────────
+  async function loadSmartFolders() {
+    try {
+      const data = await apiFetch('/api/smart-folders');
+      smartFolders = data.folders || [];
+      smartFolderItems = {};
+      (data.items || []).forEach(item => {
+        if (!smartFolderItems[item.folder_id]) smartFolderItems[item.folder_id] = new Set();
+        smartFolderItems[item.folder_id].add(item.idea_id);
+      });
+    } catch {
+      smartFolders = [];
+      smartFolderItems = {};
+    }
+    buildSidebarFolders();
+  }
+
+  // ── Folder dropdown ──────────────────────────────────────
+  function showFolderDropdown() {
+    const dropdown = document.getElementById('folder-dropdown');
+    const items = smartFolders.map(f =>
+      `<button class="folder-dd-item" data-folder-id="${esc(f.id)}">📁 ${esc(f.name)}</button>`
+    ).join('');
+    const divider = smartFolders.length ? '<div class="folder-dd-divider"></div>' : '';
+    dropdown.innerHTML = items + divider +
+      `<button class="folder-dd-item" id="new-folder-option">＋ New Smart Folder…</button>`;
+    dropdown.removeAttribute('hidden');
+
+    dropdown.querySelectorAll('[data-folder-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        addToFolder(btn.dataset.folderId);
+        hideFolderDropdown();
+      });
+    });
+    document.getElementById('new-folder-option').addEventListener('click', () => {
+      hideFolderDropdown();
+      openNewFolder();
+    });
+  }
+
+  function hideFolderDropdown() {
+    document.getElementById('folder-dropdown').setAttribute('hidden', '');
+  }
+
+  async function addToFolder(folderId) {
+    if (!selectedIds.size) return;
+    const folder = smartFolders.find(f => f.id === folderId);
+    try {
+      await apiFetch(`/api/smart-folders/${folderId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ideaIds: [...selectedIds] }),
+      });
+      if (!smartFolderItems[folderId]) smartFolderItems[folderId] = new Set();
+      selectedIds.forEach(id => smartFolderItems[folderId].add(id));
+      clearSelection();
+      buildSidebarFolders();
+      toast(`Added to "${folder?.name}"`);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // ── New Smart Folder modal ───────────────────────────────
+  const newFolderOverlay = document.getElementById('new-folder-overlay');
+  const newFolderInput   = document.getElementById('new-folder-input');
+  const newFolderError   = document.getElementById('new-folder-error');
+
+  function openNewFolder() {
+    newFolderInput.value = '';
+    newFolderError.textContent = '';
+    newFolderOverlay.removeAttribute('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => newFolderInput.focus(), 60);
+  }
+
+  function closeNewFolder() {
+    newFolderOverlay.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+  }
+
+  async function saveNewFolder() {
+    const name = newFolderInput.value.trim();
+    if (!name) { newFolderError.textContent = 'Please enter a name'; return; }
+    const saveBtn = document.getElementById('new-folder-save');
+    saveBtn.disabled = true;
+    newFolderError.textContent = '';
+    try {
+      const data = await apiFetch('/api/smart-folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, ideaIds: [...selectedIds] }),
+      });
+      const folder = data.folder;
+      smartFolders.push(folder);
+      smartFolderItems[folder.id] = new Set(selectedIds);
+      clearSelection();
+      buildSidebarFolders();
+      closeNewFolder();
+      toast(`Smart folder "${folder.name}" created`);
+    } catch (err) {
+      newFolderError.textContent = err.message;
+      toast(err.message, true);
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  document.getElementById('new-folder-save').addEventListener('click', saveNewFolder);
+  document.getElementById('new-folder-cancel').addEventListener('click', closeNewFolder);
+  newFolderInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveNewFolder(); });
+  newFolderOverlay.addEventListener('click', e => { if (e.target === newFolderOverlay) closeNewFolder(); });
+
+  async function deleteSmartFolder(id) {
+    const folder = smartFolders.find(f => f.id === id);
+    if (!folder) return;
+    if (!confirm(`Delete smart folder "${folder.name}"?\nThe ideas inside are not deleted.`)) return;
+    try {
+      await apiFetch(`/api/smart-folders/${id}`, { method: 'DELETE' });
+      smartFolders = smartFolders.filter(f => f.id !== id);
+      delete smartFolderItems[id];
+      if (activeFolderId === id) { activeFolderId = null; activeFilter = 'All'; }
+      buildSidebar();
+      render();
+      toast('Smart folder deleted');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // ── Card delete (from card button) ──────────────────────
+  async function deleteIdeaFromCard(id) {
+    const idea = ideas.find(i => i.id === id);
+    if (!idea) return;
+    if (!confirm(`Delete this idea?\n"${idea.title}"`)) return;
+
+    const card = mainEl.querySelector(`.idea-card[data-id="${id}"]`);
+    if (card) card.remove();
+
+    ideas = ideas.filter(i => i.id !== id);
+    selectedIds.delete(id);
+    Object.values(smartFolderItems).forEach(set => set.delete(id));
+    updateSelUI();
+    buildSidebarFolders();
+
+    try {
+      await apiFetch(`/api/ideas/${id}`, { method: 'DELETE' });
+      toast('Idea deleted');
+    } catch (err) {
+      toast(err.message, true);
+      await loadIdeas();
+    }
+  }
+
+  // ── Card → Folder drag-and-drop ──────────────────────────
+  function startCardDrag(e, cardEl) {
+    const id = cardEl.dataset.id;
+    if (!selectedIds.has(id)) {
+      selectedIds.add(id);
+      cardEl.classList.add('sel');
+      updateSelUI();
+    }
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', 'ideas-drag');
+    document.body.classList.add('dragging-cards');
+    document.querySelectorAll('.folder-row[data-folder-id]').forEach(row => {
+      row.classList.add('drag-target');
+    });
+  }
+
+  function endCardDrag() {
+    document.body.classList.remove('dragging-cards');
+    document.querySelectorAll('.folder-row.drag-target, .folder-row.drag-hover').forEach(row => {
+      row.classList.remove('drag-target', 'drag-hover');
+    });
+  }
+
+  function initFolderDropTargets() {
+    document.querySelectorAll('.folder-row[data-folder-id]').forEach(row => {
+      row.addEventListener('dragover', e => {
+        if (!document.body.classList.contains('dragging-cards')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        document.querySelectorAll('.folder-row.drag-hover').forEach(r => r.classList.remove('drag-hover'));
+        row.classList.add('drag-hover');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-hover'));
+      row.addEventListener('drop', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const folderId = row.dataset.folderId;
+        endCardDrag();
+        addToFolder(folderId);
+      });
+    });
+  }
+
+  // ── Selection ────────────────────────────────────────────
+  function toggleCardSel(el) {
+    const id = el.dataset.id;
+    if (selectedIds.has(id)) selectedIds.delete(id);
+    else selectedIds.add(id);
+    el.classList.toggle('sel', selectedIds.has(id));
+    updateSelUI();
+  }
+
+  function updateSelUI() {
+    const n = selectedIds.size;
+    document.getElementById('sel-toolbar').classList.toggle('on', n > 0);
+    document.getElementById('sel-label').textContent = `${n} selected`;
+    if (n === 0) hideFolderDropdown();
+  }
+
+  function clearSelection() {
+    selectedIds.clear();
+    mainEl.querySelectorAll('.idea-card.sel, .list-row.sel').forEach(el => el.classList.remove('sel'));
+    updateSelUI();
+  }
+
+  // ── Marquee ──────────────────────────────────────────────
+  let mqStart = null;
+  let mqEl = null;
+
+  document.getElementById('content-area').addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.idea-card,.list-row,.star-btn,.card-sel,.row-sel,.card-footer,.sel-toolbar,button,a')) return;
+    mqStart = { x: e.clientX, y: e.clientY };
+    mqEl = document.createElement('div');
+    mqEl.className = 'marquee';
+    Object.assign(mqEl.style, { left: e.clientX+'px', top: e.clientY+'px', width:'0', height:'0' });
+    document.body.appendChild(mqEl);
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!mqStart || !mqEl) return;
+    const x1 = Math.min(e.clientX, mqStart.x), y1 = Math.min(e.clientY, mqStart.y);
+    const x2 = Math.max(e.clientX, mqStart.x), y2 = Math.max(e.clientY, mqStart.y);
+    Object.assign(mqEl.style, { left:x1+'px', top:y1+'px', width:(x2-x1)+'px', height:(y2-y1)+'px' });
+  });
+
+  document.addEventListener('mouseup', e => {
+    if (!mqStart) return;
+    const wasDrag = mqEl && (mqEl.offsetWidth > 5 || mqEl.offsetHeight > 5);
+    const r = mqEl ? mqEl.getBoundingClientRect() : null;
+    if (mqEl) { mqEl.remove(); mqEl = null; }
+    mqStart = null;
+
+    if (wasDrag && r) {
+      mainEl.querySelectorAll('.idea-card, .list-row').forEach(card => {
+        const cr = card.getBoundingClientRect();
+        if (!(r.right < cr.left || r.left > cr.right || r.bottom < cr.top || r.top > cr.bottom)) {
+          selectedIds.add(card.dataset.id);
+          card.classList.add('sel');
+        }
+      });
+      updateSelUI();
+    } else {
+      clearSelection();
+    }
+  });
+
+  // ── View ─────────────────────────────────────────────────
+  function openView(id) {
+    const idea = ideas.find(i => i.id === id);
+    if (!idea) return;
+    viewingId = id;
+
+    const color = catColor(idea.category);
+
+    document.getElementById('view-bar-meta').innerHTML = `
+      <span class="cat-badge" style="color:${color};border-color:${color}60;background:${color}18">${esc(idea.category)}</span>
+      <span class="view-bar-date">${fmtDate(idea.created_at)}</span>
+    `;
+
+    document.getElementById('view-title').textContent = idea.title;
+    document.getElementById('view-notes').textContent = idea.notes || '';
+
+    const media = document.getElementById('view-media');
+    if (idea.file_url && idea.file_type === 'image') {
+      media.innerHTML = `<img src="${esc(idea.file_url)}" alt="">`;
+      media.style.display = 'block';
+    } else if (idea.file_url && idea.file_type === 'video') {
+      media.innerHTML = `<video src="${esc(idea.file_url)}" controls></video>`;
+      media.style.display = 'block';
+    } else {
+      media.innerHTML = '';
+      media.style.display = 'none';
+    }
+
+    viewOverlay.removeAttribute('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeView() {
+    viewOverlay.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+    viewingId = null;
+  }
+
+  // ── Delete ───────────────────────────────────────────────
+  document.getElementById('view-delete').addEventListener('click', async () => {
+    if (!viewingId) return;
+    const idea = ideas.find(i => i.id === viewingId);
+    if (!confirm(`Delete "${idea?.title}"?\nThis cannot be undone.`)) return;
+
+    const btn = document.getElementById('view-delete');
+    btn.disabled = true;
+    try {
+      await apiFetch(`/api/ideas/${viewingId}`, { method: 'DELETE' });
+      toast('Idea deleted');
+      closeView();
+      await loadIdeas();
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ── Form open / close ────────────────────────────────────
+  function openForm(idea = null) {
+    editingId       = idea ? idea.id : null;
+    editFileRemoved = false;
+
+    formOverlay.querySelector('.modal-heading').textContent = idea ? 'Edit Idea' : 'New Idea';
+    document.getElementById('form-save').textContent        = idea ? 'Save Changes' : 'Save Idea';
+
+    formTitleEl.value = idea ? idea.title      : '';
+    formCatEl.value   = idea ? idea.category   : (categories[0] || '');
+    formNotesEl.value = idea ? (idea.notes || '') : '';
+    formFileEl.value  = '';
+    filePreviewEl.innerHTML = '';
+
+    if (idea && idea.file_url) showExistingFile(idea);
+
+    uploadRowEl.style.display = 'none';
+    document.getElementById('form-save').disabled = false;
+    formOverlay.removeAttribute('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => formTitleEl.focus(), 60);
+  }
+
+  function closeForm() {
+    formOverlay.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+    editingId = null;
+  }
+
+  function showExistingFile(idea) {
+    const isVid = idea.file_type === 'video';
+    filePreviewEl.innerHTML = `<div class="file-preview-wrap">
+      ${isVid
+        ? `<video src="${esc(idea.file_url)}" muted preload="metadata" playsinline></video>`
+        : `<img src="${esc(idea.file_url)}" alt="">`}
+      <div class="file-preview-footer">
+        <span>Current ${isVid ? 'video' : 'image'} — pick a new file below to replace</span>
+        <button class="remove-file" id="rm-file">✕ Remove</button>
+      </div>
+    </div>`;
+    document.getElementById('rm-file').addEventListener('click', () => {
+      editFileRemoved = true;
+      filePreviewEl.innerHTML = '<p style="font-size:12px;color:var(--text3);margin-top:8px">File will be removed on save.</p>';
+    });
+  }
+
+  // ── File preview ─────────────────────────────────────────
+  function showFilePreview(file) {
+    if (!file) { filePreviewEl.innerHTML = ''; return; }
+    const url   = URL.createObjectURL(file);
+    const isVid = file.type.startsWith('video/');
+    filePreviewEl.innerHTML = `<div class="file-preview-wrap">
+      ${isVid ? `<video src="${url}" muted></video>` : `<img src="${url}" alt="">`}
+      <div class="file-preview-footer">
+        <span>${esc(file.name)}</span>
+        <button class="remove-file" id="rm-file">✕</button>
+      </div>
+    </div>`;
+    document.getElementById('rm-file').addEventListener('click', () => {
+      formFileEl.value = '';
+      filePreviewEl.innerHTML = '';
+    });
+  }
+
+  formFileEl.addEventListener('change', () => showFilePreview(formFileEl.files[0]));
+
+  fileDropEl.addEventListener('dragover',  e => { e.preventDefault(); fileDropEl.classList.add('over'); });
+  fileDropEl.addEventListener('dragleave', () => fileDropEl.classList.remove('over'));
+  fileDropEl.addEventListener('drop', e => {
+    e.preventDefault();
+    fileDropEl.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (f) {
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      formFileEl.files = dt.files;
+      showFilePreview(f);
+    }
+  });
+
+  // ── Save (create or update) ──────────────────────────────
+  document.getElementById('form-save').addEventListener('click', async () => {
+    const title    = formTitleEl.value.trim();
+    const category = formCatEl.value;
+    const notes    = formNotesEl.value.trim();
+    const file     = formFileEl.files[0];
+
+    if (!title) { formTitleEl.focus(); toast('Please enter a title', true); return; }
+
+    const saveBtn = document.getElementById('form-save');
+    saveBtn.disabled = true;
+    uploadRowEl.style.display = 'flex';
+
+    try {
+      const fd = new FormData();
+      fd.append('title', title);
+      fd.append('category', category);
+      if (notes) fd.append('notes', notes);
+      if (file)  fd.append('file', file);
+      if (editingId && editFileRemoved) fd.append('remove_file', 'true');
+
+      const url    = editingId ? `/api/ideas/${editingId}` : '/api/ideas';
+      const method = editingId ? 'PUT' : 'POST';
+
+      await apiFetch(url, { method, body: fd });
+      toast(editingId ? 'Idea updated!' : 'Idea saved!');
+      closeForm();
+      await loadIdeas();
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      saveBtn.disabled = false;
+      uploadRowEl.style.display = 'none';
+    }
+  });
+
+  // ── Import ───────────────────────────────────────────────
+  const importOverlay  = document.getElementById('import-overlay');
+  const importPreview  = document.getElementById('import-preview');
+  const importActions  = document.getElementById('import-actions');
+  const importFileEl   = document.getElementById('import-file');
+  let parsedEntries    = [];
+
+  function parseMarkdown(text) {
+    const VALID = categories.length ? categories : ['Marketing','Technology','Animation','Business','Artwork','Research','Other'];
+    const entries = [];
+    let cat = 'Other', title = null, lines = [];
+
+    function flush() {
+      if (!title) return;
+      entries.push({ title, category: cat, notes: lines.join('\n').trim() || null });
+      title = null; lines = [];
+    }
+
+    for (const raw of text.split('\n')) {
+      const line = raw.trimEnd();
+      if (line.startsWith('## ')) {
+        flush();
+        const label = line.slice(3).trim();
+        cat = VALID.find(c => c.toLowerCase() === label.toLowerCase()) || 'Other';
+      } else if (line.startsWith('### ')) {
+        flush();
+        title = line.slice(4).trim();
+      } else if (title !== null) {
+        lines.push(line);
+      }
+    }
+    flush();
+    return entries;
+  }
+
+  function showImportPreview(entries) {
+    if (!entries.length) {
+      importPreview.innerHTML = `<p class="import-summary">No entries found. Make sure the file uses <code>## Category</code> and <code>### Title</code> headings.</p>`;
+      importActions.style.display = 'none';
+      return;
+    }
+
+    const byCat = {};
+    entries.forEach(e => { (byCat[e.category] = byCat[e.category] || []).push(e); });
+
+    const rows = Object.entries(byCat).map(([cat, list]) => `
+      <li class="import-cat-row">
+        <span class="import-cat-name">
+          <span class="import-dot" style="background:${catColor(cat)}"></span>
+          ${esc(cat)}
+        </span>
+        <span class="import-count">${list.length} ${list.length === 1 ? 'entry' : 'entries'}</span>
+      </li>`).join('');
+
+    importPreview.innerHTML = `
+      <p class="import-summary">Found <strong>${entries.length}</strong> ${entries.length === 1 ? 'entry' : 'entries'} across <strong>${Object.keys(byCat).length}</strong> ${Object.keys(byCat).length === 1 ? 'category' : 'categories'}:</p>
+      <ul class="import-cat-list">${rows}</ul>`;
+    importActions.style.display = 'flex';
+    document.getElementById('import-confirm').textContent = `Import ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
+  }
+
+  function closeImport() {
+    importOverlay.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+    parsedEntries = [];
+    importFileEl.value = '';
+  }
+
+  importFileEl.addEventListener('change', () => {
+    const file = importFileEl.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      parsedEntries = parseMarkdown(e.target.result);
+      showImportPreview(parsedEntries);
+      importOverlay.removeAttribute('hidden');
+      document.body.style.overflow = 'hidden';
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('import-btn').addEventListener('click', () => importFileEl.click());
+  document.getElementById('import-cancel').addEventListener('click', closeImport);
+  importOverlay.addEventListener('click', e => { if (e.target === importOverlay) closeImport(); });
+
+  // ── New Category ─────────────────────────────────────────
+  const newCatOverlay = document.getElementById('new-cat-overlay');
+  const newCatInput   = document.getElementById('new-cat-input');
+  const newCatError   = document.getElementById('new-cat-error');
+
+  function openNewCat() {
+    console.log('[NewCat] dialog opened');
+    newCatInput.value = '';
+    newCatError.textContent = '';
+    newCatOverlay.removeAttribute('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => newCatInput.focus(), 60);
+  }
+
+  function closeNewCat() {
+    newCatOverlay.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+  }
+
+  async function saveNewCat() {
+    console.log('[NewCat] save clicked');
+    const name = newCatInput.value.trim();
+    console.log('[NewCat] name:', JSON.stringify(name));
+    if (!name) { newCatError.textContent = 'Please enter a name'; return; }
+    const saveBtn = document.getElementById('new-cat-save');
+    saveBtn.disabled = true;
+    newCatError.textContent = '';
+    try {
+      console.log('[NewCat] posting to /api/ideas/categories...');
+      const result = await apiFetch('/api/ideas/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      console.log('[NewCat] API response:', result);
+      categories.push(name);
+      buildSidebar();
+      buildFormSelect();
+      closeNewCat();
+      toast(`Category "${name}" added`);
+    } catch (err) {
+      console.error('[NewCat] API error:', err.message);
+      newCatError.textContent = err.message;
+      toast(err.message, true);
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  const newCatSaveBtn = document.getElementById('new-cat-save');
+  if (newCatSaveBtn) {
+    newCatSaveBtn.addEventListener('click', saveNewCat);
+    console.log('[NewCat] save listener attached');
+  } else {
+    console.error('[NewCat] ERROR: #new-cat-save not found in DOM');
+  }
+  document.getElementById('sidebar-new-cat-btn').addEventListener('click', openNewCat);
+  document.getElementById('new-cat-cancel').addEventListener('click', closeNewCat);
+  newCatInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveNewCat(); });
+  newCatOverlay.addEventListener('click', e => { if (e.target === newCatOverlay) closeNewCat(); });
+
+  document.getElementById('import-confirm').addEventListener('click', async () => {
+    if (!parsedEntries.length) return;
+    const btn = document.getElementById('import-confirm');
+    btn.disabled = true;
+    importActions.style.display = 'none';
+    importPreview.innerHTML = `<div class="import-progress"><div class="mini-spin"></div>Importing ${parsedEntries.length} ${parsedEntries.length === 1 ? 'entry' : 'entries'}…</div>`;
+
+    try {
+      const result = await apiFetch('/api/ideas/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries: parsedEntries }),
+      });
+      toast(`Imported ${result.imported} ${result.imported === 1 ? 'idea' : 'ideas'} successfully`);
+      closeImport();
+      await loadIdeas();
+    } catch (err) {
+      toast(err.message, true);
+      btn.disabled = false;
+      importActions.style.display = 'flex';
+      importPreview.innerHTML = `<p class="import-summary" style="color:var(--err)">${esc(err.message)}</p>`;
+    }
+  });
+
+  // ── Event wiring ─────────────────────────────────────────
+  document.getElementById('add-btn').addEventListener('click', () => openForm());
+  document.getElementById('fab').addEventListener('click', () => openForm());
+  document.getElementById('form-cancel').addEventListener('click', closeForm);
+  document.getElementById('view-close').addEventListener('click', closeView);
+
+  document.getElementById('view-edit').addEventListener('click', () => {
+    const idea = ideas.find(i => i.id === viewingId);
+    if (!idea) return;
+    closeView();
+    openForm(idea);
+  });
+
+  formOverlay.addEventListener('click', e => { if (e.target === formOverlay) closeForm(); });
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (!viewOverlay.hidden) closeView();
+    else if (!newFolderOverlay.hidden) closeNewFolder();
+    else if (!newCatOverlay.hidden) closeNewCat();
+    else if (!formOverlay.hidden) closeForm();
+    else if (!importOverlay.hidden) closeImport();
+    else hideFolderDropdown();
+  });
+
+  document.getElementById('sidebar').addEventListener('click', e => {
+    const delBtn = e.target.closest('[data-del-id]');
+    if (delBtn) { deleteSmartFolder(delBtn.dataset.delId); return; }
+    const folderRow = e.target.closest('.folder-row');
+    if (folderRow && !e.target.closest('.folder-del')) {
+      activeFolderId = folderRow.dataset.folderId;
+      activeFilter = 'All';
+      buildSidebar();
+      render();
+      return;
+    }
+    const filterBtn = e.target.closest('.sidebar-item[data-filter]');
+    if (filterBtn) {
+      activeFolderId = null;
+      activeFilter = filterBtn.dataset.filter;
+      buildSidebar();
+      render();
+    }
+  });
+
+  document.getElementById('sel-clear').addEventListener('click', clearSelection);
+  document.getElementById('sel-folder-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    const dropdown = document.getElementById('folder-dropdown');
+    if (dropdown.hidden) showFolderDropdown();
+    else hideFolderDropdown();
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.folder-dropdown-wrap')) hideFolderDropdown();
+  });
+
+  let searchTimer;
+  searchEl.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(render, 160);
+  });
+
+  // ── View mode toggle ─────────────────────────────────────
+  function setViewMode(mode) {
+    viewMode = mode;
+    localStorage.setItem('ideas-view', mode);
+    document.getElementById('view-grid-btn').classList.toggle('active', mode === 'grid');
+    document.getElementById('view-list-btn').classList.toggle('active', mode === 'list');
+    render();
+  }
+  document.getElementById('view-grid-btn').addEventListener('click', () => setViewMode('grid'));
+  document.getElementById('view-list-btn').addEventListener('click', () => setViewMode('list'));
+
+  // ── Boot ─────────────────────────────────────────────────
+  async function init() {
+    await loadCategories();
+    await Promise.all([loadIdeas(), loadSmartFolders()]);
+  }
+  init();
+</script>
+</body>
+</html>
