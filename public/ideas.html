@@ -279,7 +279,7 @@
     .folder-dd-divider { height: 1px; background: var(--gold-bd); margin: 4px 0; }
 
     /* ── Main layout ──────────────────────────────────────── */
-    #main { padding: 28px 32px 120px; max-width: 1440px; margin: 0 auto; }
+    #main { padding: 28px 32px 120px; width: 100%; }
 
     /* ── Category sections ────────────────────────────────── */
     .cat-section { margin-bottom: 44px; }
@@ -308,8 +308,9 @@
     /* ── Cards grid ───────────────────────────────────────── */
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 14px;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+      width: 100%;
     }
 
     /* ── Idea card ────────────────────────────────────────── */
@@ -935,16 +936,6 @@
     }
     #sidebar-backdrop.open { display: block; }
 
-    /* ── Responsive — desktop (1200px+): 3-column grid ───── */
-    @media (min-width: 1200px) {
-      .cards-grid { grid-template-columns: repeat(3, 1fr); }
-    }
-
-    /* ── Responsive — tablet (768–1199px): 2-column grid ─── */
-    @media (min-width: 768px) and (max-width: 1199px) {
-      .cards-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
     /* ── Responsive — mobile (≤768px): sidebar drawer ──────── */
     @media (max-width: 768px) {
       #sidebar-toggle { display: flex; }
@@ -968,7 +959,7 @@
       #import-btn { display: none; }
 
       #main { padding: 16px 12px 100px; }
-      .cards-grid { grid-template-columns: 1fr; gap: 10px; }
+      .cards-grid { gap: 10px; }
 
       /* Touch-friendly tap targets (min 44px) */
       .sidebar-item  { padding: 12px 16px; min-height: 44px; }
