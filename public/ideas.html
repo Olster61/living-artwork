@@ -746,6 +746,30 @@
       color: var(--gold-lt) !important;
     }
 
+    /* ── Category drag targets (blue = move) ─────────────── */
+    .sidebar-item.cat-drag-target {
+      box-shadow: inset 2px 0 0 rgba(74,144,217,0.7), 0 0 6px rgba(74,144,217,0.2);
+      color: #7ab8f5;
+    }
+    .sidebar-item.cat-drag-hover {
+      background: rgba(74,144,217,0.14) !important;
+      box-shadow: inset 0 0 0 1px rgba(74,144,217,0.55), 0 0 12px rgba(74,144,217,0.3) !important;
+      color: #b8d9ff !important;
+    }
+
+    /* ── Sidebar section distinction ─────────────────────── */
+    .folder-row {
+      border-left: 2px solid rgba(201,168,76,0.18);
+    }
+    .folder-row:hover, .folder-row.active { border-left-color: rgba(201,168,76,0.5); }
+    .folder-row.drag-target { border-left-color: var(--gold); }
+    .folder-row.drag-hover  { border-left-color: var(--gold-lt); }
+    #sidebar-folders-wrap {
+      background: rgba(201,168,76,0.025);
+      border-top: 1px solid rgba(201,168,76,0.1);
+      padding-top: 4px;
+    }
+
     /* ── Star button ──────────────────────────────────────── */
     .card-footer {
       display: flex;
@@ -939,14 +963,16 @@
 
     <div class="sidebar-divider"></div>
 
-    <div class="sidebar-label">Categories</div>
+    <div class="sidebar-label">Categories <span style="font-size:8px;color:var(--text3);font-weight:400;letter-spacing:0;text-transform:none;opacity:0.8">· drag to move</span></div>
     <div id="sidebar-cats"></div>
     <button class="sidebar-action" id="sidebar-new-cat-btn">+ Category</button>
 
     <div class="sidebar-divider"></div>
 
-    <div class="sidebar-label">Smart Folders</div>
-    <div id="sidebar-folders"></div>
+    <div id="sidebar-folders-wrap">
+      <div class="sidebar-label">Smart Folders <span style="font-size:8px;color:var(--text3);font-weight:400;letter-spacing:0;text-transform:none;opacity:0.8">· drag to link</span></div>
+      <div id="sidebar-folders"></div>
+    </div>
   </nav>
 
   <div class="content-area" id="content-area">
@@ -1106,6 +1132,7 @@
   let smartFolders = [];
   let smartFolderItems = {}; // { folderId: Set<ideaId> }
   let selectedIds = new Set();
+  let dragIdeaId = null;
   document.getElementById('view-grid-btn').classList.toggle('active', viewMode === 'grid');
   document.getElementById('view-list-btn').classList.toggle('active', viewMode === 'list');
 
@@ -1206,12 +1233,13 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       const color = catColor(c);
       const count = ideas.filter(i => i.category === c).length;
       const active = !activeFolderId && activeFilter === c;
-      return `<button class="sidebar-item${active ? ' active' : ''}" data-filter="${esc(c)}">
+      return `<button class="sidebar-item${active ? ' active' : ''}" data-filter="${esc(c)}" data-cat="true">
         <span class="si-icon" style="color:${color}">●</span>
         <span class="si-label">${esc(c)}</span>
         ${count ? `<span class="si-count">${count}</span>` : ''}
       </button>`;
     }).join('');
+    initCategoryDropTargets();
   }
 
   function buildSidebarFolders() {
@@ -1303,7 +1331,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
           .filter(c => map[c] && map[c].length)
           .map(c => {
             const color = catColor(c);
-            return `<div class="cat-section">
+            return `<div class="cat-section" data-cat="${esc(c)}">
               <div class="cat-heading" style="color:${color}">
                 ${esc(c)}
                 <span class="cat-count">${map[c].length}</span>
@@ -1439,6 +1467,69 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
   }
 
+  // ── Move idea to different category ──────────────────────
+  async function moveIdeaToCategory(id, newCat) {
+    const idea = ideas.find(i => i.id === id);
+    if (!idea || idea.category === newCat) return;
+    const oldCat = idea.category;
+    idea.category = newCat; // optimistic
+
+    // Update category badge on card in DOM
+    const card = mainEl.querySelector(`.idea-card[data-id="${id}"]`);
+    if (card) {
+      const color = catColor(newCat);
+      const badge = card.querySelector('.cat-badge');
+      if (badge) {
+        badge.textContent = newCat;
+        badge.style.color = color;
+        badge.style.borderColor = color + '60';
+        badge.style.background = color + '18';
+      }
+
+      const groupByCat = !activeFolderId && activeFilter === 'All' && !searchEl.value.trim();
+      if (groupByCat) {
+        card.remove();
+        let newSec = mainEl.querySelector(`.cat-section[data-cat="${CSS.escape(newCat)}"]`);
+        if (newSec) {
+          const grid = newSec.querySelector('.cards-grid');
+          grid.insertAdjacentHTML('beforeend', cardHTML(idea));
+          attachCardEvents(grid.lastElementChild);
+          const cnt = newSec.querySelector('.cat-count');
+          if (cnt) cnt.textContent = parseInt(cnt.textContent || 0) + 1;
+        } else {
+          render(); return;
+        }
+        const oldSec = mainEl.querySelector(`.cat-section[data-cat="${CSS.escape(oldCat)}"]`);
+        if (oldSec) {
+          const remaining = oldSec.querySelectorAll('.idea-card').length;
+          const cnt = oldSec.querySelector('.cat-count');
+          if (cnt) cnt.textContent = remaining;
+          if (remaining === 0) oldSec.remove();
+        }
+      }
+    }
+
+    buildSidebarCategories();
+
+    try {
+      await apiFetch(`/api/ideas/${id}`, {
+        method: 'PUT',
+        body: (() => {
+          const fd = new FormData();
+          fd.append('title', idea.title);
+          fd.append('category', newCat);
+          if (idea.notes) fd.append('notes', idea.notes);
+          return fd;
+        })(),
+      });
+      toast(`Moved to ${newCat}`);
+    } catch (err) {
+      idea.category = oldCat;
+      toast(err.message, true);
+      render();
+    }
+  }
+
   // ── Smart Folders ────────────────────────────────────────
   async function loadSmartFolders() {
     try {
@@ -1483,18 +1574,19 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     document.getElementById('folder-dropdown').setAttribute('hidden', '');
   }
 
-  async function addToFolder(folderId) {
-    if (!selectedIds.size) return;
+  async function addToFolder(folderId, ids = null) {
+    const idsToAdd = ids ?? [...selectedIds];
+    if (!idsToAdd.length) return;
     const folder = smartFolders.find(f => f.id === folderId);
     try {
       await apiFetch(`/api/smart-folders/${folderId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ideaIds: [...selectedIds] }),
+        body: JSON.stringify({ ideaIds: idsToAdd }),
       });
       if (!smartFolderItems[folderId]) smartFolderItems[folderId] = new Set();
-      selectedIds.forEach(id => smartFolderItems[folderId].add(id));
-      clearSelection();
+      idsToAdd.forEach(id => smartFolderItems[folderId].add(id));
+      if (!ids) clearSelection();
       buildSidebarFolders();
       toast(`Added to "${folder?.name}"`);
     } catch (err) {
@@ -1569,6 +1661,30 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
   }
 
+  // ── Attach events to a rendered card ────────────────────
+  function attachCardEvents(el) {
+    el.addEventListener('click', e => {
+      if (e.target.closest('.star-btn,.card-del')) return;
+      toggleCardSel(el);
+    });
+    el.addEventListener('dblclick', e => {
+      if (e.target.closest('.star-btn,.card-del')) return;
+      openView(el.dataset.id);
+    });
+    el.addEventListener('dragstart', e => startCardDrag(e, el));
+    el.addEventListener('dragend', endCardDrag);
+    const delBtn = el.querySelector('.card-del');
+    if (delBtn) delBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      deleteIdeaFromCard(delBtn.dataset.delId);
+    });
+    const starBtn = el.querySelector('.star-btn');
+    if (starBtn) starBtn.addEventListener('click', async e => {
+      e.stopPropagation();
+      await toggleFavourite(starBtn.dataset.id, starBtn.dataset.fav !== 'true');
+    });
+  }
+
   // ── Card delete (from card button) ──────────────────────
   async function deleteIdeaFromCard(id) {
     const idea = ideas.find(i => i.id === id);
@@ -1596,23 +1712,44 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   // ── Card → Folder drag-and-drop ──────────────────────────
   function startCardDrag(e, cardEl) {
     const id = cardEl.dataset.id;
-    if (!selectedIds.has(id)) {
-      selectedIds.add(id);
-      cardEl.classList.add('sel');
-      updateSelUI();
-    }
-    e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData('text/plain', 'ideas-drag');
+    dragIdeaId = id;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+
+    // Custom ghost: clone card, shrink it, attach briefly to body
+    const ghost = cardEl.cloneNode(true);
+    Object.assign(ghost.style, {
+      position: 'fixed', top: '-1000px', left: '-1000px',
+      width: '200px', opacity: '0.88', pointerEvents: 'none',
+      borderRadius: '12px', overflow: 'hidden', zIndex: '9999',
+    });
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 20, 20);
+    setTimeout(() => ghost.remove(), 0);
+
     document.body.classList.add('dragging-cards');
+
+    // Gold glow on smart folders (link)
     document.querySelectorAll('.folder-row[data-folder-id]').forEach(row => {
       row.classList.add('drag-target');
+    });
+    // Blue glow on categories (move) — skip same category
+    const idea = ideas.find(i => i.id === id);
+    document.querySelectorAll('.sidebar-item[data-cat]').forEach(btn => {
+      if (!idea || btn.dataset.filter !== idea.category) {
+        btn.classList.add('cat-drag-target');
+      }
     });
   }
 
   function endCardDrag() {
+    dragIdeaId = null;
     document.body.classList.remove('dragging-cards');
     document.querySelectorAll('.folder-row.drag-target, .folder-row.drag-hover').forEach(row => {
       row.classList.remove('drag-target', 'drag-hover');
+    });
+    document.querySelectorAll('.sidebar-item.cat-drag-target, .sidebar-item.cat-drag-hover').forEach(btn => {
+      btn.classList.remove('cat-drag-target', 'cat-drag-hover');
     });
   }
 
@@ -1630,8 +1767,38 @@ CREATE POLICY "allow all" ON ideas FOR ALL
         e.preventDefault();
         e.stopPropagation();
         const folderId = row.dataset.folderId;
+        const id = dragIdeaId;
         endCardDrag();
-        addToFolder(folderId);
+        if (id && selectedIds.has(id) && selectedIds.size > 1) {
+          addToFolder(folderId); // drop adds all selected cards
+        } else if (id) {
+          addToFolder(folderId, [id]); // drop adds just dragged card
+        } else {
+          addToFolder(folderId);
+        }
+      });
+    });
+  }
+
+  function initCategoryDropTargets() {
+    document.querySelectorAll('.sidebar-item[data-cat]').forEach(btn => {
+      btn.addEventListener('dragover', e => {
+        if (!document.body.classList.contains('dragging-cards')) return;
+        const idea = ideas.find(i => i.id === dragIdeaId);
+        if (!idea || btn.dataset.filter === idea.category) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        document.querySelectorAll('.sidebar-item.cat-drag-hover').forEach(b => b.classList.remove('cat-drag-hover'));
+        btn.classList.add('cat-drag-hover');
+      });
+      btn.addEventListener('dragleave', () => btn.classList.remove('cat-drag-hover'));
+      btn.addEventListener('drop', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const newCat = btn.dataset.filter;
+        const id = dragIdeaId;
+        endCardDrag();
+        if (id) moveIdeaToCategory(id, newCat);
       });
     });
   }
