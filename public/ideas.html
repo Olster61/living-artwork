@@ -1035,6 +1035,43 @@
       display: flex; align-items: center; justify-content: center;
       line-height: 1;
     }
+
+    /* ── YouTube ──────────────────────────────────────────── */
+    .yt-thumb { position: relative; cursor: pointer; display: block; }
+    .yt-play-btn {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.2);
+      transition: background 0.18s;
+      pointer-events: none;
+    }
+    .card-thumb.yt-thumb:hover .yt-play-btn { background: rgba(0,0,0,0.5); }
+    .list-thumb.yt-thumb .yt-play-btn { background: rgba(0,0,0,0.35); }
+    .yt-embed { width: 100%; aspect-ratio: 16/9; border: none; display: block; background: #000; }
+    .view-media .yt-embed { aspect-ratio: 16/9; }
+    .yt-url-preview {
+      border-radius: var(--radius-sm); overflow: hidden;
+      border: 1px solid var(--gold-bd); margin-top: 8px;
+    }
+    .yt-url-preview img { display: block; width: 100%; }
+    .yt-url-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 10px; background: var(--bg3); font-size: 11px; color: var(--text2);
+    }
+    #form-youtube {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg3);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.18s, box-shadow 0.18s;
+    }
+    #form-youtube:focus { border-color: var(--gold-bd); box-shadow: 0 0 0 3px rgba(201,168,76,0.08); }
+    #form-youtube::placeholder { color: var(--text3); }
   </style>
 </head>
 <body>
@@ -1138,6 +1175,12 @@
     <div class="form-group">
       <label>Notes</label>
       <textarea id="form-notes" placeholder="Write your thoughts, links, details…"></textarea>
+    </div>
+
+    <div class="form-group" id="youtube-field-wrap">
+      <label>YouTube <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">— paste a URL to embed</span></label>
+      <input type="url" id="form-youtube" placeholder="https://youtube.com/watch?v=…">
+      <div id="yt-preview" style="display:none"></div>
     </div>
 
     <div class="form-group">
@@ -1313,6 +1356,24 @@
 
   function fmtDate(iso) {
     return new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  }
+
+  function extractYouTubeId(url) {
+    if (!url) return null;
+    const m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+
+  function ytThumbHTML(videoId) {
+    return `<div class="card-thumb yt-thumb" data-ytid="${esc(videoId)}">
+      <img src="https://img.youtube.com/vi/${esc(videoId)}/maxresdefault.jpg" alt="" loading="lazy">
+      <div class="yt-play-btn">
+        <svg width="46" height="46" viewBox="0 0 46 46">
+          <circle cx="23" cy="23" r="23" fill="rgba(0,0,0,0.65)"/>
+          <polygon points="19,14 35,23 19,32" fill="#fff"/>
+        </svg>
+      </div>
+    </div>`;
   }
 
   let toastTimer;
@@ -1526,11 +1587,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
       mainEl.querySelectorAll('.idea-card').forEach(el => {
         el.addEventListener('click', e => {
-          if (e.target.closest('.star-btn,.card-del')) return;
+          if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn')) return;
           toggleCardSel(el);
         });
         el.addEventListener('dblclick', e => {
-          if (e.target.closest('.star-btn,.card-del,.card-title,.card-preview,.cat-badge,.list-title')) return;
+          if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.card-title,.card-preview,.cat-badge,.list-title')) return;
           openView(el.dataset.id);
         });
         el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
@@ -1584,8 +1645,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     let thumb = '';
     if (allFiles.length) {
       const f0 = allFiles[0];
+      const vid0 = f0.type === 'youtube' ? extractYouTubeId(f0.url) : null;
       const thumbInner = f0.type === 'video'
         ? `<div class="card-thumb is-video"><video src="${esc(f0.url)}" preload="metadata" muted playsinline></video></div>`
+        : vid0
+        ? ytThumbHTML(vid0)
         : `<div class="card-thumb"><img src="${esc(f0.url)}" alt="" loading="lazy"></div>`;
       if (allFiles.length > 1) {
         const filesJson = esc(JSON.stringify(allFiles));
@@ -1624,6 +1688,9 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     if (idea.file_url) {
       if (idea.file_type === 'image') {
         thumb = `<div class="list-thumb"><img src="${esc(idea.file_url)}" alt="" loading="lazy"></div>`;
+      } else if (idea.file_type === 'youtube') {
+        const vid = extractYouTubeId(idea.file_url);
+        if (vid) thumb = `<div class="list-thumb yt-thumb" data-ytid="${esc(vid)}" style="cursor:default"><img src="https://img.youtube.com/vi/${esc(vid)}/hqdefault.jpg" alt="" loading="lazy"><div class="yt-play-btn"><svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="11" fill="rgba(0,0,0,0.65)"/><polygon points="9,6 17,11 9,16" fill="#fff"/></svg></div></div>`;
       } else {
         thumb = `<div class="list-thumb"><video src="${esc(idea.file_url)}" preload="metadata" muted playsinline></video></div>`;
       }
@@ -1871,11 +1938,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   // ── Attach events to a rendered card ────────────────────
   function attachCardEvents(el) {
     el.addEventListener('click', e => {
-      if (e.target.closest('.star-btn,.card-del')) return;
+      if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn')) return;
       toggleCardSel(el);
     });
     el.addEventListener('dblclick', e => {
-      if (e.target.closest('.star-btn,.card-del,.card-title,.card-preview,.cat-badge,.list-title')) return;
+      if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.card-title,.card-preview,.cat-badge,.list-title')) return;
       openView(el.dataset.id);
     });
     el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
@@ -2086,6 +2153,14 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     } else if (idea.file_url && idea.file_type === 'video') {
       media.innerHTML = `<video src="${esc(idea.file_url)}" controls></video>`;
       media.style.display = 'block';
+    } else if (idea.file_url && idea.file_type === 'youtube') {
+      const vid = extractYouTubeId(idea.file_url);
+      if (vid) {
+        media.innerHTML = `<iframe class="yt-embed" src="https://www.youtube.com/embed/${esc(vid)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+        media.style.display = 'block';
+      } else {
+        media.innerHTML = ''; media.style.display = 'none';
+      }
     } else {
       media.innerHTML = '';
       media.style.display = 'none';
@@ -2133,6 +2208,13 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     galleryNewFiles = [];
     galleryDeleteIds = new Set();
 
+    // Reset YouTube field
+    const ytInput = document.getElementById('form-youtube');
+    const ytPreviewEl = document.getElementById('yt-preview');
+    ytInput.value = '';
+    ytPreviewEl.style.display = 'none';
+    ytPreviewEl.innerHTML = '';
+
     if (idea && idea.file_url) showExistingFile(idea);
 
     // Show existing gallery
@@ -2179,9 +2261,20 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     galleryDeleteIds = new Set();
     document.getElementById('gallery-new').style.display = 'none';
     document.getElementById('gallery-existing').style.display = 'none';
+    document.getElementById('yt-preview').style.display = 'none';
+    document.getElementById('yt-preview').innerHTML = '';
+    document.getElementById('form-youtube').value = '';
   }
 
   function showExistingFile(idea) {
+    if (idea.file_type === 'youtube') {
+      const vid = extractYouTubeId(idea.file_url);
+      if (vid) {
+        document.getElementById('form-youtube').value = idea.file_url;
+        showYtPreview(vid, idea.file_url, true);
+      }
+      return;
+    }
     const isVid = idea.file_type === 'video';
     filePreviewEl.innerHTML = `<div class="file-preview-wrap">
       ${isVid
@@ -2279,11 +2372,15 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     uploadRowEl.style.display = 'flex';
 
     try {
+      const youtubeUrl = document.getElementById('form-youtube').value.trim();
+      const youtubeId  = extractYouTubeId(youtubeUrl);
+
       const fd = new FormData();
       fd.append('title', title);
       fd.append('category', category);
       if (notes) fd.append('notes', notes);
       if (file)  fd.append('file', file);
+      if (!file && youtubeId) fd.append('youtube_url', youtubeUrl);
       if (editingId && editFileRemoved) fd.append('remove_file', 'true');
 
       // Append gallery new files
@@ -2854,12 +2951,63 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     gal.dataset.idx = idx;
     const f = files[idx];
     const thumb = gal.querySelector('.card-thumb');
-    thumb.className = 'card-thumb' + (f.type === 'video' ? ' is-video' : '');
-    thumb.innerHTML = f.type === 'video'
-      ? `<video src="${f.url}" preload="metadata" muted playsinline></video>`
-      : `<img src="${f.url}" alt="" loading="lazy">`;
+    const vid = f.type === 'youtube' ? extractYouTubeId(f.url) : null;
+    if (vid) {
+      thumb.className = 'card-thumb yt-thumb';
+      thumb.dataset.ytid = vid;
+      thumb.innerHTML = `<img src="https://img.youtube.com/vi/${vid}/maxresdefault.jpg" alt="" loading="lazy"><div class="yt-play-btn"><svg width="46" height="46" viewBox="0 0 46 46"><circle cx="23" cy="23" r="23" fill="rgba(0,0,0,0.65)"/><polygon points="19,14 35,23 19,32" fill="#fff"/></svg></div>`;
+    } else {
+      thumb.className = 'card-thumb' + (f.type === 'video' ? ' is-video' : '');
+      thumb.innerHTML = f.type === 'video'
+        ? `<video src="${f.url}" preload="metadata" muted playsinline></video>`
+        : `<img src="${f.url}" alt="" loading="lazy">`;
+    }
     const ind = gal.querySelector('.gal-indicator');
     if (ind) ind.textContent = `${idx + 1} / ${files.length}`;
+  });
+
+  // ── YouTube card play ────────────────────────────────────
+  document.getElementById('content-area').addEventListener('click', e => {
+    const yt = e.target.closest('.card-thumb.yt-thumb');
+    if (!yt) return;
+    e.stopPropagation();
+    const vid = yt.dataset.ytid;
+    if (!vid) return;
+    yt.innerHTML = `<iframe class="yt-embed" src="https://www.youtube.com/embed/${vid}?autoplay=1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+    yt.style.aspectRatio = '16/9';
+    yt.style.background = '#000';
+    yt.classList.remove('yt-thumb');
+    yt.style.cursor = 'default';
+  });
+
+  // ── YouTube form field ───────────────────────────────────
+  function showYtPreview(vid, url, isExisting = false) {
+    const ytPreviewEl = document.getElementById('yt-preview');
+    ytPreviewEl.innerHTML = `<div class="yt-url-preview">
+      <img src="https://img.youtube.com/vi/${esc(vid)}/maxresdefault.jpg" alt="">
+      <div class="yt-url-footer">
+        <span>▶ YouTube video</span>
+        <button class="remove-file" id="rm-yt">✕ Remove</button>
+      </div>
+    </div>`;
+    ytPreviewEl.style.display = '';
+    document.getElementById('rm-yt').addEventListener('click', () => {
+      document.getElementById('form-youtube').value = '';
+      ytPreviewEl.style.display = 'none';
+      ytPreviewEl.innerHTML = '';
+      if (isExisting) editFileRemoved = true;
+    });
+  }
+
+  document.getElementById('form-youtube').addEventListener('input', function() {
+    const vid = extractYouTubeId(this.value.trim());
+    const ytPreviewEl = document.getElementById('yt-preview');
+    if (vid) {
+      showYtPreview(vid, this.value.trim());
+    } else {
+      ytPreviewEl.style.display = 'none';
+      ytPreviewEl.innerHTML = '';
+    }
   });
 
   // ── Boot ─────────────────────────────────────────────────

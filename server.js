@@ -80,8 +80,9 @@ async function withSignedUrlsForFiles (files) {
 }
 
 // Replace file_url on each idea with a 1-hour signed URL (single batch call).
+// YouTube URLs (file_type === 'youtube') are passed through unchanged.
 async function withSignedUrls (ideas) {
-  const withFiles = ideas.filter(i => i.file_url)
+  const withFiles = ideas.filter(i => i.file_url && i.file_type !== 'youtube')
   if (!withFiles.length) return ideas
 
   const paths = withFiles.map(i => ideasFilePath(i.file_url))
@@ -93,7 +94,7 @@ async function withSignedUrls (ideas) {
   if (signed) signed.forEach(s => { if (s.signedUrl) urlMap[s.path] = s.signedUrl })
 
   return ideas.map(idea => {
-    if (!idea.file_url) return idea
+    if (!idea.file_url || idea.file_type === 'youtube') return idea
     const path = ideasFilePath(idea.file_url)
     return { ...idea, file_url: urlMap[path] || idea.file_url }
   })
@@ -668,7 +669,7 @@ app.get('/api/ideas/trash', async (req, res) => {
 })
 
 app.post('/api/ideas', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'files', maxCount: 20 }]), async (req, res) => {
-  const { title, category, notes } = req.body
+  const { title, category, notes, youtube_url } = req.body
   if (!title || !category) return res.status(400).json({ error: 'title and category required' })
 
   let file_url = null, file_type = null
@@ -685,6 +686,9 @@ app.post('/api/ideas', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'fi
     if (upErr) return res.status(500).json({ error: 'Upload failed: ' + upErr.message })
     file_url  = storagePath
     file_type = primaryFile.mimetype.startsWith('video/') ? 'video' : 'image'
+  } else if (youtube_url) {
+    file_url  = youtube_url
+    file_type = 'youtube'
   }
 
   const { data, error } = await supabase
@@ -716,7 +720,7 @@ app.post('/api/ideas', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'fi
 
 app.put('/api/ideas/:id', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'files', maxCount: 20 }]), async (req, res) => {
   const { id } = req.params
-  const { title, category, notes, remove_file } = req.body
+  const { title, category, notes, remove_file, youtube_url } = req.body
   if (!title || !category) return res.status(400).json({ error: 'title and category required' })
 
   const { data: existing, error: fetchErr } = await supabase
@@ -747,8 +751,16 @@ app.put('/api/ideas/:id', upload.fields([{ name: 'file', maxCount: 1 }, { name: 
     if (upErr) return res.status(500).json({ error: 'Upload failed: ' + upErr.message })
     file_url  = storagePath
     file_type = primaryFile.mimetype.startsWith('video/') ? 'video' : 'image'
+  } else if (youtube_url) {
+    // Replacing with YouTube — remove old stored file if any
+    if (existing.file_url && existing.file_type !== 'youtube') {
+      const oldPath = ideasFilePath(existing.file_url)
+      if (oldPath) await supabase.storage.from(IDEAS_BUCKET).remove([oldPath]).catch(() => {})
+    }
+    file_url  = youtube_url
+    file_type = 'youtube'
   } else if (remove_file === 'true') {
-    if (existing.file_url) {
+    if (existing.file_url && existing.file_type !== 'youtube') {
       const oldPath = ideasFilePath(existing.file_url)
       if (oldPath) await supabase.storage.from(IDEAS_BUCKET).remove([oldPath]).catch(() => {})
     }
