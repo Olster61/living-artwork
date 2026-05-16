@@ -1072,6 +1072,43 @@
     }
     #form-youtube:focus { border-color: var(--gold-bd); box-shadow: 0 0 0 3px rgba(201,168,76,0.08); }
     #form-youtube::placeholder { color: var(--text3); }
+
+    /* ── Instagram ────────────────────────────────────────── */
+    .ig-card {
+      background: linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; text-decoration: none; overflow: hidden;
+    }
+    .ig-inner {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 5px; padding: 10px; text-align: center;
+    }
+    .ig-logo { width: 32px; height: 32px; fill: none; stroke: #fff; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .ig-label { color: #fff; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; }
+    .ig-url-text { color: rgba(255,255,255,0.75); font-size: 9px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* list view smaller variant */
+    .list-thumb.ig-card .ig-inner { gap: 2px; padding: 4px; }
+    .list-thumb.ig-card .ig-logo  { width: 18px; height: 18px; }
+    .list-thumb.ig-card .ig-label, .list-thumb.ig-card .ig-url-text { display: none; }
+    /* view overlay card */
+    .ig-view-card {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; padding: 40px 32px;
+      background: linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+      border-radius: var(--radius);
+    }
+    .ig-view-card .ig-logo { width: 56px; height: 56px; }
+    .ig-view-card .ig-label { font-size: 18px; font-weight: 700; color: #fff; }
+    .ig-view-card .ig-url-text { font-size: 13px; color: rgba(255,255,255,0.85); max-width: 400px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ig-open-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 20px; border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
+      color: #fff; font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif;
+      cursor: pointer; text-decoration: none;
+      transition: background 0.15s;
+    }
+    .ig-open-btn:hover { background: rgba(255,255,255,0.35); }
   </style>
 </head>
 <body>
@@ -1178,8 +1215,8 @@
     </div>
 
     <div class="form-group" id="youtube-field-wrap">
-      <label>YouTube <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">— paste a URL to embed</span></label>
-      <input type="url" id="form-youtube" placeholder="https://youtube.com/watch?v=…">
+      <label>YouTube / Instagram <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">— paste a URL to link</span></label>
+      <input type="url" id="form-youtube" placeholder="https://youtube.com/… or https://instagram.com/…">
       <div id="yt-preview" style="display:none"></div>
     </div>
 
@@ -1372,6 +1409,41 @@
           <circle cx="23" cy="23" r="23" fill="rgba(0,0,0,0.65)"/>
           <polygon points="19,14 35,23 19,32" fill="#fff"/>
         </svg>
+      </div>
+    </div>`;
+  }
+
+  const IG_SVG = `<svg class="ig-logo" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0" fill="white" stroke="none"/><path d="M17.5 6.5" stroke-linecap="round"/><circle cx="17.5" cy="6.5" r="1" fill="white" stroke="none"/></svg>`;
+
+  function isInstagramUrl(url) {
+    if (!url) return false;
+    return /(?:www\.)?instagram\.com\//.test(url);
+  }
+
+  function normaliseInstagramUrl(url) {
+    try {
+      const u = new URL(url);
+      if (u.hostname === 'www.instagram.com' || u.hostname === 'instagram.com') {
+        return 'https://www.instagram.com' + u.pathname.replace(/\/$/, '');
+      }
+    } catch {}
+    return url;
+  }
+
+  function igShortLabel(url) {
+    try {
+      const u = new URL(url);
+      return u.hostname.replace('www.', '') + u.pathname.replace(/\/$/, '');
+    } catch { return url; }
+  }
+
+  function igCardHTML(url) {
+    const label = igShortLabel(url);
+    return `<div class="card-thumb ig-card" data-igurl="${esc(url)}">
+      <div class="ig-inner">
+        ${IG_SVG}
+        <div class="ig-label">Instagram</div>
+        <div class="ig-url-text">${esc(label)}</div>
       </div>
     </div>`;
   }
@@ -1587,11 +1659,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
       mainEl.querySelectorAll('.idea-card').forEach(el => {
         el.addEventListener('click', e => {
-          if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn')) return;
+          if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.ig-card')) return;
           toggleCardSel(el);
         });
         el.addEventListener('dblclick', e => {
-          if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.card-title,.card-preview,.cat-badge,.list-title')) return;
+          if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.ig-card,.card-title,.card-preview,.cat-badge,.list-title')) return;
           openView(el.dataset.id);
         });
         el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
@@ -1646,7 +1718,9 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     if (allFiles.length) {
       const f0 = allFiles[0];
       const vid0 = f0.type === 'youtube' ? extractYouTubeId(f0.url) : null;
-      const thumbInner = f0.type === 'video'
+      const thumbInner = f0.type === 'instagram'
+        ? igCardHTML(f0.url)
+        : f0.type === 'video'
         ? `<div class="card-thumb is-video"><video src="${esc(f0.url)}" preload="metadata" muted playsinline></video></div>`
         : vid0
         ? ytThumbHTML(vid0)
@@ -1691,6 +1765,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       } else if (idea.file_type === 'youtube') {
         const vid = extractYouTubeId(idea.file_url);
         if (vid) thumb = `<div class="list-thumb yt-thumb" data-ytid="${esc(vid)}" style="cursor:default"><img src="https://img.youtube.com/vi/${esc(vid)}/hqdefault.jpg" alt="" loading="lazy"><div class="yt-play-btn"><svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="11" fill="rgba(0,0,0,0.65)"/><polygon points="9,6 17,11 9,16" fill="#fff"/></svg></div></div>`;
+      } else if (idea.file_type === 'instagram') {
+        thumb = `<div class="list-thumb ig-card" data-igurl="${esc(idea.file_url)}"><div class="ig-inner">${IG_SVG}</div></div>`;
       } else {
         thumb = `<div class="list-thumb"><video src="${esc(idea.file_url)}" preload="metadata" muted playsinline></video></div>`;
       }
@@ -1938,11 +2014,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   // ── Attach events to a rendered card ────────────────────
   function attachCardEvents(el) {
     el.addEventListener('click', e => {
-      if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn')) return;
+      if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.ig-card')) return;
       toggleCardSel(el);
     });
     el.addEventListener('dblclick', e => {
-      if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.card-title,.card-preview,.cat-badge,.list-title')) return;
+      if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.ig-card,.card-title,.card-preview,.cat-badge,.list-title')) return;
       openView(el.dataset.id);
     });
     el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
@@ -2161,6 +2237,15 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       } else {
         media.innerHTML = ''; media.style.display = 'none';
       }
+    } else if (idea.file_url && idea.file_type === 'instagram') {
+      const label = igShortLabel(idea.file_url);
+      media.innerHTML = `<div class="ig-view-card">
+        ${IG_SVG}
+        <div class="ig-label">Instagram</div>
+        <div class="ig-url-text">${esc(label)}</div>
+        <a class="ig-open-btn" href="${esc(idea.file_url)}" target="_blank" rel="noopener noreferrer">Open in Instagram ↗</a>
+      </div>`;
+      media.style.display = 'block';
     } else {
       media.innerHTML = '';
       media.style.display = 'none';
@@ -2275,6 +2360,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       }
       return;
     }
+    if (idea.file_type === 'instagram') {
+      document.getElementById('form-youtube').value = idea.file_url;
+      showIgPreview(idea.file_url, true);
+      return;
+    }
     const isVid = idea.file_type === 'video';
     filePreviewEl.innerHTML = `<div class="file-preview-wrap">
       ${isVid
@@ -2372,15 +2462,17 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     uploadRowEl.style.display = 'flex';
 
     try {
-      const youtubeUrl = document.getElementById('form-youtube').value.trim();
-      const youtubeId  = extractYouTubeId(youtubeUrl);
+      const youtubeUrl   = document.getElementById('form-youtube').value.trim();
+      const youtubeId    = extractYouTubeId(youtubeUrl);
+      const instagramUrl = (!youtubeId && isInstagramUrl(youtubeUrl)) ? normaliseInstagramUrl(youtubeUrl) : null;
 
       const fd = new FormData();
       fd.append('title', title);
       fd.append('category', category);
       if (notes) fd.append('notes', notes);
       if (file)  fd.append('file', file);
-      if (!file && youtubeId) fd.append('youtube_url', youtubeUrl);
+      if (!file && youtubeId)    fd.append('youtube_url', youtubeUrl);
+      if (!file && instagramUrl) fd.append('instagram_url', instagramUrl);
       if (editingId && editFileRemoved) fd.append('remove_file', 'true');
 
       // Append gallery new files
@@ -2980,7 +3072,16 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     yt.style.cursor = 'default';
   });
 
-  // ── YouTube form field ───────────────────────────────────
+  // ── Instagram card click ─────────────────────────────────
+  document.getElementById('content-area').addEventListener('click', e => {
+    const ig = e.target.closest('.ig-card');
+    if (!ig) return;
+    e.stopPropagation();
+    const url = ig.dataset.igurl;
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+  });
+
+  // ── YouTube / Instagram form field ───────────────────────
   function showYtPreview(vid, url, isExisting = false) {
     const ytPreviewEl = document.getElementById('yt-preview');
     ytPreviewEl.innerHTML = `<div class="yt-url-preview">
@@ -2999,11 +3100,39 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     });
   }
 
+  function showIgPreview(url, isExisting = false) {
+    const ytPreviewEl = document.getElementById('yt-preview');
+    const label = igShortLabel(url);
+    ytPreviewEl.innerHTML = `<div class="yt-url-preview">
+      <div class="ig-card" data-igurl="${esc(url)}" style="aspect-ratio:16/9;cursor:pointer">
+        <div class="ig-inner">
+          ${IG_SVG}
+          <div class="ig-label">Instagram</div>
+          <div class="ig-url-text">${esc(label)}</div>
+        </div>
+      </div>
+      <div class="yt-url-footer">
+        <span>📸 Instagram — opens in new tab</span>
+        <button class="remove-file" id="rm-yt">✕ Remove</button>
+      </div>
+    </div>`;
+    ytPreviewEl.style.display = '';
+    document.getElementById('rm-yt').addEventListener('click', () => {
+      document.getElementById('form-youtube').value = '';
+      ytPreviewEl.style.display = 'none';
+      ytPreviewEl.innerHTML = '';
+      if (isExisting) editFileRemoved = true;
+    });
+  }
+
   document.getElementById('form-youtube').addEventListener('input', function() {
-    const vid = extractYouTubeId(this.value.trim());
+    const val = this.value.trim();
+    const vid = extractYouTubeId(val);
     const ytPreviewEl = document.getElementById('yt-preview');
     if (vid) {
-      showYtPreview(vid, this.value.trim());
+      showYtPreview(vid, val);
+    } else if (isInstagramUrl(val)) {
+      showIgPreview(val);
     } else {
       ytPreviewEl.style.display = 'none';
       ytPreviewEl.innerHTML = '';
