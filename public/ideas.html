@@ -855,6 +855,21 @@
 
     .list-date { font-size: 11px; color: var(--text3); flex-shrink: 0; white-space: nowrap; }
 
+    /* ── List row drag handle ──────────────────────────────── */
+    .list-drag-handle {
+      display: flex;
+      align-items: center;
+      color: var(--text3);
+      cursor: grab;
+      flex-shrink: 0;
+      padding: 0 2px;
+      opacity: 0;
+      transition: opacity 0.15s;
+      user-select: none;
+    }
+    .list-row:hover .list-drag-handle { opacity: 1; }
+    .list-drag-handle:active { cursor: grabbing; }
+
     /* ── Card selection ───────────────────────────────────── */
     .card-sel {
       position: absolute; top: 8px; left: 8px;
@@ -1310,13 +1325,15 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       mainEl.innerHTML = `<div class="ideas-list">${filtered.map(listRowHTML).join('')}</div>`;
       mainEl.querySelectorAll('.list-row').forEach(el => {
         el.addEventListener('click', e => {
-          if (e.target.closest('.star-btn')) return;
+          if (e.target.closest('.star-btn,.list-drag-handle')) return;
           toggleCardSel(el);
         });
         el.addEventListener('dblclick', e => {
-          if (e.target.closest('.star-btn')) return;
+          if (e.target.closest('.star-btn,.list-drag-handle')) return;
           openView(el.dataset.id);
         });
+        el.addEventListener('dragstart', e => startCardDrag(e, el));
+        el.addEventListener('dragend', endCardDrag);
       });
     } else {
       const groupByCat = !activeFolderId && activeFilter === 'All' && !searchEl.value.trim();
@@ -1428,7 +1445,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
         thumb = `<div class="list-thumb"><video src="${esc(idea.file_url)}" preload="metadata" muted playsinline></video></div>`;
       }
     }
-    return `<div class="list-row${selectedIds.has(idea.id) ? ' sel' : ''}" data-id="${esc(idea.id)}">
+    return `<div class="list-row${selectedIds.has(idea.id) ? ' sel' : ''}" data-id="${esc(idea.id)}" draggable="true">
+      <span class="list-drag-handle" title="Drag to move or link"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="2" r="1.5"/><circle cx="2" cy="7" r="1.5"/><circle cx="8" cy="7" r="1.5"/><circle cx="2" cy="12" r="1.5"/><circle cx="8" cy="12" r="1.5"/></svg></span>
       <div class="row-sel" data-id="${esc(idea.id)}">✓</div>
       ${thumb}
       <span class="list-title">${esc(idea.title)}</span>
@@ -1474,11 +1492,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     const oldCat = idea.category;
     idea.category = newCat; // optimistic
 
-    // Update category badge on card in DOM
-    const card = mainEl.querySelector(`.idea-card[data-id="${id}"]`);
-    if (card) {
+    // Update DOM — works for both grid cards and list rows
+    const el = mainEl.querySelector(`.idea-card[data-id="${id}"], .list-row[data-id="${id}"]`);
+    if (el) {
       const color = catColor(newCat);
-      const badge = card.querySelector('.cat-badge');
+      const badge = el.querySelector('.cat-badge');
       if (badge) {
         badge.textContent = newCat;
         badge.style.color = color;
@@ -1486,26 +1504,32 @@ CREATE POLICY "allow all" ON ideas FOR ALL
         badge.style.background = color + '18';
       }
 
-      const groupByCat = !activeFolderId && activeFilter === 'All' && !searchEl.value.trim();
-      if (groupByCat) {
-        card.remove();
-        let newSec = mainEl.querySelector(`.cat-section[data-cat="${CSS.escape(newCat)}"]`);
-        if (newSec) {
-          const grid = newSec.querySelector('.cards-grid');
-          grid.insertAdjacentHTML('beforeend', cardHTML(idea));
-          attachCardEvents(grid.lastElementChild);
-          const cnt = newSec.querySelector('.cat-count');
-          if (cnt) cnt.textContent = parseInt(cnt.textContent || 0) + 1;
-        } else {
-          render(); return;
+      if (el.classList.contains('idea-card')) {
+        // Grid view: relocate card between category sections when in grouped All view
+        const groupByCat = !activeFolderId && activeFilter === 'All' && !searchEl.value.trim();
+        if (groupByCat) {
+          el.remove();
+          let newSec = mainEl.querySelector(`.cat-section[data-cat="${CSS.escape(newCat)}"]`);
+          if (newSec) {
+            const grid = newSec.querySelector('.cards-grid');
+            grid.insertAdjacentHTML('beforeend', cardHTML(idea));
+            attachCardEvents(grid.lastElementChild);
+            const cnt = newSec.querySelector('.cat-count');
+            if (cnt) cnt.textContent = parseInt(cnt.textContent || 0) + 1;
+          } else {
+            render(); return;
+          }
+          const oldSec = mainEl.querySelector(`.cat-section[data-cat="${CSS.escape(oldCat)}"]`);
+          if (oldSec) {
+            const remaining = oldSec.querySelectorAll('.idea-card').length;
+            const cnt = oldSec.querySelector('.cat-count');
+            if (cnt) cnt.textContent = remaining;
+            if (remaining === 0) oldSec.remove();
+          }
         }
-        const oldSec = mainEl.querySelector(`.cat-section[data-cat="${CSS.escape(oldCat)}"]`);
-        if (oldSec) {
-          const remaining = oldSec.querySelectorAll('.idea-card').length;
-          const cnt = oldSec.querySelector('.cat-count');
-          if (cnt) cnt.textContent = remaining;
-          if (remaining === 0) oldSec.remove();
-        }
+      } else {
+        // List view: remove the row if we're filtering by the old category
+        if (activeFilter === oldCat) el.remove();
       }
     }
 
@@ -1716,15 +1740,18 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', id);
 
-    // Custom ghost: clone card, shrink it, attach briefly to body
+    // Custom ghost: clone element, size for card vs list row
+    const isRow = cardEl.classList.contains('list-row');
     const ghost = cardEl.cloneNode(true);
     Object.assign(ghost.style, {
       position: 'fixed', top: '-1000px', left: '-1000px',
-      width: '200px', opacity: '0.88', pointerEvents: 'none',
-      borderRadius: '12px', overflow: 'hidden', zIndex: '9999',
+      width: isRow ? '420px' : '200px',
+      opacity: '0.88', pointerEvents: 'none',
+      borderRadius: isRow ? '8px' : '12px',
+      overflow: 'hidden', zIndex: '9999',
     });
     document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 20, 20);
+    e.dataTransfer.setDragImage(ghost, isRow ? 40 : 20, isRow ? 18 : 20);
     setTimeout(() => ghost.remove(), 0);
 
     document.body.classList.add('dragging-cards');
