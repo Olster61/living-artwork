@@ -36,9 +36,11 @@
       font-size: 14px;
       line-height: 1.6;
       height: 100vh;
+      max-width: 100vw;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      overflow-x: hidden;
     }
 
     /* ── Header ───────────────────────────────────────────── */
@@ -805,12 +807,15 @@
       border: none;
       cursor: pointer;
       padding: 5px 7px;
+      min-width: 44px;
+      min-height: 44px;
       border-radius: 5px;
       color: var(--text3);
       line-height: 1;
       transition: all 0.15s;
       display: flex;
       align-items: center;
+      justify-content: center;
     }
     .view-toggle-btn:hover  { color: var(--gold-lt); }
     .view-toggle-btn.active { background: var(--gold-bg); color: var(--gold-lt); }
@@ -823,6 +828,8 @@
       align-items: center;
       gap: 12px;
       padding: 8px 12px;
+      width: 100%;
+      min-width: 0;
       background: var(--card);
       border: 1px solid var(--gold-bd);
       border-radius: var(--radius-sm);
@@ -848,10 +855,10 @@
       font-size: 13px;
       font-weight: 500;
       color: var(--text);
-      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       min-width: 0;
+      white-space: nowrap;
     }
 
     .list-date { font-size: 11px; color: var(--text3); flex-shrink: 0; white-space: nowrap; }
@@ -936,8 +943,9 @@
     }
     #sidebar-backdrop.open { display: block; }
 
-    /* ── Responsive — mobile (≤768px): sidebar drawer ──────── */
+    /* ── Responsive — mobile (≤768px) ──────────────────────── */
     @media (max-width: 768px) {
+      /* Sidebar drawer */
       #sidebar-toggle { display: flex; }
 
       .sidebar {
@@ -953,44 +961,86 @@
       }
       .sidebar.open { left: 0; }
 
-      .header { padding: 10px 14px; gap: 10px; }
+      /* ── Multi-row header on mobile ──────────────────────── */
+      /* Row 1: hamburger + brand
+         Row 2: search (full width)
+         Row 3: view toggle + New Idea            */
+      .header {
+        flex-wrap: wrap;
+        padding: 10px 14px;
+        gap: 8px;
+        row-gap: 8px;
+        align-items: center;
+      }
+
+      #sidebar-toggle {
+        order: 1;
+        flex-shrink: 0;
+      }
+
+      .brand {
+        order: 2;
+        flex: 1;
+        font-size: 18px;
+      }
       .brand small { display: none; }
-      .search-wrap { max-width: none; flex: 1; }
+
+      .search-wrap {
+        order: 3;
+        width: 100%;
+        max-width: none;
+        flex: none;
+      }
+
+      #header-actions {
+        order: 4;
+        width: 100%;
+        margin-left: 0 !important;
+        justify-content: space-between;
+      }
+
       #import-btn { display: none; }
 
-      #main { padding: 16px 12px 100px; }
+      /* Grid / content */
+      #main { padding: 14px 12px 100px; width: 100%; }
       .cards-grid { gap: 10px; }
 
       /* Touch-friendly tap targets (min 44px) */
-      .sidebar-item  { padding: 12px 16px; min-height: 44px; }
-      .folder-row    { padding: 12px 16px; min-height: 44px; }
-      .trash-row     { padding: 12px 16px; min-height: 44px; }
+      .sidebar-item   { padding: 12px 16px; min-height: 44px; }
+      .folder-row     { padding: 12px 16px; min-height: 44px; }
+      .trash-row      { padding: 12px 16px; min-height: 44px; }
       .sidebar-action { padding: 10px 16px; min-height: 44px; }
-      .list-row      { padding: 10px 12px; min-height: 44px; }
-      .btn           { padding: 10px 16px; min-height: 44px; }
-      #fab           { bottom: 20px; right: 16px; width: 54px; height: 54px; font-size: 26px; }
-      .ctx-item      { padding: 12px 16px; min-height: 44px; }
+      .list-row       { padding: 10px 12px; min-height: 44px; }
+      .btn            { padding: 10px 16px; min-height: 44px; }
+      #fab            { bottom: 20px; right: 16px; width: 54px; height: 54px; font-size: 26px; }
+      .ctx-item       { padding: 12px 16px; min-height: 44px; }
       .folder-dd-item { padding: 12px 14px; min-height: 44px; }
 
-      /* List view mobile tweaks */
-      .list-date { display: none; }
-      .list-thumb { width: 44px; height: 30px; }
+      /* List view — full width, text wraps instead of overflowing */
+      .list-date  { display: none; }
+      .list-thumb { width: 44px; height: 30px; flex-shrink: 0; }
+      .list-title { white-space: normal; }
+      .ideas-list { width: 100%; }
 
-      /* View overlay */
-      .view-bar  { padding: 10px 14px; }
-      .view-body { padding: 24px 14px 80px; }
+      /* View overlay — fits phone width */
+      .view-bar   { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+      .view-body  { padding: 20px 14px 80px; }
       #view-title { font-size: 24px; }
 
-      /* Form panel — full width on small screens */
-      .form-panel { padding: 20px 16px; max-height: 96vh; }
+      /* Form/modal — fits phone width with side padding */
+      .overlay    { padding: 12px; }
+      .form-panel {
+        padding: 20px 16px;
+        max-height: 94vh;
+        width: 100%;
+        max-width: 100%;
+      }
     }
 
     /* ── Responsive — small mobile (≤480px) ────────────────── */
     @media (max-width: 480px) {
-      .brand { font-size: 18px; }
-      #view-title { font-size: 22px; }
-      .view-bar { gap: 8px; }
-      #view-edit { display: none; }
+      #view-title { font-size: 20px; }
+      .view-bar   { padding: 8px 12px; }
     }
 
     /* ── Context menu ─────────────────────────────────────── */
@@ -1205,7 +1255,7 @@
     <input type="search" id="search" placeholder="Search ideas…" autocomplete="off">
   </div>
 
-  <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+  <div id="header-actions" style="display:flex;align-items:center;gap:8px;margin-left:auto">
     <div class="view-toggle">
       <button class="view-toggle-btn" id="view-grid-btn" title="Grid view">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor">
