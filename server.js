@@ -35,7 +35,7 @@ const upload = multer({ storage: multer.memoryStorage() })
 // ── Storage init ──────────────────────────────────────────────────────────────
 
 async function initBuckets () {
-  for (const [name, isPublic] of [['artworks', true], ['minds', true]]) {
+  for (const [name, isPublic] of [['artworks', true], ['minds', true], ['ideas-files', true]]) {
     const { error } = await supabase.storage.createBucket(name, { public: isPublic })
     if (error && !error.message.includes('already exists')) {
       console.error(`  ✗ bucket '${name}':`, error.message)
@@ -50,6 +50,39 @@ async function initBuckets () {
 function publicUrl (bucket, storagePath) {
   const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath)
   return data.publicUrl
+}
+
+// ── Ideas-files helpers ───────────────────────────────────────────────────────
+
+const IDEAS_BUCKET   = 'ideas-files'
+const IDEAS_PUB_BASE = `${SUPABASE_URL}/storage/v1/object/public/${IDEAS_BUCKET}/`
+
+// Extract the bare storage path from whatever is stored in file_url.
+// Handles old records (full public URL) and new records (plain path).
+function ideasFilePath (fileUrl) {
+  if (!fileUrl) return null
+  if (fileUrl.startsWith(IDEAS_PUB_BASE)) return fileUrl.slice(IDEAS_PUB_BASE.length)
+  return fileUrl
+}
+
+// Replace file_url on each idea with a 1-hour signed URL (single batch call).
+async function withSignedUrls (ideas) {
+  const withFiles = ideas.filter(i => i.file_url)
+  if (!withFiles.length) return ideas
+
+  const paths = withFiles.map(i => ideasFilePath(i.file_url))
+  const { data: signed } = await supabase.storage
+    .from(IDEAS_BUCKET)
+    .createSignedUrls(paths, 3600)
+
+  const urlMap = {}
+  if (signed) signed.forEach(s => { if (s.signedUrl) urlMap[s.path] = s.signedUrl })
+
+  return ideas.map(idea => {
+    if (!idea.file_url) return idea
+    const path = ideasFilePath(idea.file_url)
+    return { ...idea, file_url: urlMap[path] || idea.file_url }
+  })
 }
 
 // ── Trackability scoring ──────────────────────────────────────────────────────
@@ -321,7 +354,8 @@ app.post('/api/compile/:slug', async (req, res) => {
     if (custErr || !customer) return res.status(404).json({ error: 'Customer not found' })
 
     const { data: artworks, error: artErr } = await supabase
-      .from('artworks').select('trigger_url, slug, name').eq('customer_id', customer.id)
+      .from('artworks').select('id, trigger_url, slug, name').eq('customer_id', customer.id)
+      .order('created_at', { ascending: true })
     if (artErr) return res.status(500).json({ error: artErr.message })
     if (!artworks?.length) return res.status(400).json({ error: 'No artworks found for this customer' })
 
@@ -333,19 +367,30 @@ app.post('/api/compile/:slug', async (req, res) => {
     const mindBuffer = await compileWithMindAR(imageUrls)
     console.log(`Compiled OK — ${(mindBuffer.length / 1024).toFixed(0)} KB`)
 
-    // 3. Upload .mind file to Supabase (pass Buffer directly — avoids flaky FormData+Blob path)
-    const mindPath = `customers/${slug}/targets.mind`
-    const { error: uploadErr } = await supabase.storage.from('minds')
-      .upload(mindPath, mindBuffer, { contentType: 'application/octet-stream', upsert: true })
-    if (uploadErr) throw new Error(`Storage upload failed: ${uploadErr.message}`)
+    // 3. Upload .mind file + manifest to Supabase
+    const mindPath     = `customers/${slug}/targets.mind`
+    const manifestPath = `customers/${slug}/targets-manifest.json`
+
+    // Build manifest: { "0": artworkId, "1": artworkId, … }
+    const manifest = {}
+    artworks.forEach((a, i) => { manifest[String(i)] = a.id })
+    const manifestBuf = Buffer.from(JSON.stringify(manifest))
+
+    const [{ error: uploadErr }, { error: manifestErr }] = await Promise.all([
+      supabase.storage.from('minds').upload(mindPath, mindBuffer, { contentType: 'application/octet-stream', upsert: true }),
+      supabase.storage.from('minds').upload(manifestPath, manifestBuf, { contentType: 'application/json', upsert: true }),
+    ])
+    if (uploadErr)   throw new Error(`Storage upload failed: ${uploadErr.message}`)
+    if (manifestErr) console.warn('Manifest upload warning:', manifestErr.message)
 
     const mindUrl = publicUrl('minds', mindPath)
+    console.log('Manifest:', JSON.stringify(manifest))
 
     // 4. Stamp mind_url on every artwork row for this customer
     await supabase.from('artworks').update({ mind_url: mindUrl }).eq('customer_id', customer.id)
 
     console.log(`Uploaded → ${mindUrl}`)
-    res.json({ success: true, mindUrl, imageCount: artworks.length })
+    res.json({ success: true, mindUrl, imageCount: artworks.length, manifest })
 
   } catch (err) {
     console.error('Compile ERROR:', err.message)
@@ -401,6 +446,29 @@ app.post('/api/compile/:slug/upload',
     console.log('Public URL:', mindUrl)
     const { error: updateErr } = await supabase.from('artworks').update({ mind_url: mindUrl }).eq('customer_id', customer.id)
     if (updateErr) console.log('WARN: mind_url update failed:', updateErr.message)
+
+    // Upload manifest if provided by compile-local.js
+    const manifestPath = `customers/${slug}/targets-manifest.json`
+    if (req.body?.manifest) {
+      const manifestBuf = Buffer.from(req.body.manifest)
+      const { error: mErr } = await supabase.storage.from('minds')
+        .upload(manifestPath, manifestBuf, { contentType: 'application/json', upsert: true })
+      if (mErr) console.log('WARN: manifest upload failed:', mErr.message)
+      else console.log('Manifest uploaded OK')
+    } else {
+      // Fallback: generate manifest from current artwork order in DB
+      const { data: aws } = await supabase.from('artworks').select('id')
+        .eq('customer_id', customer.id).order('created_at', { ascending: true })
+      if (aws?.length) {
+        const manifest = {}
+        aws.forEach((a, i) => { manifest[String(i)] = a.id })
+        const manifestBuf = Buffer.from(JSON.stringify(manifest))
+        const { error: mErr } = await supabase.storage.from('minds')
+          .upload(manifestPath, manifestBuf, { contentType: 'application/json', upsert: true })
+        if (mErr) console.log('WARN: manifest upload failed:', mErr.message)
+        else console.log('Manifest generated + uploaded:', JSON.stringify(manifest))
+      }
+    }
 
     console.log(`Uploaded .mind → ${mindUrl}`)
     res.json({ success: true, mindUrl })
@@ -506,12 +574,231 @@ async function compileWithMindAR (imageUrls) {
   }
 }
 
+// ── Ideas API ─────────────────────────────────────────────────────────────────
+
+app.get('/api/ideas/categories', async (req, res) => {
+  const { data, error } = await supabase
+    .from('idea_categories')
+    .select('name')
+    .order('created_at', { ascending: true })
+  if (error) {
+    console.error('[Categories] GET error:', error.code, error.message)
+    return res.status(500).json({ error: error.message })
+  }
+  console.log('[Categories] GET returned', data.length, 'categories')
+  res.json({ categories: data.map(r => r.name) })
+})
+
+app.post('/api/ideas/categories', async (req, res) => {
+  console.log('[Categories] POST body:', req.body)
+  const name = (req.body?.name || '').trim()
+  if (!name) return res.status(400).json({ error: 'Name required' })
+  const { data, error } = await supabase
+    .from('idea_categories')
+    .insert({ name })
+    .select('name')
+    .single()
+  if (error) {
+    console.error('[Categories] insert error:', error.code, error.message)
+    if (error.code === '23505') return res.status(409).json({ error: 'Category already exists' })
+    return res.status(500).json({ error: error.message })
+  }
+  console.log('[Categories] created:', data.name)
+  res.json({ category: data.name })
+})
+
+app.post('/api/ideas/import', express.json(), async (req, res) => {
+  const { entries } = req.body
+  if (!Array.isArray(entries) || !entries.length)
+    return res.status(400).json({ error: 'No entries provided' })
+
+  const rows = entries
+    .filter(e => e.title && e.category)
+    .map(e => ({ title: e.title, category: e.category, notes: e.notes || null, file_url: null, file_type: null }))
+
+  if (!rows.length) return res.status(400).json({ error: 'No valid entries found' })
+
+  const { data, error } = await supabase.from('ideas').insert(rows).select()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ imported: data.length })
+})
+
+app.get('/api/ideas', async (req, res) => {
+  const { data, error } = await supabase
+    .from('ideas')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ideas: await withSignedUrls(data) })
+})
+
+app.post('/api/ideas', upload.single('file'), async (req, res) => {
+  const { title, category, notes } = req.body
+  if (!title || !category) return res.status(400).json({ error: 'title and category required' })
+
+  let file_url = null, file_type = null
+
+  if (req.file) {
+    const ext = (req.file.originalname.split('.').pop() || 'bin').toLowerCase()
+    const storagePath = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from('ideas-files')
+      .upload(storagePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '3600',
+        upsert: false,
+      })
+    if (upErr) return res.status(500).json({ error: 'Upload failed: ' + upErr.message })
+    file_url  = storagePath   // store bare path; signed URL generated on read
+    file_type = req.file.mimetype.startsWith('video/') ? 'video' : 'image'
+  }
+
+  const { data, error } = await supabase
+    .from('ideas')
+    .insert({ title, category, notes: notes || null, file_url, file_type })
+    .select()
+    .single()
+
+  if (error) return res.status(500).json({ error: error.message })
+  const [ideaWithUrl] = await withSignedUrls([data])
+  res.json({ idea: ideaWithUrl })
+})
+
+app.put('/api/ideas/:id', upload.single('file'), async (req, res) => {
+  const { id } = req.params
+  const { title, category, notes, remove_file } = req.body
+  if (!title || !category) return res.status(400).json({ error: 'title and category required' })
+
+  const { data: existing, error: fetchErr } = await supabase
+    .from('ideas').select('file_url, file_type').eq('id', id).single()
+  if (fetchErr) return res.status(404).json({ error: 'Not found' })
+
+  let file_url  = existing.file_url
+  let file_type = existing.file_type
+
+  if (req.file) {
+    // Delete old file then upload replacement
+    if (existing.file_url) {
+      const oldPath = ideasFilePath(existing.file_url)
+      if (oldPath) await supabase.storage.from(IDEAS_BUCKET).remove([oldPath]).catch(() => {})
+    }
+    const ext = (req.file.originalname.split('.').pop() || 'bin').toLowerCase()
+    const storagePath = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from(IDEAS_BUCKET)
+      .upload(storagePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '3600',
+        upsert: false,
+      })
+    if (upErr) return res.status(500).json({ error: 'Upload failed: ' + upErr.message })
+    file_url  = storagePath
+    file_type = req.file.mimetype.startsWith('video/') ? 'video' : 'image'
+  } else if (remove_file === 'true') {
+    if (existing.file_url) {
+      const oldPath = ideasFilePath(existing.file_url)
+      if (oldPath) await supabase.storage.from(IDEAS_BUCKET).remove([oldPath]).catch(() => {})
+    }
+    file_url  = null
+    file_type = null
+  }
+
+  const { data, error } = await supabase
+    .from('ideas')
+    .update({ title, category, notes: notes || null, file_url, file_type })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) return res.status(500).json({ error: error.message })
+  const [ideaWithUrl] = await withSignedUrls([data])
+  res.json({ idea: ideaWithUrl })
+})
+
+app.delete('/api/ideas/:id', async (req, res) => {
+  const { data: idea, error: fetchErr } = await supabase
+    .from('ideas')
+    .select('file_url')
+    .eq('id', req.params.id)
+    .single()
+
+  if (fetchErr) return res.status(404).json({ error: 'Not found' })
+
+  if (idea.file_url) {
+    const filePath = ideasFilePath(idea.file_url)
+    if (filePath) await supabase.storage.from(IDEAS_BUCKET).remove([filePath]).catch(() => {})
+  }
+
+  const { error } = await supabase.from('ideas').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
+app.patch('/api/ideas/:id/favourite', async (req, res) => {
+  const { is_favourite } = req.body
+  if (typeof is_favourite !== 'boolean') return res.status(400).json({ error: 'is_favourite (boolean) required' })
+  const { data, error } = await supabase
+    .from('ideas')
+    .update({ is_favourite })
+    .eq('id', req.params.id)
+    .select('id, is_favourite')
+    .single()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ idea: data })
+})
+
+// ── Smart Folders API ────────────────────────────────────────────────────────
+
+app.get('/api/smart-folders', async (req, res) => {
+  const [{ data: folders, error: fErr }, { data: items, error: iErr }] = await Promise.all([
+    supabase.from('smart_folders').select('id, name, created_at').order('created_at', { ascending: true }),
+    supabase.from('smart_folder_items').select('folder_id, idea_id'),
+  ])
+  if (fErr) return res.status(500).json({ error: fErr.message })
+  if (iErr) return res.status(500).json({ error: iErr.message })
+  res.json({ folders: folders || [], items: items || [] })
+})
+
+app.post('/api/smart-folders', async (req, res) => {
+  const { name, ideaIds = [] } = req.body
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' })
+  const { data: folder, error: fErr } = await supabase
+    .from('smart_folders').insert({ name: name.trim() }).select().single()
+  if (fErr) return res.status(500).json({ error: fErr.message })
+  if (ideaIds.length) {
+    const rows = ideaIds.map(idea_id => ({ folder_id: folder.id, idea_id }))
+    const { error: iErr } = await supabase.from('smart_folder_items').insert(rows)
+    if (iErr) console.warn('[SmartFolders] item insert warning:', iErr.message)
+  }
+  res.json({ folder })
+})
+
+app.delete('/api/smart-folders/:id', async (req, res) => {
+  const { error } = await supabase.from('smart_folders').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
+app.post('/api/smart-folders/:id/items', async (req, res) => {
+  const { id } = req.params
+  const { ideaIds = [] } = req.body
+  if (!ideaIds.length) return res.status(400).json({ error: 'ideaIds required' })
+  const rows = ideaIds.map(idea_id => ({ folder_id: id, idea_id }))
+  const { error } = await supabase.from('smart_folder_items').upsert(rows, { onConflict: 'folder_id,idea_id' })
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
 // ── Static / Admin page ───────────────────────────────────────────────────────
 
 app.use('/public', express.static(path.join(__dirname, 'public')))
 
 app.get('/olly/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'))
+})
+
+app.get('/olly/ideas', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'ideas.html'))
 })
 
 app.get('/olly/ar', (req, res) => {
@@ -528,6 +815,7 @@ app.listen(PORT, async () => {
   console.log(`Server:  http://localhost:${PORT}`)
   console.log(`Admin:   http://localhost:${PORT}/olly/admin`)
   console.log(`AR:      http://localhost:${PORT}/olly/ar`)
+  console.log(`Ideas:   http://localhost:${PORT}/olly/ideas`)
   console.log(`═══════════════════════════════════`)
   console.log('Initialising Supabase storage...')
   await initBuckets()

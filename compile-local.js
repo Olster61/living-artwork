@@ -55,12 +55,18 @@ async function main () {
     const mindBuffer = await compileLocally(localPaths)
     console.log(`\nCompilation complete: ${(mindBuffer.length / 1024).toFixed(0)} KB`)
 
-    // ── 4. Upload via the server endpoint ─────────────────────────────────
+    // ── 4. Build manifest: { "0": artworkId, "1": artworkId, … } ─────────────
+    const manifest = {}
+    artworks.forEach((a, i) => { manifest[String(i)] = a.id })
+    console.log(`\nManifest: ${JSON.stringify(manifest)}`)
+
+    // ── 5. Upload via the server endpoint ─────────────────────────────────────
     const uploadUrl = `${SERVER_URL}/api/compile/${CUSTOMER_SLUG}/upload`
     console.log(`\nUploading to ${uploadUrl} …`)
 
     const form = new FormData()
     form.append('mind', new Blob([mindBuffer], { type: 'application/octet-stream' }), 'targets.mind')
+    form.append('manifest', JSON.stringify(manifest))
 
     const uploadRes = await fetch(uploadUrl, { method: 'POST', body: form })
     if (!uploadRes.ok) throw new Error(`Upload failed ${uploadRes.status}: ${await uploadRes.text()}`)
