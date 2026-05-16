@@ -922,6 +922,53 @@
       #fab { bottom: 20px; right: 20px; width: 48px; height: 48px; font-size: 22px; }
       .list-date { display: none; }
     }
+
+    /* ── Context menu ─────────────────────────────────────── */
+    .ctx-menu {
+      position: fixed;
+      background: var(--bg2);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius-sm);
+      padding: 4px 0;
+      min-width: 165px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.65);
+      z-index: 800;
+    }
+    .ctx-menu[hidden] { display: none; }
+    .ctx-item {
+      display: block; width: 100%; text-align: left;
+      padding: 8px 14px; background: none; border: none;
+      color: var(--text2); font-size: 13px; font-family: 'Inter', sans-serif;
+      cursor: pointer; transition: background 0.12s, color 0.12s;
+    }
+    .ctx-item:hover { background: var(--gold-bg); color: var(--gold-lt); }
+    .ctx-item.danger { color: rgba(217,83,79,0.8); }
+    .ctx-item.danger:hover { background: rgba(217,83,79,0.1); color: var(--err); }
+    .ctx-divider { height: 1px; background: var(--gold-bd); margin: 4px 0; }
+
+    /* ── Trash sidebar row ──────────────────────────────────── */
+    .trash-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 16px;
+      font-size: 13px; color: var(--text2);
+      cursor: pointer; border: none; background: none;
+      width: 100%; text-align: left;
+      font-family: 'Inter', sans-serif;
+      transition: background 0.15s, color 0.15s;
+    }
+    .trash-row:hover  { background: var(--bg3); color: var(--text); }
+    .trash-row.active { background: rgba(217,83,79,0.08); color: rgba(217,83,79,0.85); }
+
+    /* ── Restore button (in trash view) ───────────────────── */
+    .restore-btn {
+      font-size: 11px; color: var(--text3);
+      background: none; border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 4px; padding: 3px 8px;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .restore-btn:hover { color: var(--ok); border-color: var(--ok); }
   </style>
 </head>
 <body>
@@ -988,6 +1035,13 @@
       <div class="sidebar-label">Smart Folders <span style="font-size:8px;color:var(--text3);font-weight:400;letter-spacing:0;text-transform:none;opacity:0.8">· drag to link</span></div>
       <div id="sidebar-folders"></div>
     </div>
+
+    <div class="sidebar-divider"></div>
+    <button class="trash-row" id="trash-btn">
+      <span class="si-icon">🗑</span>
+      <span class="si-label">Deleted</span>
+      <span class="si-count" id="trash-count" style="display:none"></span>
+    </button>
   </nav>
 
   <div class="content-area" id="content-area">
@@ -1086,6 +1140,13 @@
   </div>
 </div>
 
+<!-- ── Context menu ──────────────────────────────────────── -->
+<div id="ctx-menu" class="ctx-menu" hidden>
+  <button class="ctx-item" id="ctx-edit">✎ Edit title</button>
+  <div class="ctx-divider"></div>
+  <button class="ctx-item danger" id="ctx-delete">🗑 Move to Trash</button>
+</div>
+
 <!-- ── Toast ───────────────────────────────────────────────── -->
 <div id="toast"></div>
 
@@ -1148,6 +1209,9 @@
   let smartFolderItems = {}; // { folderId: Set<ideaId> }
   let selectedIds = new Set();
   let dragIdeaId = null;
+  let activeTrash = false;
+  let trashedIdeas = [];
+  let ctxTargetId = null;
   document.getElementById('view-grid-btn').classList.toggle('active', viewMode === 'grid');
   document.getElementById('view-list-btn').classList.toggle('active', viewMode === 'list');
 
@@ -1278,10 +1342,17 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
   function buildSidebar() {
     document.querySelectorAll('#sidebar > .sidebar-item[data-filter]').forEach(btn => {
-      btn.classList.toggle('active', !activeFolderId && btn.dataset.filter === activeFilter);
+      btn.classList.toggle('active', !activeTrash && !activeFolderId && btn.dataset.filter === activeFilter);
     });
     buildSidebarCategories();
     buildSidebarFolders();
+    const trashBtn = document.getElementById('trash-btn');
+    if (trashBtn) trashBtn.classList.toggle('active', activeTrash);
+    const trashCount = document.getElementById('trash-count');
+    if (trashCount) {
+      trashCount.textContent = trashedIdeas.length;
+      trashCount.style.display = trashedIdeas.length ? '' : 'none';
+    }
   }
 
   function buildFormSelect() {
@@ -1308,6 +1379,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   function render() {
+    if (activeTrash) { renderTrash(); return; }
     const filtered = getFiltered();
 
     if (!filtered.length) {
@@ -1332,6 +1404,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
           if (e.target.closest('.star-btn,.list-drag-handle')) return;
           openView(el.dataset.id);
         });
+        el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
         el.addEventListener('dragstart', e => startCardDrag(e, el));
         el.addEventListener('dragend', endCardDrag);
       });
@@ -1370,6 +1443,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
           if (e.target.closest('.star-btn,.card-del')) return;
           openView(el.dataset.id);
         });
+        el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
         el.addEventListener('dragstart', e => startCardDrag(e, el));
         el.addEventListener('dragend', endCardDrag);
       });
@@ -1695,6 +1769,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       if (e.target.closest('.star-btn,.card-del')) return;
       openView(el.dataset.id);
     });
+    el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
     el.addEventListener('dragstart', e => startCardDrag(e, el));
     el.addEventListener('dragend', endCardDrag);
     const delBtn = el.querySelector('.card-del');
@@ -1709,28 +1784,9 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     });
   }
 
-  // ── Card delete (from card button) ──────────────────────
+  // ── Card delete button — soft deletes to trash ──────────
   async function deleteIdeaFromCard(id) {
-    const idea = ideas.find(i => i.id === id);
-    if (!idea) return;
-    if (!confirm(`Delete this idea?\n"${idea.title}"`)) return;
-
-    const card = mainEl.querySelector(`.idea-card[data-id="${id}"]`);
-    if (card) card.remove();
-
-    ideas = ideas.filter(i => i.id !== id);
-    selectedIds.delete(id);
-    Object.values(smartFolderItems).forEach(set => set.delete(id));
-    updateSelUI();
-    buildSidebarFolders();
-
-    try {
-      await apiFetch(`/api/ideas/${id}`, { method: 'DELETE' });
-      toast('Idea deleted');
-    } catch (err) {
-      toast(err.message, true);
-      await loadIdeas();
-    }
+    await softDeleteIdea(id);
   }
 
   // ── Card → Folder drag-and-drop ──────────────────────────
@@ -1936,16 +1992,12 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   // ── Delete ───────────────────────────────────────────────
   document.getElementById('view-delete').addEventListener('click', async () => {
     if (!viewingId) return;
-    const idea = ideas.find(i => i.id === viewingId);
-    if (!confirm(`Delete "${idea?.title}"?\nThis cannot be undone.`)) return;
-
+    const id = viewingId;
     const btn = document.getElementById('view-delete');
     btn.disabled = true;
     try {
-      await apiFetch(`/api/ideas/${viewingId}`, { method: 'DELETE' });
-      toast('Idea deleted');
       closeView();
-      await loadIdeas();
+      await softDeleteIdea(id);
     } catch (err) {
       toast(err.message, true);
     } finally {
@@ -2269,6 +2321,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     if (delBtn) { deleteSmartFolder(delBtn.dataset.delId); return; }
     const folderRow = e.target.closest('.folder-row');
     if (folderRow && !e.target.closest('.folder-del')) {
+      activeTrash = false;
       activeFolderId = folderRow.dataset.folderId;
       activeFilter = 'All';
       buildSidebar();
@@ -2277,11 +2330,20 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
     const filterBtn = e.target.closest('.sidebar-item[data-filter]');
     if (filterBtn) {
+      activeTrash = false;
       activeFolderId = null;
       activeFilter = filterBtn.dataset.filter;
       buildSidebar();
       render();
     }
+  });
+
+  document.getElementById('trash-btn').addEventListener('click', async () => {
+    activeTrash = true;
+    activeFolderId = null;
+    buildSidebar();
+    await loadTrash();
+    render();
   });
 
   document.getElementById('sel-clear').addEventListener('click', clearSelection);
@@ -2312,6 +2374,230 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
   document.getElementById('view-grid-btn').addEventListener('click', () => setViewMode('grid'));
   document.getElementById('view-list-btn').addEventListener('click', () => setViewMode('list'));
+
+  // ── Soft delete (move to trash) ──────────────────────────
+  async function softDeleteIdea(id) {
+    const idea = ideas.find(i => i.id === id);
+    if (!idea) return;
+    const el = mainEl.querySelector(`.idea-card[data-id="${id}"], .list-row[data-id="${id}"]`);
+    if (el) el.remove();
+    ideas = ideas.filter(i => i.id !== id);
+    selectedIds.delete(id);
+    Object.values(smartFolderItems).forEach(set => set.delete(id));
+    updateSelUI();
+    buildSidebarFolders();
+    try {
+      await apiFetch(`/api/ideas/${id}/trash`, { method: 'PATCH' });
+      trashedIdeas.unshift(idea); // optimistic: add to trashed list
+      buildSidebar();
+      toast('Moved to Trash');
+    } catch (err) {
+      toast(err.message, true);
+      await loadIdeas();
+    }
+  }
+
+  // ── Load trash ───────────────────────────────────────────
+  async function loadTrash() {
+    try {
+      const data = await apiFetch('/api/ideas/trash');
+      trashedIdeas = data.ideas || [];
+    } catch {
+      trashedIdeas = [];
+    }
+  }
+
+  // ── Render trash view ────────────────────────────────────
+  function renderTrash() {
+    if (!trashedIdeas.length) {
+      mainEl.innerHTML = `<div class="state-box">
+        <div class="state-icon">🗑</div>
+        <h3>Trash is empty</h3>
+        <p>Ideas moved to trash will appear here.</p>
+      </div>`;
+      return;
+    }
+    const header = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--gold-bd)">
+      <h3 style="font-family:'Playfair Display',serif;font-size:18px;color:var(--text2)">${trashedIdeas.length} Deleted ${trashedIdeas.length === 1 ? 'Idea' : 'Ideas'}</h3>
+      <button class="btn btn-danger" id="empty-trash-btn">Empty Trash</button>
+    </div>`;
+    const rows = viewMode === 'list'
+      ? `<div class="ideas-list">${trashedIdeas.map(trashListRowHTML).join('')}</div>`
+      : `<div class="cards-grid">${trashedIdeas.map(trashCardHTML).join('')}</div>`;
+    mainEl.innerHTML = header + rows;
+    document.getElementById('empty-trash-btn').addEventListener('click', emptyTrash);
+    mainEl.querySelectorAll('.restore-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        restoreIdea(btn.dataset.restoreId);
+      });
+    });
+  }
+
+  function trashCardHTML(idea) {
+    const color = catColor(idea.category);
+    let thumb = '';
+    if (idea.file_url) {
+      if (idea.file_type === 'image') {
+        thumb = `<div class="card-thumb"><img src="${esc(idea.file_url)}" alt="" loading="lazy"></div>`;
+      } else {
+        thumb = `<div class="card-thumb is-video"><video src="${esc(idea.file_url)}" preload="metadata" muted playsinline></video></div>`;
+      }
+    }
+    return `<div class="idea-card" data-id="${esc(idea.id)}" style="opacity:0.6">
+      ${thumb}
+      <div class="card-body">
+        <div class="card-top">
+          <span class="cat-badge" style="color:${color};border-color:${color}60;background:${color}18">${esc(idea.category)}</span>
+          <span class="card-date">${fmtDate(idea.created_at)}</span>
+        </div>
+        <h3 class="card-title">${esc(idea.title)}</h3>
+        <div class="card-footer" style="justify-content:flex-start">
+          <button class="restore-btn" data-restore-id="${esc(idea.id)}">↩ Restore</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function trashListRowHTML(idea) {
+    const color = catColor(idea.category);
+    let thumb = '';
+    if (idea.file_url) {
+      if (idea.file_type === 'image') {
+        thumb = `<div class="list-thumb"><img src="${esc(idea.file_url)}" alt="" loading="lazy"></div>`;
+      } else {
+        thumb = `<div class="list-thumb"><video src="${esc(idea.file_url)}" preload="metadata" muted playsinline></video></div>`;
+      }
+    }
+    return `<div class="list-row" data-id="${esc(idea.id)}" style="opacity:0.6">
+      ${thumb}
+      <span class="list-title">${esc(idea.title)}</span>
+      <span class="cat-badge list-cat" style="color:${color};border-color:${color}60;background:${color}18">${esc(idea.category)}</span>
+      <button class="restore-btn" data-restore-id="${esc(idea.id)}">↩ Restore</button>
+    </div>`;
+  }
+
+  async function restoreIdea(id) {
+    try {
+      const data = await apiFetch(`/api/ideas/${id}/restore`, { method: 'PATCH' });
+      trashedIdeas = trashedIdeas.filter(i => i.id !== id);
+      ideas.unshift(data.idea);
+      renderTrash();
+      buildSidebar();
+      toast('Idea restored');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function emptyTrash() {
+    if (!trashedIdeas.length) return;
+    if (!confirm(`Permanently delete ${trashedIdeas.length} ${trashedIdeas.length === 1 ? 'idea' : 'ideas'}?\nThis cannot be undone.`)) return;
+    try {
+      await apiFetch('/api/ideas/trash', { method: 'DELETE' });
+      trashedIdeas = [];
+      buildSidebar();
+      renderTrash();
+      toast('Trash emptied');
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // ── Inline title edit ────────────────────────────────────
+  function startInlineEdit(id) {
+    const idea = ideas.find(i => i.id === id);
+    if (!idea) return;
+    const titleEl = mainEl.querySelector(`.idea-card[data-id="${id}"] .card-title`) ||
+                    mainEl.querySelector(`.list-row[data-id="${id}"] .list-title`);
+    if (!titleEl) { openForm(idea); return; }
+    const original = idea.title;
+    titleEl.contentEditable = 'true';
+    titleEl.style.cssText += ';outline:1px solid var(--gold-bd);border-radius:3px;padding:2px 4px;';
+    titleEl.focus();
+    const range = document.createRange();
+    range.selectNodeContents(titleEl);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+
+    let committed = false;
+    async function commitEdit() {
+      if (committed) return;
+      committed = true;
+      titleEl.removeEventListener('keydown', onKeyDown);
+      const newTitle = titleEl.textContent.trim();
+      titleEl.contentEditable = 'false';
+      titleEl.style.outline = '';
+      titleEl.style.borderRadius = '';
+      titleEl.style.padding = '';
+      if (!newTitle || newTitle === original) { titleEl.textContent = original; return; }
+      idea.title = newTitle;
+      try {
+        const fd = new FormData();
+        fd.append('title', newTitle);
+        fd.append('category', idea.category);
+        if (idea.notes) fd.append('notes', idea.notes);
+        await apiFetch(`/api/ideas/${id}`, { method: 'PUT', body: fd });
+        toast('Title updated');
+      } catch (err) {
+        idea.title = original;
+        titleEl.textContent = original;
+        toast(err.message, true);
+      }
+    }
+
+    function onKeyDown(e) {
+      if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+      if (e.key === 'Escape') {
+        committed = true;
+        titleEl.removeEventListener('keydown', onKeyDown);
+        titleEl.textContent = original;
+        titleEl.contentEditable = 'false';
+        titleEl.style.outline = '';
+      }
+    }
+    titleEl.addEventListener('keydown', onKeyDown);
+    titleEl.addEventListener('blur', commitEdit, { once: true });
+  }
+
+  // ── Context menu ─────────────────────────────────────────
+  function showCtxMenu(e, id) {
+    e.preventDefault();
+    ctxTargetId = id;
+    const menu = document.getElementById('ctx-menu');
+    menu.style.visibility = 'hidden';
+    menu.removeAttribute('hidden');
+    const x = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8);
+    const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    menu.style.visibility = '';
+  }
+
+  function hideCtxMenu() {
+    document.getElementById('ctx-menu').setAttribute('hidden', '');
+    ctxTargetId = null;
+  }
+
+  document.getElementById('ctx-edit').addEventListener('click', () => {
+    const id = ctxTargetId;
+    hideCtxMenu();
+    startInlineEdit(id);
+  });
+
+  document.getElementById('ctx-delete').addEventListener('click', () => {
+    const id = ctxTargetId;
+    hideCtxMenu();
+    softDeleteIdea(id);
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#ctx-menu')) hideCtxMenu();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') hideCtxMenu();
+  }, true);
 
   // ── Boot ─────────────────────────────────────────────────
   async function init() {

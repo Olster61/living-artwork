@@ -627,7 +627,18 @@ app.get('/api/ideas', async (req, res) => {
   const { data, error } = await supabase
     .from('ideas')
     .select('*')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ideas: await withSignedUrls(data) })
+})
+
+app.get('/api/ideas/trash', async (req, res) => {
+  const { data, error } = await supabase
+    .from('ideas')
+    .select('*')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
   res.json({ ideas: await withSignedUrls(data) })
 })
@@ -713,6 +724,31 @@ app.put('/api/ideas/:id', upload.single('file'), async (req, res) => {
   if (error) return res.status(500).json({ error: error.message })
   const [ideaWithUrl] = await withSignedUrls([data])
   res.json({ idea: ideaWithUrl })
+})
+
+app.patch('/api/ideas/:id/trash', async (req, res) => {
+  const { data, error } = await supabase
+    .from('ideas').update({ deleted_at: new Date().toISOString() })
+    .eq('id', req.params.id).select().single()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ idea: data })
+})
+
+app.patch('/api/ideas/:id/restore', async (req, res) => {
+  const { data, error } = await supabase
+    .from('ideas').update({ deleted_at: null })
+    .eq('id', req.params.id).select().single()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ idea: data })
+})
+
+app.delete('/api/ideas/trash', async (req, res) => {
+  const { data: trashed } = await supabase.from('ideas').select('file_url').not('deleted_at', 'is', null)
+  const filePaths = (trashed || []).filter(i => i.file_url).map(i => ideasFilePath(i.file_url)).filter(Boolean)
+  if (filePaths.length) await supabase.storage.from(IDEAS_BUCKET).remove(filePaths).catch(() => {})
+  const { error } = await supabase.from('ideas').delete().not('deleted_at', 'is', null)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
 })
 
 app.delete('/api/ideas/:id', async (req, res) => {
