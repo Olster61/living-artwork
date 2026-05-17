@@ -448,26 +448,6 @@
       margin-bottom: 18px;
     }
 
-    /* ── FAB ──────────────────────────────────────────────── */
-    #fab {
-      position: fixed;
-      bottom: 30px; right: 30px;
-      width: 54px; height: 54px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--gold-lt), var(--gold));
-      border: none;
-      color: #111;
-      font-size: 26px;
-      cursor: pointer;
-      box-shadow: 0 4px 20px rgba(201,168,76,0.5);
-      transition: transform 0.2s, box-shadow 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-    }
-    #fab:hover { transform: scale(1.1); box-shadow: 0 8px 32px rgba(201,168,76,0.65); }
-
     /* ── Modal overlay ────────────────────────────────────── */
     .overlay {
       position: fixed;
@@ -1012,7 +992,7 @@
       .sidebar-action { padding: 10px 16px; min-height: 44px; }
       .list-row       { padding: 10px 12px; min-height: 44px; }
       .btn            { padding: 10px 16px; min-height: 44px; }
-      #fab            { bottom: 20px; right: 16px; width: 54px; height: 54px; font-size: 26px; }
+      /* #fab removed */
       .ctx-item       { padding: 12px 16px; min-height: 44px; }
       .folder-dd-item { padding: 12px 14px; min-height: 44px; }
 
@@ -1090,7 +1070,7 @@
     }
     .restore-btn:hover { color: var(--ok); border-color: var(--ok); }
 
-    /* ── Inline edit ──────────────────────────────────────── */
+    /* ── Inline edit (cards) ─────────────────────────────── */
     [contenteditable="true"] {
       outline: 1px solid var(--gold-bd);
       border-radius: 3px;
@@ -1101,6 +1081,20 @@
     }
     [contenteditable="true"]:focus {
       outline: 1px solid var(--gold);
+      box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+    }
+
+    /* ── View panel field editing ────────────────────────── */
+    .view-field-editable {
+      border-radius: 6px;
+      padding: 4px 8px;
+      margin: -4px -8px;
+      cursor: text;
+      outline: 1.5px solid var(--gold-bd);
+      transition: outline-color 0.18s, box-shadow 0.18s;
+    }
+    .view-field-editable:focus {
+      outline-color: var(--gold);
       box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
     }
     .inline-cat-select {
@@ -1319,9 +1313,6 @@
 
 </div>
 
-<!-- ── FAB ────────────────────────────────────────────────── -->
-<button id="fab" title="New Idea">+</button>
-
 <!-- ── Form modal ─────────────────────────────────────────── -->
 <div class="overlay" id="form-overlay" hidden>
   <div class="form-panel">
@@ -1428,6 +1419,11 @@
   <button class="ctx-item" id="ctx-edit">✎ Edit title</button>
   <div class="ctx-divider"></div>
   <button class="ctx-item danger" id="ctx-delete">🗑 Move to Trash</button>
+</div>
+
+<!-- ── View panel field context menu ────────────────────── -->
+<div id="view-field-ctx-menu" class="ctx-menu" hidden>
+  <button class="ctx-item" id="view-field-ctx-edit">✎ Edit</button>
 </div>
 
 <!-- ── Toast ───────────────────────────────────────────────── -->
@@ -1751,14 +1747,12 @@ CREATE POLICY "allow all" ON ideas FOR ALL
           toggleCardSel(el);
         });
         el.addEventListener('dblclick', e => {
-          if (e.target.closest('.star-btn,.list-drag-handle,.list-title,.cat-badge')) return;
+          if (e.target.closest('.star-btn,.list-drag-handle')) return;
           openView(el.dataset.id);
         });
         el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
         el.addEventListener('dragstart', e => startCardDrag(e, el));
         el.addEventListener('dragend', endCardDrag);
-        el.querySelectorAll('.list-title').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineEditField(el.dataset.id, f, 'title'); }));
-        el.querySelectorAll('.cat-badge').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineCatEdit(el.dataset.id, f); }));
       });
     } else {
       const groupByCat = !activeFolderId && activeFilter === 'All' && !searchEl.value.trim();
@@ -1792,15 +1786,12 @@ CREATE POLICY "allow all" ON ideas FOR ALL
           toggleCardSel(el);
         });
         el.addEventListener('dblclick', e => {
-          if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.ig-card,.card-title,.card-preview,.cat-badge,.list-title')) return;
+          if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.ig-card')) return;
           openView(el.dataset.id);
         });
         el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
         el.addEventListener('dragstart', e => startCardDrag(e, el));
         el.addEventListener('dragend', endCardDrag);
-        el.querySelectorAll('.card-title').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineEditField(el.dataset.id, f, 'title'); }));
-        el.querySelectorAll('.card-preview').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineEditField(el.dataset.id, f, 'notes'); }));
-        el.querySelectorAll('.cat-badge').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineCatEdit(el.dataset.id, f); }));
       });
 
       mainEl.querySelectorAll('.card-del').forEach(btn => {
@@ -2147,7 +2138,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       toggleCardSel(el);
     });
     el.addEventListener('dblclick', e => {
-      if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.ig-card,.card-title,.card-preview,.cat-badge,.list-title')) return;
+      if (e.target.closest('.star-btn,.card-del,.yt-thumb,.yt-play-btn,.ig-card')) return;
       openView(el.dataset.id);
     });
     el.addEventListener('contextmenu', e => showCtxMenu(e, el.dataset.id));
@@ -2163,9 +2154,6 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       e.stopPropagation();
       await toggleFavourite(starBtn.dataset.id, starBtn.dataset.fav !== 'true');
     });
-    el.querySelectorAll('.card-title').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineEditField(el.dataset.id, f, 'title'); }));
-    el.querySelectorAll('.card-preview').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineEditField(el.dataset.id, f, 'notes'); }));
-    el.querySelectorAll('.cat-badge').forEach(f => f.addEventListener('dblclick', e => { e.stopPropagation(); startInlineCatEdit(el.dataset.id, f); }));
   }
 
   // ── Card delete button — soft deletes to trash ──────────
@@ -2813,7 +2801,6 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
   // ── Event wiring ─────────────────────────────────────────
   document.getElementById('add-btn').addEventListener('click', () => openForm());
-  document.getElementById('fab').addEventListener('click', () => openForm());
   document.getElementById('form-cancel').addEventListener('click', closeForm);
   document.getElementById('view-close').addEventListener('click', closeView);
 
@@ -3157,6 +3144,119 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') hideCtxMenu();
   }, true);
+
+  // ── View panel field editing ──────────────────────────────
+  let viewCtxTargetEl   = null;
+  let viewCtxTargetField = null;
+
+  function showViewFieldCtxMenu(e, fieldEl, fieldName) {
+    e.preventDefault();
+    viewCtxTargetEl    = fieldEl;
+    viewCtxTargetField = fieldName;
+    const menu = document.getElementById('view-field-ctx-menu');
+    menu.style.visibility = 'hidden';
+    menu.removeAttribute('hidden');
+    const x = Math.min(e.clientX, window.innerWidth  - menu.offsetWidth  - 8);
+    const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
+    menu.style.left = x + 'px';
+    menu.style.top  = y + 'px';
+    menu.style.visibility = '';
+  }
+
+  function hideViewFieldCtxMenu() {
+    document.getElementById('view-field-ctx-menu').setAttribute('hidden', '');
+    viewCtxTargetEl    = null;
+    viewCtxTargetField = null;
+  }
+
+  function startViewFieldEdit(fieldEl, fieldName) {
+    if (!viewingId) return;
+    const idea = ideas.find(i => i.id === viewingId);
+    if (!idea) return;
+    const original = idea[fieldName] || '';
+
+    fieldEl.contentEditable = 'true';
+    fieldEl.classList.add('view-field-editable');
+    fieldEl.focus();
+
+    // Place cursor at end
+    const range = document.createRange();
+    range.selectNodeContents(fieldEl);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    let committed = false;
+
+    function onKey(e) {
+      if (e.key === 'Enter' && fieldName !== 'notes') { e.preventDefault(); fieldEl.blur(); }
+      if (e.key === 'Escape') {
+        committed = true;
+        fieldEl.textContent = original;
+        fieldEl.contentEditable = 'false';
+        fieldEl.classList.remove('view-field-editable');
+        fieldEl.removeEventListener('keydown', onKey);
+      }
+    }
+    fieldEl.addEventListener('keydown', onKey);
+
+    fieldEl.addEventListener('blur', async () => {
+      if (committed) return;
+      committed = true;
+      fieldEl.removeEventListener('keydown', onKey);
+      const newVal = fieldEl.textContent.trim();
+      fieldEl.contentEditable = 'false';
+      fieldEl.classList.remove('view-field-editable');
+      if (!newVal || newVal === original) { fieldEl.textContent = original || ''; return; }
+      fieldEl.textContent = newVal;
+      try {
+        await saveIdeaField(viewingId, { [fieldName]: newVal });
+        // Refresh the card title in the background if title was changed
+        if (fieldName === 'title') {
+          mainEl.querySelectorAll(`.idea-card[data-id="${viewingId}"] .card-title, .list-row[data-id="${viewingId}"] .list-title`).forEach(el => { el.textContent = newVal; });
+        }
+      } catch { fieldEl.textContent = original; }
+    }, { once: true });
+  }
+
+  document.getElementById('view-field-ctx-edit').addEventListener('click', () => {
+    const el    = viewCtxTargetEl;
+    const field = viewCtxTargetField;
+    hideViewFieldCtxMenu();
+    if (el && field) startViewFieldEdit(el, field);
+  });
+
+  document.getElementById('view-title').addEventListener('contextmenu', e => {
+    if (!viewingId) return;
+    showViewFieldCtxMenu(e, e.currentTarget, 'title');
+  });
+
+  document.getElementById('view-notes').addEventListener('contextmenu', e => {
+    if (!viewingId) return;
+    showViewFieldCtxMenu(e, e.currentTarget, 'notes');
+  });
+
+  // Mobile: two-finger tap to edit
+  function initTwoFingerTap(fieldEl, fieldName) {
+    let twoFingerTimer = null;
+    fieldEl.addEventListener('touchstart', e => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        clearTimeout(twoFingerTimer);
+        twoFingerTimer = setTimeout(() => startViewFieldEdit(fieldEl, fieldName), 120);
+      }
+    }, { passive: false });
+    fieldEl.addEventListener('touchend', () => clearTimeout(twoFingerTimer));
+    fieldEl.addEventListener('touchcancel', () => clearTimeout(twoFingerTimer));
+  }
+
+  initTwoFingerTap(document.getElementById('view-title'), 'title');
+  initTwoFingerTap(document.getElementById('view-notes'), 'notes');
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#view-field-ctx-menu')) hideViewFieldCtxMenu();
+  });
 
   // ── Gallery navigation (registered once) ─────────────────
   document.getElementById('content-area').addEventListener('click', e => {
