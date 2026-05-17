@@ -951,7 +951,9 @@ Available categories: ${cats.join(', ')}`
 
   let ideas
   try {
-    ideas = JSON.parse(content)
+    const cleanJson = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    console.log('[Extract] Clean JSON preview:', cleanJson.slice(0, 300))
+    ideas = JSON.parse(cleanJson)
     if (!Array.isArray(ideas)) throw new Error('response was not a JSON array')
     console.log('[Extract] Parsed OK —', ideas.length, 'ideas')
   } catch (e) {
