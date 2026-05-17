@@ -886,6 +886,59 @@ app.patch('/api/ideas/:id/favourite', async (req, res) => {
   res.json({ idea: data })
 })
 
+// POST /api/ideas/extract  — server-side Anthropic call (keeps API key secure)
+app.post('/api/ideas/extract', async (req, res) => {
+  const { text, categories: cats } = req.body
+  if (!text || !text.trim()) return res.status(400).json({ error: 'text required' })
+  if (!Array.isArray(cats) || !cats.length) return res.status(400).json({ error: 'categories required' })
+
+  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+  if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured on server' })
+
+  const systemPrompt = `You are an idea extraction assistant. Read the following conversation or text and identify the most valuable insights, recommendations, ideas and action points. Return ONLY a JSON array with no markdown, no backticks, no preamble. Each item should have: title (short, max 8 words), category (must be one of the provided categories), notes (the key insight, kept close to original wording where possible). Extract between 3-15 ideas depending on content length.
+
+Available categories: ${cats.join(', ')}`
+
+  let apiRes
+  try {
+    apiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: text.trim() }],
+      }),
+    })
+  } catch (err) {
+    return res.status(502).json({ error: 'Failed to reach Anthropic API: ' + err.message })
+  }
+
+  if (!apiRes.ok) {
+    const errText = await apiRes.text().catch(() => apiRes.statusText)
+    return res.status(502).json({ error: `Anthropic API error ${apiRes.status}: ${errText}` })
+  }
+
+  const data = await apiRes.json()
+  const content = (data.content?.[0]?.text || '').trim()
+
+  let ideas
+  try {
+    ideas = JSON.parse(content)
+    if (!Array.isArray(ideas)) throw new Error('response was not a JSON array')
+  } catch (e) {
+    console.error('[Extract] JSON parse failed:', e.message, '\nRaw:', content.slice(0, 200))
+    return res.status(502).json({ error: 'Failed to parse AI response', raw: content.slice(0, 500) })
+  }
+
+  res.json({ ideas })
+})
+
 // ── Smart Folders API ────────────────────────────────────────────────────────
 
 app.get('/api/smart-folders', async (req, res) => {
