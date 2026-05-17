@@ -1594,6 +1594,7 @@
     <div class="extract-tabs">
       <button class="extract-tab active" id="extract-tab-ai">⚡ AI Extract</button>
       <button class="extract-tab" id="extract-tab-manual">✏ Manual Select</button>
+      <button class="extract-tab" id="extract-tab-insights">💡 Extract Insights</button>
     </div>
     <div style="margin-left:auto">
       <button class="btn btn-outline" id="extract-close" style="padding:7px 14px;font-size:13px">← Back</button>
@@ -1630,6 +1631,41 @@
           </div>
         </div>
         <div id="extract-list"></div>
+      </div>
+    </div>
+
+    <!-- ── Mode 3: Extract Insights ── -->
+    <div id="extract-insights-mode" hidden>
+      <div style="margin-bottom:16px;padding:11px 14px;background:rgba(201,168,76,0.07);border:1px solid var(--gold-bd);border-radius:8px;font-size:12px;color:var(--text2);line-height:1.6">
+        💡 Paste any AI conversation — code and technical noise will be automatically removed, keeping only strategic ideas and insights.
+      </div>
+      <div class="extract-section">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+          <label class="extract-label" style="margin:0">Paste AI conversation</label>
+          <span id="insights-count" style="font-size:11px;color:var(--text3)"></span>
+        </div>
+        <textarea id="insights-text" placeholder="Paste a Claude or ChatGPT conversation…" style="height:220px;resize:vertical;width:100%;padding:12px 14px;background:var(--bg3);border:1px solid rgba(255,255,255,0.07);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-family:'Inter',sans-serif;outline:none;line-height:1.65;transition:border-color .18s;box-sizing:border-box"></textarea>
+        <div id="insights-size-warning" hidden style="margin-top:10px;padding:11px 14px;background:rgba(230,130,30,0.1);border:1px solid rgba(230,130,30,0.4);border-radius:8px;font-size:12px;color:#e8a050;line-height:1.6;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+          <span id="insights-warning-text" style="flex:1;min-width:0"></span>
+          <button id="insights-trim-btn" class="btn btn-outline" style="padding:4px 12px;font-size:11px;color:#e8a050;border-color:rgba(230,130,30,0.5);flex-shrink:0">Trim to last 20k chars</button>
+        </div>
+      </div>
+      <div class="extract-section">
+        <label class="extract-label">Categories to look for</label>
+        <div id="insights-cats" class="extract-cats-grid"></div>
+      </div>
+      <button class="btn btn-gold" id="insights-run-btn">💡 Extract Insights</button>
+      <div id="insights-error" hidden style="margin-top:16px;padding:14px 16px;background:rgba(217,83,79,0.12);border:1px solid rgba(217,83,79,0.45);border-radius:8px;color:#e87070;font-size:13px;line-height:1.65;word-break:break-word;white-space:pre-wrap"></div>
+      <div id="insights-raw" hidden style="margin-top:8px;padding:12px 14px;background:var(--bg3);border:1px solid var(--gold-bd);border-radius:8px;color:var(--text2);font-size:11px;line-height:1.6;word-break:break-word;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
+      <div id="insights-preview" style="display:none;margin-top:28px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <label class="extract-label" style="margin:0">Extracted Insights</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-outline" id="insights-toggle-all" style="padding:5px 12px;font-size:12px">Deselect All</button>
+            <button class="btn btn-gold" id="insights-save-btn">Save Selected</button>
+          </div>
+        </div>
+        <div id="insights-list"></div>
       </div>
     </div>
 
@@ -3657,6 +3693,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
   function openExtract() {
     buildExtractCats()
+    buildInsightsCats()
     extractOverlay.removeAttribute('hidden')
     document.body.style.overflow = 'hidden'
   }
@@ -3671,9 +3708,28 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     extractMode = mode
     document.getElementById('extract-tab-ai').classList.toggle('active', mode === 'ai')
     document.getElementById('extract-tab-manual').classList.toggle('active', mode === 'manual')
+    document.getElementById('extract-tab-insights').classList.toggle('active', mode === 'insights')
     document.getElementById('extract-ai-mode').hidden = mode !== 'ai'
     document.getElementById('extract-manual-mode').hidden = mode !== 'manual'
+    document.getElementById('extract-insights-mode').hidden = mode !== 'insights'
     hideSaveThisBubble()
+  }
+
+  function buildInsightsCats() {
+    const el = document.getElementById('insights-cats')
+    el.innerHTML = categories.map(c => {
+      const color = catColor(c)
+      return `<div class="cat-check-pill on" data-cat="${esc(c)}">
+        <span style="color:${color};font-size:9px;line-height:1">●</span>${esc(c)}
+      </div>`
+    }).join('')
+    el.querySelectorAll('.cat-check-pill').forEach(pill => {
+      pill.addEventListener('click', () => pill.classList.toggle('on'))
+    })
+  }
+
+  function getCheckedInsightsCats() {
+    return [...document.querySelectorAll('#insights-cats .cat-check-pill.on')].map(p => p.dataset.cat)
   }
 
   function buildExtractCats() {
@@ -3975,11 +4031,156 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
   })
 
+  // ── Extract Insights mode ────────────────────────────────
+  const INSIGHTS_SYSTEM_PROMPT = `You are extracting insights from an AI conversation. Remove ALL of the following: code blocks, terminal output, error messages, file paths, git commands, SQL queries, API credentials, technical prompts used to build software, and any repetitive back-and-forth troubleshooting. Keep ONLY: strategic recommendations, business ideas, creative suggestions, marketing advice, product decisions, research findings, and natural language insights that would be valuable to save. Return ONLY a JSON array with no markdown, no backticks. Each item: title (max 8 words), category (from provided categories), notes (exact original wording preserved, not summarised)`
+
+  let insightsIdeas = []
+
+  function updateInsightsCount() {
+    const ta      = document.getElementById('insights-text')
+    const countEl = document.getElementById('insights-count')
+    const warnEl  = document.getElementById('insights-size-warning')
+    const warnTxt = document.getElementById('insights-warning-text')
+    const val     = ta.value
+    if (!val) { countEl.textContent = ''; warnEl.hidden = true; return; }
+    const chars = val.length
+    const words = countWords(val)
+    countEl.textContent = `${words.toLocaleString()} words · ${chars.toLocaleString()} chars`
+    if (chars > HARD_LIMIT) {
+      warnTxt.textContent = `Large text detected — ${words.toLocaleString()} words. AI Insights will analyse the most recent ${HARD_LIMIT.toLocaleString()} chars.`
+      warnEl.hidden = false
+    } else {
+      warnEl.hidden = true
+    }
+  }
+
+  document.getElementById('insights-text').addEventListener('input', updateInsightsCount)
+
+  document.getElementById('insights-trim-btn').addEventListener('click', () => {
+    const ta = document.getElementById('insights-text')
+    if (ta.value.length <= TRIM_TARGET) return
+    ta.value = ta.value.slice(-TRIM_TARGET)
+    updateInsightsCount()
+    toast(`Trimmed to last ${TRIM_TARGET.toLocaleString()} chars`)
+  })
+
+  document.getElementById('insights-run-btn').addEventListener('click', async () => {
+    const raw  = document.getElementById('insights-text').value
+    const text = raw.length > HARD_LIMIT ? raw.slice(-HARD_LIMIT) : raw
+    if (!text.trim()) { toast('Please paste some text first', true); return; }
+    const cats = getCheckedInsightsCats()
+    if (!cats.length) { toast('Select at least one category', true); return; }
+
+    const btn    = document.getElementById('insights-run-btn')
+    const errEl  = document.getElementById('insights-error')
+    const rawEl  = document.getElementById('insights-raw')
+    btn.disabled = true
+    btn.textContent = 'Extracting…'
+    document.getElementById('insights-preview').style.display = 'none'
+    errEl.hidden = true
+    rawEl.hidden = true
+
+    try {
+      const res = await fetch('/api/ideas/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, categories: cats, systemPrompt: INSIGHTS_SYSTEM_PROMPT }),
+      })
+      const rawText = await res.text()
+      console.log('[Insights] HTTP status:', res.status)
+      console.log('[Insights] Raw response:', rawText)
+
+      let json
+      try { json = JSON.parse(rawText) }
+      catch { throw new Error('Server returned non-JSON: ' + rawText.slice(0, 300)) }
+
+      if (!res.ok) {
+        rawEl.textContent = 'Raw server response:\n' + rawText
+        rawEl.hidden = false
+        throw new Error(json.error || res.statusText)
+      }
+
+      renderInsightsPreview(json.ideas || [])
+    } catch (err) {
+      console.error('[Insights] Error:', err.message)
+      errEl.textContent = 'Error: ' + err.message
+      errEl.hidden = false
+      toast(err.message.slice(0, 120), true)
+    } finally {
+      btn.disabled = false
+      btn.textContent = '💡 Extract Insights'
+    }
+  })
+
+  function renderInsightsPreview(ideas) {
+    insightsIdeas = ideas.map((idea, i) => ({ ...idea, _on: true, _i: i }))
+    const listEl = document.getElementById('insights-list')
+    listEl.innerHTML = insightsIdeas.map((idea, i) => {
+      const color = catColor(idea.category)
+      return `<div class="extract-idea-row on" data-ii="${i}">
+        <div class="ext-check">✓</div>
+        <div class="ext-meta">
+          <div class="ext-title">${esc(idea.title)}</div>
+          <span class="ext-cat" style="color:${color};border-color:${color}60;background:${color}18">${esc(idea.category)}</span>
+          <div class="ext-notes">${esc(idea.notes)}</div>
+        </div>
+      </div>`
+    }).join('')
+
+    listEl.querySelectorAll('.extract-idea-row').forEach((row, i) => {
+      row.addEventListener('click', () => {
+        insightsIdeas[i]._on = !insightsIdeas[i]._on
+        row.classList.toggle('on', insightsIdeas[i]._on)
+        syncInsightsToggleBtn()
+      })
+    })
+
+    syncInsightsToggleBtn()
+    document.getElementById('insights-preview').style.display = ''
+    document.getElementById('insights-preview').scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  function syncInsightsToggleBtn() {
+    const allOn = insightsIdeas.every(i => i._on)
+    document.getElementById('insights-toggle-all').textContent = allOn ? 'Deselect All' : 'Select All'
+  }
+
+  document.getElementById('insights-toggle-all').addEventListener('click', () => {
+    const allOn = insightsIdeas.every(i => i._on)
+    insightsIdeas.forEach((idea, i) => {
+      idea._on = !allOn
+      document.querySelector(`.extract-idea-row[data-ii="${i}"]`)?.classList.toggle('on', !allOn)
+    })
+    syncInsightsToggleBtn()
+  })
+
+  document.getElementById('insights-save-btn').addEventListener('click', async () => {
+    const toSave = insightsIdeas.filter(i => i._on)
+    if (!toSave.length) { toast('Select at least one insight', true); return; }
+    const btn = document.getElementById('insights-save-btn')
+    btn.disabled = true
+    try {
+      const result = await apiFetch('/api/ideas/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries: toSave.map(({ title, category, notes }) => ({ title, category, notes })) }),
+      })
+      toast(`Saved ${result.imported} ${result.imported === 1 ? 'insight' : 'insights'}!`)
+      closeExtract()
+      await loadIdeas()
+    } catch (err) {
+      toast(err.message, true)
+    } finally {
+      btn.disabled = false
+    }
+  })
+
   // ── Wiring ───────────────────────────────────────────────
   document.getElementById('extract-open-btn').addEventListener('click', openExtract)
   document.getElementById('extract-close').addEventListener('click', closeExtract)
   document.getElementById('extract-tab-ai').addEventListener('click', () => setExtractMode('ai'))
   document.getElementById('extract-tab-manual').addEventListener('click', () => setExtractMode('manual'))
+  document.getElementById('extract-tab-insights').addEventListener('click', () => setExtractMode('insights'))
 
   // ── Boot ─────────────────────────────────────────────────
   async function init() {

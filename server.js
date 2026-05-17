@@ -890,8 +890,9 @@ app.patch('/api/ideas/:id/favourite', async (req, res) => {
 app.post('/api/ideas/extract', async (req, res) => {
   console.log('\n━━━ /api/ideas/extract ━━━')
 
-  const { text, categories: cats } = req.body
+  const { text, categories: cats, systemPrompt: customPrompt } = req.body
   console.log('[Extract] categories:', cats)
+  console.log('[Extract] custom prompt:', customPrompt ? 'yes (' + customPrompt.slice(0, 60) + '…)' : 'no')
   console.log('[Extract] text length:', text?.length ?? 0)
   console.log('[Extract] text preview:', text?.slice(0, 120)?.replace(/\n/g, ' '))
 
@@ -903,9 +904,13 @@ app.post('/api/ideas/extract', async (req, res) => {
   console.log('[Extract] ANTHROPIC_API_KEY prefix:', ANTHROPIC_API_KEY ? ANTHROPIC_API_KEY.slice(0, 10) + '…' : '(none)')
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured on server' })
 
-  const systemPrompt = `You are an idea extraction assistant. Read the following conversation or text and identify the most valuable insights, recommendations, ideas and action points. Return ONLY a JSON array with no markdown, no backticks, no preamble. Each item should have: title (short, max 8 words), category (must be one of the provided categories), notes (the key insight, kept close to original wording where possible). Extract between 3-15 ideas depending on content length.
+  const defaultPrompt = `You are an idea extraction assistant. Read the following conversation or text and identify the most valuable insights, recommendations, ideas and action points. Return ONLY a JSON array with no markdown, no backticks, no preamble. Each item should have: title (short, max 8 words), category (must be one of the provided categories), notes (the key insight, kept close to original wording where possible). Extract between 3-15 ideas depending on content length.
 
 Available categories: ${cats.join(', ')}`
+
+  const systemPrompt = customPrompt
+    ? `${customPrompt}\n\nAvailable categories: ${cats.join(', ')}`
+    : defaultPrompt
 
   const requestBody = {
     model: 'claude-sonnet-4-5',
