@@ -888,19 +888,38 @@ app.patch('/api/ideas/:id/favourite', async (req, res) => {
 
 // POST /api/ideas/extract  — server-side Anthropic call (keeps API key secure)
 app.post('/api/ideas/extract', async (req, res) => {
+  console.log('\n━━━ /api/ideas/extract ━━━')
+
   const { text, categories: cats } = req.body
+  console.log('[Extract] categories:', cats)
+  console.log('[Extract] text length:', text?.length ?? 0)
+  console.log('[Extract] text preview:', text?.slice(0, 120)?.replace(/\n/g, ' '))
+
   if (!text || !text.trim()) return res.status(400).json({ error: 'text required' })
   if (!Array.isArray(cats) || !cats.length) return res.status(400).json({ error: 'categories required' })
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+  console.log('[Extract] ANTHROPIC_API_KEY set:', !!ANTHROPIC_API_KEY)
+  console.log('[Extract] ANTHROPIC_API_KEY prefix:', ANTHROPIC_API_KEY ? ANTHROPIC_API_KEY.slice(0, 10) + '…' : '(none)')
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured on server' })
 
   const systemPrompt = `You are an idea extraction assistant. Read the following conversation or text and identify the most valuable insights, recommendations, ideas and action points. Return ONLY a JSON array with no markdown, no backticks, no preamble. Each item should have: title (short, max 8 words), category (must be one of the provided categories), notes (the key insight, kept close to original wording where possible). Extract between 3-15 ideas depending on content length.
 
 Available categories: ${cats.join(', ')}`
 
+  const requestBody = {
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2000,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: text.trim() }],
+  }
+  console.log('[Extract] → Anthropic model:', requestBody.model)
+  console.log('[Extract] → system prompt length:', systemPrompt.length)
+  console.log('[Extract] → user message length:', requestBody.messages[0].content.length)
+
   let apiRes
   try {
+    console.log('[Extract] Calling Anthropic API…')
     apiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -908,31 +927,36 @@ Available categories: ${cats.join(', ')}`
         'x-api-key': ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: text.trim() }],
-      }),
+      body: JSON.stringify(requestBody),
     })
   } catch (err) {
+    console.error('[Extract] Network error:', err.message)
     return res.status(502).json({ error: 'Failed to reach Anthropic API: ' + err.message })
   }
 
+  console.log('[Extract] Anthropic HTTP status:', apiRes.status, apiRes.statusText)
+
   if (!apiRes.ok) {
     const errText = await apiRes.text().catch(() => apiRes.statusText)
+    console.error('[Extract] Anthropic error body:', errText)
     return res.status(502).json({ error: `Anthropic API error ${apiRes.status}: ${errText}` })
   }
 
   const data = await apiRes.json()
+  console.log('[Extract] Response stop_reason:', data.stop_reason)
+  console.log('[Extract] Response usage:', JSON.stringify(data.usage))
   const content = (data.content?.[0]?.text || '').trim()
+  console.log('[Extract] Raw content length:', content.length)
+  console.log('[Extract] Raw content preview:', content.slice(0, 300))
 
   let ideas
   try {
     ideas = JSON.parse(content)
     if (!Array.isArray(ideas)) throw new Error('response was not a JSON array')
+    console.log('[Extract] Parsed OK —', ideas.length, 'ideas')
   } catch (e) {
-    console.error('[Extract] JSON parse failed:', e.message, '\nRaw:', content.slice(0, 200))
+    console.error('[Extract] JSON parse failed:', e.message)
+    console.error('[Extract] Full raw content:\n', content)
     return res.status(502).json({ error: 'Failed to parse AI response', raw: content.slice(0, 500) })
   }
 
