@@ -591,6 +591,18 @@ async function compileWithMindAR (imageUrls) {
   }
 }
 
+// ── String similarity helper ──────────────────────────────────────────────────
+
+function tokenSimilarity (a, b) {
+  const tokenize = s => new Set((s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean))
+  const setA = tokenize(a), setB = tokenize(b)
+  if (!setA.size && !setB.size) return 1
+  if (!setA.size || !setB.size) return 0
+  let inter = 0
+  for (const t of setA) if (setB.has(t)) inter++
+  return inter / (setA.size + setB.size - inter)
+}
+
 // ── Ideas API ─────────────────────────────────────────────────────────────────
 
 app.get('/api/ideas/categories', async (req, res) => {
@@ -625,7 +637,7 @@ app.post('/api/ideas/categories', async (req, res) => {
 })
 
 app.post('/api/ideas/import', express.json(), async (req, res) => {
-  const { entries } = req.body
+  const { entries, dedup } = req.body
   if (!Array.isArray(entries) || !entries.length)
     return res.status(400).json({ error: 'No entries provided' })
 
@@ -635,9 +647,30 @@ app.post('/api/ideas/import', express.json(), async (req, res) => {
 
   if (!rows.length) return res.status(400).json({ error: 'No valid entries found' })
 
-  const { data, error } = await supabase.from('ideas').insert(rows).select()
+  let toInsert = rows
+  let skipped = 0
+
+  if (dedup) {
+    const { data: existing } = await supabase.from('ideas').select('title, notes').is('deleted_at', null)
+    const existingList = existing || []
+    toInsert = []
+    for (const row of rows) {
+      const candidate = row.title + ' ' + (row.notes || '').slice(0, 100)
+      const isDuplicate = existingList.some(ex => {
+        const compare = ex.title + ' ' + (ex.notes || '').slice(0, 100)
+        return tokenSimilarity(candidate, compare) >= 0.8
+      })
+      if (isDuplicate) skipped++
+      else toInsert.push(row)
+    }
+    console.log(`[Import] dedup: ${rows.length} candidates → ${toInsert.length} to insert, ${skipped} skipped`)
+  }
+
+  if (!toInsert.length) return res.json({ imported: 0, skipped })
+
+  const { data, error } = await supabase.from('ideas').insert(toInsert).select()
   if (error) return res.status(500).json({ error: error.message })
-  res.json({ imported: data.length })
+  res.json({ imported: data.length, skipped })
 })
 
 app.get('/api/ideas/files/all', async (req, res) => {
@@ -968,6 +1001,34 @@ Available categories: ${cats.join(', ')}`
   }
 
   res.json({ ideas })
+})
+
+// ── Extract Sessions API ──────────────────────────────────────────────────────
+
+app.get('/api/extract-sessions/last', async (req, res) => {
+  const { mode } = req.query
+  if (!mode) return res.status(400).json({ error: 'mode required' })
+  const { data, error } = await supabase
+    .from('extract_sessions')
+    .select('extracted_at, ideas_saved')
+    .eq('mode', mode)
+    .order('extracted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ session: data || null })
+})
+
+app.post('/api/extract-sessions', async (req, res) => {
+  const { mode, ideas_saved } = req.body
+  if (!mode) return res.status(400).json({ error: 'mode required' })
+  const { data, error } = await supabase
+    .from('extract_sessions')
+    .insert({ mode, ideas_saved: ideas_saved || 0 })
+    .select()
+    .single()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ session: data })
 })
 
 // ── Smart Folders API ────────────────────────────────────────────────────────
