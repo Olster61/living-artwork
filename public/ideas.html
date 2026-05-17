@@ -660,7 +660,8 @@
       transform: translateY(8px);
       transition: opacity 0.22s, transform 0.22s;
       pointer-events: none;
-      max-width: 280px;
+      max-width: 340px;
+      word-break: break-word;
     }
     #toast.show { opacity: 1; transform: translateY(0); }
     #toast.err  { border-color: rgba(217,83,79,0.5); color: var(--err); }
@@ -1611,6 +1612,8 @@
         <div id="extract-cats" class="extract-cats-grid"></div>
       </div>
       <button class="btn btn-gold" id="extract-run-btn">⚡ Extract Ideas</button>
+      <div id="extract-error" hidden style="margin-top:16px;padding:14px 16px;background:rgba(217,83,79,0.12);border:1px solid rgba(217,83,79,0.45);border-radius:8px;color:#e87070;font-size:13px;line-height:1.65;word-break:break-word;white-space:pre-wrap"></div>
+      <div id="extract-raw" hidden style="margin-top:8px;padding:12px 14px;background:var(--bg3);border:1px solid var(--gold-bd);border-radius:8px;color:var(--text2);font-size:11px;line-height:1.6;word-break:break-word;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
       <div id="extract-preview" style="display:none;margin-top:28px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
           <label class="extract-label" style="margin:0">Extracted Ideas</label>
@@ -3691,19 +3694,45 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     if (!cats.length) { toast('Select at least one category', true); return; }
 
     const btn = document.getElementById('extract-run-btn')
+    const errEl = document.getElementById('extract-error')
+    const rawEl = document.getElementById('extract-raw')
     btn.disabled = true
     btn.textContent = 'Extracting…'
     document.getElementById('extract-preview').style.display = 'none'
+    errEl.hidden = true
+    rawEl.hidden = true
 
     try {
-      const result = await apiFetch('/api/ideas/extract', {
+      // Use raw fetch so we can log the full response before parsing
+      const res = await fetch('/api/ideas/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, categories: cats }),
       })
-      renderExtractPreview(result.ideas || [])
+      const rawText = await res.text()
+      console.log('[Extract] HTTP status:', res.status)
+      console.log('[Extract] Raw response body:', rawText)
+
+      let json
+      try {
+        json = JSON.parse(rawText)
+      } catch (parseErr) {
+        throw new Error('Server returned non-JSON: ' + rawText.slice(0, 300))
+      }
+
+      if (!res.ok) {
+        const msg = json.error || res.statusText
+        rawEl.textContent = 'Raw server response:\n' + rawText
+        rawEl.hidden = false
+        throw new Error(msg)
+      }
+
+      renderExtractPreview(json.ideas || [])
     } catch (err) {
-      toast(err.message, true)
+      console.error('[Extract] Error:', err.message)
+      errEl.textContent = 'Error: ' + err.message
+      errEl.hidden = false
+      toast(err.message.slice(0, 120), true)
     } finally {
       btn.disabled = false
       btn.textContent = '⚡ Extract Ideas'
