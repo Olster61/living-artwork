@@ -1604,8 +1604,15 @@
     <!-- ── Mode 1: AI Extract ── -->
     <div id="extract-ai-mode">
       <div class="extract-section">
-        <label class="extract-label">Paste any conversation or text</label>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+          <label class="extract-label" style="margin:0">Paste any conversation or text</label>
+          <span id="extract-count" style="font-size:11px;color:var(--text3)"></span>
+        </div>
         <textarea id="extract-text" placeholder="Paste a conversation, article, meeting notes…" style="height:180px;resize:vertical;width:100%;padding:12px 14px;background:var(--bg3);border:1px solid rgba(255,255,255,0.07);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-family:'Inter',sans-serif;outline:none;line-height:1.65;transition:border-color .18s;box-sizing:border-box"></textarea>
+        <div id="extract-size-warning" hidden style="margin-top:10px;padding:11px 14px;background:rgba(230,130,30,0.1);border:1px solid rgba(230,130,30,0.4);border-radius:8px;font-size:12px;color:#e8a050;line-height:1.6;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+          <span id="extract-warning-text" style="flex:1;min-width:0"></span>
+          <button id="extract-trim-btn" class="btn btn-outline" style="padding:4px 12px;font-size:11px;color:#e8a050;border-color:rgba(230,130,30,0.5);flex-shrink:0">Trim to last 20k chars</button>
+        </div>
       </div>
       <div class="extract-section">
         <label class="extract-label">Categories to look for</label>
@@ -3686,10 +3693,51 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     return [...document.querySelectorAll('#extract-cats .cat-check-pill.on')].map(p => p.dataset.cat)
   }
 
+  // ── Text size counter + warning ──────────────────────────
+  const HARD_LIMIT  = 50_000
+  const TRIM_TARGET = 20_000
+
+  function countWords(str) {
+    return str.trim() ? str.trim().split(/\s+/).length : 0
+  }
+
+  function updateExtractCount() {
+    const ta      = document.getElementById('extract-text')
+    const countEl = document.getElementById('extract-count')
+    const warnEl  = document.getElementById('extract-size-warning')
+    const warnTxt = document.getElementById('extract-warning-text')
+    const val     = ta.value
+
+    if (!val) { countEl.textContent = ''; warnEl.hidden = true; return; }
+
+    const chars = val.length
+    const words = countWords(val)
+    countEl.textContent = `${words.toLocaleString()} words · ${chars.toLocaleString()} chars`
+
+    if (chars > HARD_LIMIT) {
+      warnTxt.textContent = `Large text detected — ${words.toLocaleString()} words. Consider using Manual Select mode for better results, or AI Extract will analyse the most recent portion (last ${(HARD_LIMIT).toLocaleString()} chars).`
+      warnEl.hidden = false
+    } else {
+      warnEl.hidden = true
+    }
+  }
+
+  document.getElementById('extract-text').addEventListener('input', updateExtractCount)
+
+  document.getElementById('extract-trim-btn').addEventListener('click', () => {
+    const ta  = document.getElementById('extract-text')
+    const val = ta.value
+    if (val.length <= TRIM_TARGET) return
+    ta.value = val.slice(-TRIM_TARGET)
+    updateExtractCount()
+    toast(`Trimmed to last ${TRIM_TARGET.toLocaleString()} chars`)
+  })
+
   // ── AI Extract mode ──────────────────────────────────────
   document.getElementById('extract-run-btn').addEventListener('click', async () => {
-    const text = document.getElementById('extract-text').value.trim()
-    if (!text) { toast('Please paste some text first', true); return; }
+    const raw  = document.getElementById('extract-text').value
+    const text = raw.length > HARD_LIMIT ? raw.slice(-HARD_LIMIT) : raw
+    if (!text.trim()) { toast('Please paste some text first', true); return; }
     const cats = getCheckedCats()
     if (!cats.length) { toast('Select at least one category', true); return; }
 
