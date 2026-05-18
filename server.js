@@ -9,6 +9,8 @@ const os = require('os')
 const fsp = require('fs/promises')
 const sharp = require('sharp')
 
+const session = require('express-session')
+
 const SUPABASE_URL    = process.env.SUPABASE_URL
 const SUPABASE_SECRET = process.env.SUPABASE_SECRET
 const PORT = process.env.PORT || 3000
@@ -27,8 +29,19 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET, {
 })
 
 const app = express()
+app.set('trust proxy', 1)
 app.use(cors())
 app.use(express.json())
+app.use(session({
+  secret: process.env.SESSION_SECRET || process.env.IDEAS_PASSWORD || 'living-artwork-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 8 * 60 * 60 * 1000,
+  },
+}))
 
 const upload = multer({ storage: multer.memoryStorage() })
 
@@ -1081,7 +1094,107 @@ app.get('/olly/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'))
 })
 
-app.get('/olly/ideas', (req, res) => {
+// ── Ideas password protection ─────────────────────────────────────────────────
+
+function requireIdeasAuth (req, res, next) {
+  if (req.session.ideasAuthed) return next()
+  res.redirect('/olly/ideas/login')
+}
+
+const LOGIN_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ideas — Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f0f0f;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #e8e8e8;
+    }
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 360px;
+    }
+    h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 1.5rem; color: #fff; }
+    label { display: block; font-size: 0.85rem; color: #999; margin-bottom: 0.4rem; }
+    input[type="password"] {
+      width: 100%;
+      padding: 0.65rem 0.9rem;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #e8e8e8;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="password"]:focus { border-color: #555; }
+    .error { color: #f87171; font-size: 0.85rem; margin-top: 0.75rem; }
+    button {
+      margin-top: 1.25rem;
+      width: 100%;
+      padding: 0.7rem;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.88; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Ideas</h1>
+    <form method="POST" action="/olly/ideas/login">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autofocus autocomplete="current-password">
+      {{ERROR}}
+      <button type="submit">Enter</button>
+    </form>
+  </div>
+</body>
+</html>`
+
+app.get('/olly/ideas/login', (req, res) => {
+  const error = req.query.error
+    ? '<p class="error">Incorrect password</p>'
+    : ''
+  res.send(LOGIN_HTML.replace('{{ERROR}}', error))
+})
+
+app.post('/olly/ideas/login', express.urlencoded({ extended: false }), (req, res) => {
+  const { password } = req.body
+  const IDEAS_PASSWORD = process.env.IDEAS_PASSWORD
+  if (!IDEAS_PASSWORD) return res.status(500).send('IDEAS_PASSWORD not configured on server')
+  if (password === IDEAS_PASSWORD) {
+    req.session.ideasAuthed = true
+    res.redirect('/olly/ideas')
+  } else {
+    res.redirect('/olly/ideas/login?error=1')
+  }
+})
+
+app.get('/olly/ideas/logout', (req, res) => {
+  req.session.destroy()
+  res.redirect('/olly/ideas/login')
+})
+
+app.get('/olly/ideas', requireIdeasAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'ideas.html'))
 })
 
