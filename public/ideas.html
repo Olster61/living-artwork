@@ -6,6 +6,7 @@
   <title>Ideas · Living Artwork</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
   <style>
     :root {
       --bg:       #080808;
@@ -631,9 +632,18 @@
       font-size: 15px;
       line-height: 1.8;
       color: var(--text2);
-      white-space: pre-wrap;
+      white-space: normal;
       word-break: break-word;
     }
+    #view-notes h1 { font-family: 'Playfair Display', serif; font-size: 1.5em; font-weight: 600; margin: 0.6em 0 0.3em; color: var(--text); }
+    #view-notes h2 { font-family: 'Playfair Display', serif; font-size: 1.2em; font-weight: 600; margin: 0.5em 0 0.25em; color: var(--text); }
+    #view-notes p  { margin: 0; }
+    #view-notes p + p { margin-top: 0.35em; }
+    #view-notes ul, #view-notes ol { padding-left: 1.6em; margin: 0.3em 0; }
+    #view-notes li  { margin: 0.1em 0; }
+    #view-notes strong { color: var(--text); font-weight: 600; }
+    #view-notes em { font-style: italic; }
+    #view-notes u  { text-decoration: underline; }
 
     .view-media {
       margin-top: 32px;
@@ -1260,11 +1270,14 @@
     }
     .extract-reading-text {
       font-size: 14px; line-height: 1.85; color: var(--text2);
-      white-space: pre-wrap; word-break: break-word;
+      white-space: normal; word-break: break-word;
       padding: 28px; background: var(--bg2);
       border: 1px solid var(--gold-bd); border-radius: var(--radius);
       cursor: text; user-select: text; min-height: 240px;
     }
+    .extract-reading-text p { margin-bottom: 0.4em; }
+    .extract-reading-text ul, .extract-reading-text ol { padding-left: 1.6em; margin: 0.3em 0; }
+    .extract-reading-text strong { color: var(--text); }
     .extract-reading-text ::selection { background: rgba(201,168,76,0.28); color: var(--text); }
 
     .extract-snippet {
@@ -1389,6 +1402,72 @@
       transition: background 0.15s;
     }
     .ig-open-btn:hover { background: rgba(255,255,255,0.35); }
+
+    /* ── Quill dark theme ─────────────────────────────────── */
+    .ql-toolbar.ql-snow {
+      background: var(--bg3);
+      border: 1px solid rgba(255,255,255,0.07) !important;
+      border-bottom: 1px solid rgba(255,255,255,0.04) !important;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      padding: 6px 8px;
+      flex-wrap: wrap;
+    }
+    .ql-container.ql-snow {
+      background: var(--bg3);
+      border: 1px solid rgba(255,255,255,0.07) !important;
+      border-top: none !important;
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+    }
+    .ql-no-toolbar .ql-container.ql-snow {
+      border-radius: var(--radius-sm);
+    }
+    .ql-editor {
+      min-height: 130px;
+      line-height: 1.65;
+      color: var(--text);
+      padding: 10px 14px;
+    }
+    .ql-editor.ql-blank::before {
+      color: var(--text3);
+      font-style: normal;
+      left: 14px;
+    }
+    .ql-snow .ql-stroke { stroke: var(--text2); }
+    .ql-snow .ql-fill   { fill:   var(--text2); }
+    .ql-snow .ql-picker  { color: var(--text2); }
+    .ql-snow .ql-picker-label { color: var(--text2); }
+    .ql-snow .ql-picker-options {
+      background: var(--bg2);
+      border-color: var(--gold-bd);
+    }
+    .ql-snow .ql-picker-item { color: var(--text2); }
+    .ql-snow .ql-picker-item:hover { color: var(--gold-lt); }
+    .ql-snow .ql-toolbar button:hover .ql-stroke,
+    .ql-snow .ql-toolbar button.ql-active .ql-stroke { stroke: var(--gold); }
+    .ql-snow .ql-toolbar button:hover .ql-fill,
+    .ql-snow .ql-toolbar button.ql-active .ql-fill { fill: var(--gold); }
+    .ql-snow .ql-toolbar button:hover,
+    .ql-snow .ql-toolbar button.ql-active { color: var(--gold); }
+    .ql-snow .ql-picker-label:hover,
+    .ql-snow .ql-picker-label.ql-active { color: var(--gold); }
+    .ql-snow .ql-picker-label:hover .ql-stroke,
+    .ql-snow .ql-picker-label.ql-active .ql-stroke { stroke: var(--gold); }
+    .ql-container.ql-snow:focus-within {
+      border-color: var(--gold-bd) !important;
+      box-shadow: 0 0 0 3px rgba(201,168,76,0.08);
+    }
+    /* Per-editor heights */
+    .extract-quill .ql-editor  { min-height: 180px; font-size: 13px; }
+    .insights-quill .ql-editor { min-height: 220px; font-size: 13px; }
+    .manual-quill .ql-editor   { min-height: 160px; font-size: 13px; }
+    /* Mobile-friendly toolbar */
+    @media (max-width: 768px) {
+      .ql-snow.ql-toolbar button { min-width: 36px; min-height: 36px; padding: 6px; }
+      .ql-toolbar.ql-snow { padding: 8px 6px; }
+    }
   </style>
 </head>
 <body>
@@ -1498,7 +1577,7 @@
 
     <div class="form-group">
       <label>Notes</label>
-      <textarea id="form-notes" placeholder="Write your thoughts, links, details…"></textarea>
+      <div id="form-notes-editor"></div>
     </div>
 
     <div class="form-group" id="youtube-field-wrap">
@@ -1609,7 +1688,7 @@
           <label class="extract-label" style="margin:0">Paste any conversation or text</label>
           <span id="extract-count" style="font-size:11px;color:var(--text3)"></span>
         </div>
-        <textarea id="extract-text" placeholder="Paste a conversation, article, meeting notes…" style="height:180px;resize:vertical;width:100%;padding:12px 14px;background:var(--bg3);border:1px solid rgba(255,255,255,0.07);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-family:'Inter',sans-serif;outline:none;line-height:1.65;transition:border-color .18s;box-sizing:border-box"></textarea>
+        <div id="extract-text-editor" class="ql-no-toolbar extract-quill"></div>
         <div id="extract-size-warning" hidden style="margin-top:10px;padding:11px 14px;background:rgba(230,130,30,0.1);border:1px solid rgba(230,130,30,0.4);border-radius:8px;font-size:12px;color:#e8a050;line-height:1.6;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
           <span id="extract-warning-text" style="flex:1;min-width:0"></span>
           <button id="extract-trim-btn" class="btn btn-outline" style="padding:4px 12px;font-size:11px;color:#e8a050;border-color:rgba(230,130,30,0.5);flex-shrink:0">Trim to last 20k chars</button>
@@ -1645,7 +1724,7 @@
           <label class="extract-label" style="margin:0">Paste AI conversation</label>
           <span id="insights-count" style="font-size:11px;color:var(--text3)"></span>
         </div>
-        <textarea id="insights-text" placeholder="Paste a Claude or ChatGPT conversation…" style="height:220px;resize:vertical;width:100%;padding:12px 14px;background:var(--bg3);border:1px solid rgba(255,255,255,0.07);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-family:'Inter',sans-serif;outline:none;line-height:1.65;transition:border-color .18s;box-sizing:border-box"></textarea>
+        <div id="insights-text-editor" class="ql-no-toolbar insights-quill"></div>
         <div id="insights-size-warning" hidden style="margin-top:10px;padding:11px 14px;background:rgba(230,130,30,0.1);border:1px solid rgba(230,130,30,0.4);border-radius:8px;font-size:12px;color:#e8a050;line-height:1.6;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
           <span id="insights-warning-text" style="flex:1;min-width:0"></span>
           <button id="insights-trim-btn" class="btn btn-outline" style="padding:4px 12px;font-size:11px;color:#e8a050;border-color:rgba(230,130,30,0.5);flex-shrink:0">Trim to last 20k chars</button>
@@ -1674,7 +1753,7 @@
     <div id="extract-manual-mode" hidden>
       <div id="extract-paste-section" class="extract-section">
         <label class="extract-label">Paste text, then click Load</label>
-        <textarea id="extract-manual-text" placeholder="Paste your conversation or article here…" style="height:160px;resize:vertical;width:100%;padding:12px 14px;background:var(--bg3);border:1px solid rgba(255,255,255,0.07);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-family:'Inter',sans-serif;outline:none;line-height:1.65;transition:border-color .18s;box-sizing:border-box"></textarea>
+        <div id="extract-manual-editor" class="ql-no-toolbar manual-quill"></div>
         <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
           <button class="btn btn-gold" id="extract-load-btn">Load Text →</button>
           <span style="font-size:12px;color:var(--text3)">Highlight text in the reader to save it as an idea</span>
@@ -1754,6 +1833,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
 <script>
   let categories = [];
   const DEFAULT_COLORS = {
@@ -1783,6 +1863,7 @@
   let editingId  = null;
   let editFileRemoved = false;
   let viewMode = localStorage.getItem('ideas-view') || 'grid';
+  let quillNotes = null, quillExtract = null, quillInsights = null, quillManual = null;
   let smartFolders = [];
   let smartFolderItems = {}; // { folderId: Set<ideaId> }
   let selectedIds = new Set();
@@ -1803,7 +1884,6 @@
   const viewOverlay   = document.getElementById('view-overlay');
   const formTitleEl   = document.getElementById('form-title');
   const formCatEl     = document.getElementById('form-category');
-  const formNotesEl   = document.getElementById('form-notes');
   const formFileEl    = document.getElementById('form-file');
   const fileDropEl    = document.getElementById('file-drop');
   const filePreviewEl = document.getElementById('file-preview-wrap');
@@ -1813,6 +1893,19 @@
   // ── Utilities ────────────────────────────────────────────
   function esc(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function stripHtml(html) {
+    return (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function loadIntoQuill(quill, notes) {
+    if (!notes) { quill.setContents([], 'silent'); return; }
+    if (/<[a-zA-Z]/.test(notes)) {
+      quill.clipboard.dangerouslyPasteHTML(notes, 'api');
+    } else {
+      quill.setText(notes, 'silent');
+    }
   }
 
   function fmtDate(iso) {
@@ -2018,7 +2111,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     const q = searchEl.value.trim().toLowerCase();
     if (q) list = list.filter(i =>
       i.title.toLowerCase().includes(q) ||
-      (i.notes && i.notes.toLowerCase().includes(q))
+      (i.notes && stripHtml(i.notes).toLowerCase().includes(q))
     );
     return list;
   }
@@ -2122,10 +2215,9 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   function cardHTML(idea) {
-    const color   = catColor(idea.category);
-    const preview = idea.notes
-      ? (idea.notes.length > 150 ? idea.notes.slice(0, 150) + '…' : idea.notes)
-      : '';
+    const color      = catColor(idea.category);
+    const plainNotes = stripHtml(idea.notes);
+    const preview    = plainNotes.length > 150 ? plainNotes.slice(0, 150) + '…' : plainNotes;
 
     // Build unified file list: idea_files entries first, then legacy file_url as fallback
     const galFiles = ideaFiles[idea.id] || [];
@@ -2636,7 +2728,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     `;
 
     document.getElementById('view-title').textContent = idea.title;
-    document.getElementById('view-notes').textContent = idea.notes || '';
+    document.getElementById('view-notes').innerHTML = idea.notes || '';
 
     const media = document.getElementById('view-media');
     if (idea.file_url && idea.file_type === 'image') {
@@ -2703,8 +2795,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
     formTitleEl.value = idea ? idea.title      : '';
     formCatEl.value   = idea ? idea.category   : (categories[0] || '');
-    formNotesEl.value = idea ? (idea.notes || '') : '';
     formFileEl.value  = '';
+    if (quillNotes) loadIntoQuill(quillNotes, idea ? (idea.notes || '') : '');
     filePreviewEl.innerHTML = '';
     galleryNewFiles = [];
     galleryDeleteIds = new Set();
@@ -2868,7 +2960,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.getElementById('form-save').addEventListener('click', async () => {
     const title    = formTitleEl.value.trim();
     const category = formCatEl.value;
-    const notes    = formNotesEl.value.trim();
+    const notes    = (quillNotes && quillNotes.getText().trim()) ? quillNotes.root.innerHTML : '';
     const file     = formFileEl.files[0];
 
     if (!title) { formTitleEl.focus(); toast('Please enter a title', true); return; }
@@ -3472,6 +3564,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
   function startViewFieldEdit(fieldEl, fieldName) {
     if (!viewingId) return;
+    if (fieldName === 'notes') {
+      const idea = ideas.find(i => i.id === viewingId);
+      if (idea) { closeView(); openForm(idea); }
+      return;
+    }
     const idea = ideas.find(i => i.id === viewingId);
     if (!idea) return;
     const original = idea[fieldName] || '';
@@ -3776,13 +3873,12 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   function updateExtractCount() {
-    const ta      = document.getElementById('extract-text')
     const countEl = document.getElementById('extract-count')
     const warnEl  = document.getElementById('extract-size-warning')
     const warnTxt = document.getElementById('extract-warning-text')
-    const val     = ta.value
+    const val     = quillExtract ? quillExtract.getText() : ''
 
-    if (!val) { countEl.textContent = ''; warnEl.hidden = true; return; }
+    if (!val.trim()) { countEl.textContent = ''; warnEl.hidden = true; return; }
 
     const chars = val.length
     const words = countWords(val)
@@ -3796,20 +3892,18 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
   }
 
-  document.getElementById('extract-text').addEventListener('input', updateExtractCount)
-
   document.getElementById('extract-trim-btn').addEventListener('click', () => {
-    const ta  = document.getElementById('extract-text')
-    const val = ta.value
+    if (!quillExtract) return
+    const val = quillExtract.getText()
     if (val.length <= TRIM_TARGET) return
-    ta.value = val.slice(-TRIM_TARGET)
+    quillExtract.setText(val.slice(-TRIM_TARGET))
     updateExtractCount()
     toast(`Trimmed to last ${TRIM_TARGET.toLocaleString()} chars`)
   })
 
   // ── AI Extract mode ──────────────────────────────────────
   document.getElementById('extract-run-btn').addEventListener('click', async () => {
-    const raw  = document.getElementById('extract-text').value
+    const raw  = quillExtract ? quillExtract.getText() : ''
     const text = raw.length > HARD_LIMIT ? raw.slice(-HARD_LIMIT) : raw
     if (!text.trim()) { toast('Please paste some text first', true); return; }
     const cats = getCheckedCats()
@@ -3926,9 +4020,10 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
   // ── Manual Select mode ───────────────────────────────────
   document.getElementById('extract-load-btn').addEventListener('click', () => {
-    const text = document.getElementById('extract-manual-text').value.trim()
+    const text = quillManual ? quillManual.getText().trim() : ''
     if (!text) { toast('Please paste some text first', true); return; }
-    document.getElementById('extract-reading-text').textContent = text
+    const html = quillManual ? quillManual.root.innerHTML : text
+    document.getElementById('extract-reading-text').innerHTML = html
     document.getElementById('extract-paste-section').style.display = 'none'
     document.getElementById('extract-reader-section').style.display = ''
   })
@@ -4055,12 +4150,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   let insightsIdeas = []
 
   function updateInsightsCount() {
-    const ta      = document.getElementById('insights-text')
     const countEl = document.getElementById('insights-count')
     const warnEl  = document.getElementById('insights-size-warning')
     const warnTxt = document.getElementById('insights-warning-text')
-    const val     = ta.value
-    if (!val) { countEl.textContent = ''; warnEl.hidden = true; return; }
+    const val     = quillInsights ? quillInsights.getText() : ''
+    if (!val.trim()) { countEl.textContent = ''; warnEl.hidden = true; return; }
     const chars = val.length
     const words = countWords(val)
     countEl.textContent = `${words.toLocaleString()} words · ${chars.toLocaleString()} chars`
@@ -4072,18 +4166,17 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
   }
 
-  document.getElementById('insights-text').addEventListener('input', updateInsightsCount)
-
   document.getElementById('insights-trim-btn').addEventListener('click', () => {
-    const ta = document.getElementById('insights-text')
-    if (ta.value.length <= TRIM_TARGET) return
-    ta.value = ta.value.slice(-TRIM_TARGET)
+    if (!quillInsights) return
+    const val = quillInsights.getText()
+    if (val.length <= TRIM_TARGET) return
+    quillInsights.setText(val.slice(-TRIM_TARGET))
     updateInsightsCount()
     toast(`Trimmed to last ${TRIM_TARGET.toLocaleString()} chars`)
   })
 
   document.getElementById('insights-run-btn').addEventListener('click', async () => {
-    const raw  = document.getElementById('insights-text').value
+    const raw  = quillInsights ? quillInsights.getText() : ''
     const text = raw.length > HARD_LIMIT ? raw.slice(-HARD_LIMIT) : raw
     if (!text.trim()) { toast('Please paste some text first', true); return; }
     const cats = getCheckedInsightsCats()
@@ -4208,6 +4301,41 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.getElementById('extract-tab-ai').addEventListener('click', () => setExtractMode('ai'))
   document.getElementById('extract-tab-manual').addEventListener('click', () => setExtractMode('manual'))
   document.getElementById('extract-tab-insights').addEventListener('click', () => setExtractMode('insights'))
+
+  // ── Quill editors ────────────────────────────────────────
+  const NOTES_TOOLBAR = [
+    [{ size: ['small', false, 'large', 'huge'] }],
+    [{ header: [1, 2, false] }],
+    ['bold', 'italic', 'underline'],
+    [{ list: 'ordered' }, { list: 'bullet' }],
+    ['clean'],
+  ]
+
+  quillNotes = new Quill('#form-notes-editor', {
+    theme: 'snow',
+    modules: { toolbar: NOTES_TOOLBAR },
+    placeholder: 'Write your thoughts, links, details…',
+  })
+
+  quillExtract = new Quill('#extract-text-editor', {
+    theme: 'snow',
+    modules: { toolbar: false },
+    placeholder: 'Paste a conversation, article, meeting notes…',
+  })
+  quillExtract.on('text-change', updateExtractCount)
+
+  quillInsights = new Quill('#insights-text-editor', {
+    theme: 'snow',
+    modules: { toolbar: false },
+    placeholder: 'Paste a Claude or ChatGPT conversation…',
+  })
+  quillInsights.on('text-change', updateInsightsCount)
+
+  quillManual = new Quill('#extract-manual-editor', {
+    theme: 'snow',
+    modules: { toolbar: false },
+    placeholder: 'Paste your conversation or article here…',
+  })
 
   // ── Boot ─────────────────────────────────────────────────
   async function init() {
