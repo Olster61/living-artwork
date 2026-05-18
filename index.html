@@ -585,29 +585,19 @@
           if (vid) {
             vid.loop = true;
             vid.muted = false;
-
-            const doPlay = () => {
-              vid.currentTime = 0;
-              vid.play()
-                .then(() => { videoSpinner.style.display = 'none'; })
-                .catch(err => {
-                  console.warn('[AR] play() rejected:', err);
-                  videoSpinner.style.display = 'none';
-                });
-            };
-
-            if (vid.src === art.video_url && vid.readyState >= 4) {
-              // Already fully buffered from a previous scan — play immediately
-              doPlay();
-            } else {
-              vid.src = art.video_url;
-              vid.load();
-              vid.addEventListener('canplaythrough', function onReady() {
-                vid.removeEventListener('canplaythrough', onReady);
-                console.log('[AR] canplaythrough → play() on video-' + art.id);
-                doPlay();
+            vid.currentTime = 0;
+            vid.play()
+              .then(() => { videoSpinner.style.display = 'none'; })
+              .catch(err => {
+                console.warn('[AR] play() rejected, retrying muted:', err);
+                vid.muted = true;
+                vid.play()
+                  .then(() => { vid.muted = false; videoSpinner.style.display = 'none'; })
+                  .catch(err2 => {
+                    console.warn('[AR] muted play() also rejected:', err2);
+                    videoSpinner.style.display = 'none';
+                  });
               });
-            }
           }
         }));
       });
