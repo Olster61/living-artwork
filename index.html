@@ -336,6 +336,7 @@
   let aframeLoaded    = false;
   let isVideoPlaying  = false;
   let gumOriginal     = null;
+  const initialisedVideos = new Set(); // tracks which art IDs have had load() called
 
   // ── DOM refs ────────────────────────────────────────────────
   const welcome      = document.getElementById('welcome');
@@ -568,9 +569,13 @@
           }
           console.log('[AR] artwork resolved:', art.name, 'video_url:', art.video_url);
 
-          // Pause any previously-active video
+          // Stop ALL other videos completely to prevent audio bleed
           document.querySelectorAll('#video-screen video').forEach(v => {
-            if (!v.paused) v.pause();
+            if (v.id !== 'video-' + art.id) {
+              v.pause();
+              v.currentTime = 0;
+              v.muted = true;
+            }
             v.classList.remove('active');
           });
 
@@ -591,6 +596,16 @@
             vid.loop = true;
             vid.muted = false;
             vid.currentTime = 0;
+
+            if (!initialisedVideos.has(art.id)) {
+              // First scan of this video — call load() to start buffering
+              console.log('[AR] first scan — calling load() for', art.name);
+              initialisedVideos.add(art.id);
+              vid.load();
+            } else {
+              console.log('[AR] rescan — skipping load() for', art.name);
+            }
+
             console.log('[AR] calling play() on video-' + art.id + ' src=' + vid.src);
             vid.play()
               .then(() => {
@@ -659,6 +674,7 @@
     const scene = arContainer.querySelector('a-scene');
     if (scene && scene.destroy) scene.destroy();
     arContainer.innerHTML = '';
+    initialisedVideos.clear();
     scanOverlay.style.display  = 'none';
     videoScreen.style.display  = 'none';
     videoSpinner.style.display = 'none';
