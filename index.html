@@ -390,12 +390,14 @@
       artworks.forEach(art => {
         const vid = document.createElement('video');
         vid.id = 'video-' + art.id;
+        vid.src = art.video_url;
         vid.loop = true;
         vid.muted = false;
         vid.playsInline = true;
         vid.setAttribute('playsinline', '');
         vid.setAttribute('webkit-playsinline', '');
         vid.preload = 'none';
+        console.log('[AR] created video el for', art.name, '— src:', art.video_url);
         videoScreen.appendChild(vid);
       });
 
@@ -554,7 +556,7 @@
 
       entity.addEventListener('targetFound', () => {
         requestAnimationFrame(() => requestAnimationFrame(() => {
-          console.log('[AR] targetFound idx=' + idx);
+          console.log('[AR] targetFound fired — idx=' + idx);
 
           // Resolve artwork via manifest (uuid-stable) or fall back to positional
           const artId = targetManifest ? targetManifest[String(idx)] : (artworks[idx] && artworks[idx].id);
@@ -564,6 +566,7 @@
             console.warn('[AR] No artwork for targetIndex ' + idx + ' — recompile may be needed');
             return;
           }
+          console.log('[AR] artwork resolved:', art.name, 'video_url:', art.video_url);
 
           // Pause any previously-active video
           document.querySelectorAll('#video-screen video').forEach(v => {
@@ -572,32 +575,44 @@
           });
 
           const vid = document.getElementById('video-' + art.id);
+          console.log('[AR] video element found:', !!vid, vid ? 'src=' + vid.src : 'MISSING');
           if (vid) vid.classList.add('active');
 
-          // Immediately show black screen + spinner for instant feedback
+          // Show video screen immediately — do not wait for any events
           scanOverlay.style.display  = 'none';
           cameraFeedEl.style.display = 'none';
           videoScreen.style.display  = 'block';
           videoSpinner.style.display = 'block';
           isVideoPlaying = true;
+          console.log('[AR] video screen shown, display=' + videoScreen.style.display);
           fireRings();
 
           if (vid) {
             vid.loop = true;
             vid.muted = false;
             vid.currentTime = 0;
+            console.log('[AR] calling play() on video-' + art.id + ' src=' + vid.src);
             vid.play()
-              .then(() => { videoSpinner.style.display = 'none'; })
+              .then(() => {
+                console.log('[AR] play() succeeded for', art.name);
+                videoSpinner.style.display = 'none';
+              })
               .catch(err => {
                 console.warn('[AR] play() rejected, retrying muted:', err);
                 vid.muted = true;
                 vid.play()
-                  .then(() => { vid.muted = false; videoSpinner.style.display = 'none'; })
+                  .then(() => {
+                    vid.muted = false;
+                    console.log('[AR] muted play() succeeded, unmuted for', art.name);
+                    videoSpinner.style.display = 'none';
+                  })
                   .catch(err2 => {
                     console.warn('[AR] muted play() also rejected:', err2);
                     videoSpinner.style.display = 'none';
                   });
               });
+          } else {
+            console.error('[AR] No video element for art.id=' + art.id + ' — check video-screen innerHTML');
           }
         }));
       });
