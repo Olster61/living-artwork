@@ -485,6 +485,14 @@
         const showScan = () => {
           welcome.style.display     = 'none';
           scanOverlay.style.display = 'block';
+          // Pre-initialise every video into a clean ready state,
+          // mirroring the reset the close button applies before a rescan.
+          document.querySelectorAll('#video-screen video').forEach(v => {
+            v.src  = '';
+            v.load();
+            v.muted = false;
+            v.loop  = true;
+          });
         };
         if (cameraFeedEl.readyState >= 3) showScan();
         else cameraFeedEl.addEventListener('canplay', showScan, { once: true });
