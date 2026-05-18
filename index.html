@@ -235,6 +235,18 @@
       -webkit-backdrop-filter: blur(6px);
       pointer-events: all;
     }
+
+  /* ── Loading screen ─────────────────────────────────────── */
+  #loading-screen {
+    position: fixed; inset: 0; background: #000; z-index: 80;
+    display: none; flex-direction: column; align-items: center;
+    justify-content: center; gap: 28px;
+    transition: opacity 0.4s ease;
+  }
+  .loading-title { font-family: 'Nunito', system-ui, sans-serif; font-size: 1.5rem; font-weight: 800; letter-spacing: 0.04em; color: var(--gold-light); text-align: center; }
+  .loading-ring { width: 52px; height: 52px; border: 3px solid rgba(201,168,76,0.18); border-top-color: var(--gold); border-radius: 50%; animation: ldSpin 0.9s linear infinite; }
+  @keyframes ldSpin { to { transform: rotate(360deg); } }
+  #loading-status { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(201,168,76,0.5); }
   </style>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap">
@@ -264,6 +276,12 @@
     ></button>
   </div>
   <div id="error-msg"></div>
+</div>
+
+<div id="loading-screen">
+  <div class="loading-title">Living Artwork</div>
+  <div class="loading-ring"></div>
+  <div id="loading-status">Starting camera…</div>
 </div>
 
 <!-- MindAR A-Frame scene — off-screen, detection only -->
@@ -447,14 +465,26 @@
 
     startBtn.disabled = true;
 
+    // Immediately hide welcome and show loading screen
+    const loadingScreen = document.getElementById('loading-screen');
+    const loadingStatus = document.getElementById('loading-status');
+    welcome.style.display = 'none';
+    loadingScreen.style.opacity = '1';
+    loadingScreen.style.display = 'flex';
+    loadingStatus.textContent = 'Starting camera…';
+    const almostTimer = setTimeout(() => { loadingStatus.textContent = 'Almost ready…'; }, 2000);
+
     try {
       if (!aframeLoaded) {
         await loadScriptWithFallback(AFRAME_URLS, 'A-Frame');
         await loadScriptWithFallback(MINDAR_AFRAME_URLS, 'MindAR A-Frame');
         aframeLoaded = true;
       }
-      launchAR();
+      launchAR(loadingScreen, almostTimer);
     } catch (err) {
+      clearTimeout(almostTimer);
+      loadingScreen.style.display = 'none';
+      welcome.style.display = 'flex';
       startBtn.disabled = false;
       showError('Could not start AR: ' + (err.message || err));
     }
@@ -470,7 +500,7 @@
   }
 
   // ── Launch AR ───────────────────────────────────────────────
-  function launchAR() {
+  function launchAR(loadingScreen, almostTimer) {
     closeBtn.style.display = 'flex';
 
     // Intercept getUserMedia so we can pipe the camera into our own feed element
@@ -483,7 +513,15 @@
         cameraFeedEl.srcObject = stream;
         cameraFeedEl.style.display = 'block';
         const showScan = () => {
-          welcome.style.display     = 'none';
+          clearTimeout(almostTimer);
+          // Fade out loading screen, then show scan overlay
+          if (loadingScreen && loadingScreen.style.display !== 'none') {
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => {
+              loadingScreen.style.display = 'none';
+              loadingScreen.style.opacity = '1';
+            }, 400);
+          }
           scanOverlay.style.display = 'block';
         };
         if (cameraFeedEl.readyState >= 3) showScan();
@@ -546,19 +584,30 @@
 
           if (vid) {
             vid.loop = true;
-            vid.src  = art.video_url;
-            vid.load();
-            vid.addEventListener('loadeddata', function onLoaded() {
-              vid.removeEventListener('loadeddata', onLoaded);
-              console.log('[AR] loadeddata → play() on video-' + art.id);
-              vid.muted = false;
+            vid.muted = false;
+
+            const doPlay = () => {
+              vid.currentTime = 0;
               vid.play()
                 .then(() => { videoSpinner.style.display = 'none'; })
                 .catch(err => {
                   console.warn('[AR] play() rejected:', err);
                   videoSpinner.style.display = 'none';
                 });
-            });
+            };
+
+            if (vid.src === art.video_url && vid.readyState >= 4) {
+              // Already fully buffered from a previous scan — play immediately
+              doPlay();
+            } else {
+              vid.src = art.video_url;
+              vid.load();
+              vid.addEventListener('canplaythrough', function onReady() {
+                vid.removeEventListener('canplaythrough', onReady);
+                console.log('[AR] canplaythrough → play() on video-' + art.id);
+                doPlay();
+              });
+            }
           }
         }));
       });
@@ -610,6 +659,8 @@
     videoSpinner.style.display = 'none';
     ringOverlay.style.display  = 'none';
     closeBtn.style.display     = 'none';
+    const ls = document.getElementById('loading-screen');
+    if (ls) { ls.style.opacity = '1'; ls.style.display = 'none'; }
     document.querySelectorAll('#video-screen video').forEach(v => v.pause());
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       const exit = document.exitFullscreen || document.webkitExitFullscreen;
