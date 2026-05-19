@@ -1468,6 +1468,243 @@
       .ql-snow.ql-toolbar button { min-width: 36px; min-height: 36px; padding: 6px; }
       .ql-toolbar.ql-snow { padding: 8px 6px; }
     }
+
+    /* ── Document inline editor toolbar ─────────────────────── */
+    #inline-editor-toolbar {
+      flex-shrink: 0;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--gold-bd);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      flex-wrap: wrap;
+      z-index: 10;
+    }
+    #inline-editor-toolbar[hidden] { display: none; }
+
+    .tb-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 30px;
+      height: 30px;
+      border: none;
+      background: none;
+      color: var(--text2);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      transition: background 0.12s, color 0.12s;
+      flex-shrink: 0;
+      padding: 0 5px;
+    }
+    .tb-btn:hover { background: var(--gold-bg); color: var(--gold-lt); }
+    .tb-btn.active { background: rgba(201,168,76,0.2); color: var(--gold-lt); }
+
+    .tb-sep {
+      width: 1px;
+      height: 20px;
+      background: var(--gold-bd);
+      margin: 0 4px;
+      flex-shrink: 0;
+    }
+
+    #tb-size-select {
+      height: 30px;
+      padding: 0 22px 0 8px;
+      background: var(--bg3);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 4px;
+      color: var(--text2);
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%238a8070' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 7px center;
+    }
+    #tb-size-select option { background: var(--bg3); }
+
+    .tb-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ── Inline editor main area ─────────────────────────────── */
+    #inline-editor-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px 40px 100px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-height: 0;
+      animation: fadeUp 0.2s ease both;
+    }
+    #inline-editor-panel[hidden] { display: none; }
+
+    .inline-editor-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--gold-bd);
+    }
+
+    #inline-editor-title {
+      flex: 1;
+      min-width: 200px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text);
+      font-family: 'Playfair Display', serif;
+      font-size: 28px;
+      font-weight: 600;
+      padding: 4px 0;
+      outline: none;
+      transition: border-color 0.18s;
+    }
+    #inline-editor-title:focus { border-color: var(--gold); }
+
+    #inline-editor-cat {
+      height: 34px;
+      padding: 0 28px 0 10px;
+      background: var(--bg3);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius-sm);
+      color: var(--text2);
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%238a8070' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      flex-shrink: 0;
+    }
+    #inline-editor-cat option { background: var(--bg3); }
+    #inline-editor-cat:focus { border-color: var(--gold); }
+
+    .inline-editor-quill-wrap .ql-container.ql-snow {
+      border-radius: var(--radius);
+      border: 1px solid var(--gold-bd) !important;
+      min-height: 300px;
+    }
+    .inline-editor-quill-wrap .ql-editor {
+      min-height: 300px;
+      padding: 20px 24px;
+      font-size: 15px;
+      line-height: 1.8;
+    }
+    .inline-editor-quill-wrap .ql-editor img {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius-sm);
+      display: block;
+      margin: 6px 0;
+    }
+    .inline-editor-quill-wrap .ql-editor video {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius-sm);
+      display: block;
+      margin: 8px 0;
+      background: var(--bg3);
+    }
+    .inline-editor-quill-wrap .ql-editor iframe {
+      max-width: 100%;
+      border-radius: var(--radius-sm);
+      margin: 8px 0;
+      display: block;
+      border: none;
+      aspect-ratio: 16/9;
+    }
+    .inline-editor-quill-wrap .ql-editor h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8em;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0.4em 0 0.2em;
+    }
+    .inline-editor-quill-wrap .ql-editor h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4em;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0.3em 0 0.15em;
+    }
+
+    /* ── URL insert popup ────────────────────────────────────── */
+    #inline-url-popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--bg2);
+      border: 1px solid var(--gold-bd);
+      border-radius: var(--radius);
+      padding: 22px;
+      z-index: 700;
+      min-width: 360px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+    }
+    #inline-url-popup[hidden] { display: none; }
+    #inline-url-popup h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 17px;
+      color: var(--gold-lt);
+      margin-bottom: 6px;
+    }
+    #inline-url-popup p {
+      font-size: 12px;
+      color: var(--text3);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    #inline-url-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg3);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      margin-bottom: 12px;
+      transition: border-color 0.18s;
+    }
+    #inline-url-input:focus { border-color: var(--gold-bd); }
+    #inline-url-input::placeholder { color: var(--text3); }
+    .inline-url-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    /* When in inline editing mode */
+    .content-area.editing-mode {
+      overflow-y: hidden;
+    }
+    .content-area.editing-mode #main { display: none; }
+
+    @media (max-width: 768px) {
+      #inline-editor-panel { padding: 16px 14px 80px; }
+      #inline-editor-title { font-size: 22px; }
+      #inline-url-popup { min-width: unset; width: calc(100vw - 32px); }
+      .tb-btn { min-width: 36px; height: 36px; }
+      #inline-editor-toolbar { padding: 6px 10px; gap: 2px; }
+    }
   </style>
 </head>
 <body>
@@ -1554,6 +1791,105 @@
   </nav>
 
   <div class="content-area" id="content-area">
+
+    <!-- ── Inline editor toolbar (hidden until editing) ─────── -->
+    <div id="inline-editor-toolbar" hidden>
+      <button class="tb-btn" id="tb-bold" title="Bold" style="font-style:normal">B</button>
+      <button class="tb-btn" id="tb-italic" title="Italic" style="font-style:italic;font-weight:400">I</button>
+      <button class="tb-btn" id="tb-underline" title="Underline" style="text-decoration:underline">U</button>
+      <button class="tb-btn" id="tb-strike" title="Strikethrough" style="text-decoration:line-through;font-weight:400">S</button>
+
+      <div class="tb-sep"></div>
+
+      <select id="tb-size-select" title="Text size">
+        <option value="small">Small</option>
+        <option value="" selected>Normal</option>
+        <option value="large">Large</option>
+        <option value="h1">Heading 1</option>
+        <option value="h2">Heading 2</option>
+      </select>
+
+      <div class="tb-sep"></div>
+
+      <button class="tb-btn" id="tb-align-left" title="Align Left">
+        <svg width="14" height="11" viewBox="0 0 14 11" fill="currentColor">
+          <rect y="0" width="14" height="2" rx="1"/><rect y="4.5" width="9" height="2" rx="1"/><rect y="9" width="14" height="2" rx="1"/>
+        </svg>
+      </button>
+      <button class="tb-btn" id="tb-align-center" title="Centre">
+        <svg width="14" height="11" viewBox="0 0 14 11" fill="currentColor">
+          <rect y="0" width="14" height="2" rx="1"/><rect x="2.5" y="4.5" width="9" height="2" rx="1"/><rect y="9" width="14" height="2" rx="1"/>
+        </svg>
+      </button>
+      <button class="tb-btn" id="tb-align-right" title="Align Right">
+        <svg width="14" height="11" viewBox="0 0 14 11" fill="currentColor">
+          <rect y="0" width="14" height="2" rx="1"/><rect x="5" y="4.5" width="9" height="2" rx="1"/><rect y="9" width="14" height="2" rx="1"/>
+        </svg>
+      </button>
+
+      <div class="tb-sep"></div>
+
+      <button class="tb-btn" id="tb-bullet" title="Bullet List">
+        <svg width="14" height="11" viewBox="0 0 14 11" fill="currentColor">
+          <circle cx="1.5" cy="1.5" r="1.5"/><rect x="4" y="0.5" width="10" height="2" rx="1"/>
+          <circle cx="1.5" cy="5.5" r="1.5"/><rect x="4" y="4.5" width="10" height="2" rx="1"/>
+          <circle cx="1.5" cy="9.5" r="1.5"/><rect x="4" y="8.5" width="10" height="2" rx="1"/>
+        </svg>
+      </button>
+      <button class="tb-btn" id="tb-ordered" title="Numbered List">
+        <svg width="14" height="11" viewBox="0 0 14 11" fill="currentColor">
+          <rect x="4" y="0.5" width="10" height="2" rx="1"/><rect x="4" y="4.5" width="10" height="2" rx="1"/><rect x="4" y="8.5" width="10" height="2" rx="1"/>
+          <text x="0" y="3.5" font-size="3.5" font-family="monospace" fill="currentColor">1.</text>
+          <text x="0" y="7.8" font-size="3.5" font-family="monospace" fill="currentColor">2.</text>
+        </svg>
+      </button>
+
+      <div class="tb-sep"></div>
+
+      <button class="tb-btn" id="tb-video" title="Insert Video">
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1" y="1" width="10" height="10" rx="2"/>
+          <polyline points="11,3.5 15,1.5 15,10.5 11,8.5"/>
+        </svg>
+      </button>
+      <button class="tb-btn" id="tb-url-insert" title="Insert URL">
+        <svg width="16" height="10" viewBox="0 0 16 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 2H5a3 3 0 0 0 0 6h2"/>
+          <path d="M9 8h2a3 3 0 0 0 0-6H9"/>
+          <line x1="5.5" y1="5" x2="10.5" y2="5"/>
+        </svg>
+      </button>
+      <button class="tb-btn" id="tb-image" title="Insert Image">
+        <svg width="15" height="13" viewBox="0 0 15 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1" y="1" width="13" height="11" rx="2"/>
+          <circle cx="5" cy="4.5" r="1.2" fill="currentColor" stroke="none"/>
+          <polyline points="1,10 4.5,6.5 7.5,9.5 10.5,6.5 14,10"/>
+        </svg>
+      </button>
+
+      <div class="tb-sep"></div>
+
+      <button class="tb-btn" id="tb-clean" title="Clear Formatting" style="font-size:11px;letter-spacing:-0.05em">T<sub style="font-size:8px">x</sub></button>
+
+      <div class="tb-actions">
+        <button class="btn btn-danger" id="tb-cancel" style="padding:6px 14px;font-size:12px">Cancel</button>
+        <button class="btn btn-gold" id="tb-save" style="padding:6px 14px;font-size:12px">Save</button>
+      </div>
+    </div>
+
+    <!-- ── Inline editor panel (hidden until editing) ─────────── -->
+    <div id="inline-editor-panel" hidden>
+      <div class="inline-editor-header">
+        <input type="text" id="inline-editor-title" placeholder="Idea title…" maxlength="200" autocomplete="off">
+        <select id="inline-editor-cat"></select>
+      </div>
+      <div class="inline-editor-quill-wrap">
+        <div id="inline-editor-quill"></div>
+      </div>
+      <input type="file" id="inline-video-file" accept="video/*" style="display:none">
+      <input type="file" id="inline-image-file" accept="image/*" style="display:none">
+    </div>
+
     <div id="main"></div>
   </div>
 
@@ -1662,7 +1998,7 @@
 
 <!-- ── Context menu ──────────────────────────────────────── -->
 <div id="ctx-menu" class="ctx-menu" hidden>
-  <button class="ctx-item" id="ctx-edit">✎ Edit title</button>
+  <button class="ctx-item" id="ctx-edit">✎ Edit</button>
   <div class="ctx-divider"></div>
   <button class="ctx-item danger" id="ctx-delete">🗑 Move to Trash</button>
 </div>
@@ -1796,6 +2132,17 @@
       <button class="btn btn-outline" id="manual-save-cancel">Cancel</button>
       <button class="btn btn-gold" id="manual-save-confirm">Save Idea</button>
     </div>
+  </div>
+</div>
+
+<!-- ── Inline editor URL popup ──────────────────────────── -->
+<div id="inline-url-popup" hidden>
+  <h3>Insert URL</h3>
+  <p>YouTube, Instagram, Vimeo, or any web URL</p>
+  <input type="url" id="inline-url-input" placeholder="https://youtube.com/watch?v=… or any URL">
+  <div class="inline-url-actions">
+    <button class="btn btn-outline" id="inline-url-cancel" style="padding:7px 14px;font-size:12px">Cancel</button>
+    <button class="btn btn-gold" id="inline-url-confirm" style="padding:7px 14px;font-size:12px">Insert</button>
   </div>
 </div>
 
@@ -3199,7 +3546,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     const idea = ideas.find(i => i.id === viewingId);
     if (!idea) return;
     closeView();
-    openForm(idea);
+    openDocumentEditor(idea);
   });
 
   formOverlay.addEventListener('click', e => { if (e.target === formOverlay) closeForm(); });
@@ -3213,6 +3560,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     else if (!newCatOverlay.hidden) closeNewCat();
     else if (!formOverlay.hidden) closeForm();
     else if (!importOverlay.hidden) closeImport();
+    else if (!inlineUrlPopupEl?.hidden) inlineUrlPopupEl.setAttribute('hidden', '');
     else hideFolderDropdown();
   });
 
@@ -3493,10 +3841,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   function startInlineEdit(id) {
-    const titleEl = mainEl.querySelector(`.idea-card[data-id="${id}"] .card-title`) ||
-                    mainEl.querySelector(`.list-row[data-id="${id}"] .list-title`);
-    if (!titleEl) { const idea = ideas.find(i => i.id === id); if (idea) openForm(idea); return; }
-    startInlineEditField(id, titleEl, 'title');
+    const idea = ideas.find(i => i.id === id);
+    if (idea) openDocumentEditor(idea);
   }
 
   // ── Context menu ─────────────────────────────────────────
@@ -3566,7 +3912,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     if (!viewingId) return;
     if (fieldName === 'notes') {
       const idea = ideas.find(i => i.id === viewingId);
-      if (idea) { closeView(); openForm(idea); }
+      if (idea) { closeView(); openDocumentEditor(idea); }
       return;
     }
     const idea = ideas.find(i => i.id === viewingId);
@@ -4301,6 +4647,328 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.getElementById('extract-tab-ai').addEventListener('click', () => setExtractMode('ai'))
   document.getElementById('extract-tab-manual').addEventListener('click', () => setExtractMode('manual'))
   document.getElementById('extract-tab-insights').addEventListener('click', () => setExtractMode('insights'))
+
+  // ── Custom Quill blot for uploaded videos ─────────────────
+  const BlockEmbed = Quill.import('blots/block/embed');
+  class UploadedVideoBlot extends BlockEmbed {
+    static create(url) {
+      const node = super.create();
+      node.setAttribute('src', url);
+      node.setAttribute('controls', '');
+      node.setAttribute('playsinline', '');
+      return node;
+    }
+    static value(node) { return node.getAttribute('src'); }
+  }
+  UploadedVideoBlot.blotName = 'uploaded-video';
+  UploadedVideoBlot.tagName = 'VIDEO';
+  Quill.register(UploadedVideoBlot);
+
+  // ── Inline document editor ────────────────────────────────
+  let inlineEditId   = null;
+  let quillInline    = null;
+  let inlineIsDirty  = false;
+  let inlineStagedVideos = [];  // { file, blobUrl }
+  let inlineCursorRange = null;
+
+  const contentAreaEl       = document.getElementById('content-area');
+  const inlineToolbarEl     = document.getElementById('inline-editor-toolbar');
+  const inlinePanelEl       = document.getElementById('inline-editor-panel');
+  const inlineTitleEl       = document.getElementById('inline-editor-title');
+  const inlineCatEl         = document.getElementById('inline-editor-cat');
+  const inlineVideoFileEl   = document.getElementById('inline-video-file');
+  const inlineImageFileEl   = document.getElementById('inline-image-file');
+  const inlineUrlPopupEl    = document.getElementById('inline-url-popup');
+  const inlineUrlInputEl    = document.getElementById('inline-url-input');
+
+  // Initialize the inline Quill editor (no built-in toolbar)
+  quillInline = new Quill('#inline-editor-quill', {
+    theme: 'snow',
+    modules: { toolbar: false },
+    placeholder: 'Write your thoughts, ideas, links, media…',
+  });
+
+  quillInline.on('text-change', () => { inlineIsDirty = true; updateTbState(); });
+  quillInline.on('selection-change', () => updateTbState());
+
+  function openDocumentEditor(idea) {
+    if (!idea) return;
+    inlineEditId = idea.id;
+    inlineIsDirty = false;
+    inlineStagedVideos = [];
+
+    // Populate title
+    inlineTitleEl.value = idea.title || '';
+
+    // Populate category dropdown
+    inlineCatEl.innerHTML = categories.map(c =>
+      `<option value="${esc(c)}"${c === idea.category ? ' selected' : ''}>${esc(c)}</option>`
+    ).join('');
+
+    // Load notes into Quill
+    loadIntoQuill(quillInline, idea.notes || '');
+
+    // Show toolbar and panel, hide main grid
+    inlineToolbarEl.removeAttribute('hidden');
+    inlinePanelEl.removeAttribute('hidden');
+    contentAreaEl.classList.add('editing-mode');
+
+    // Focus title
+    setTimeout(() => {
+      inlineTitleEl.focus();
+      inlineTitleEl.select();
+    }, 60);
+
+    updateTbState();
+  }
+
+  function closeDocumentEditor() {
+    inlineEditId = null;
+    inlineIsDirty = false;
+    inlineStagedVideos = [];
+    inlineCursorRange = null;
+    inlineToolbarEl.setAttribute('hidden', '');
+    inlinePanelEl.setAttribute('hidden', '');
+    contentAreaEl.classList.remove('editing-mode');
+  }
+
+  async function saveDocumentEditor(auto = false) {
+    if (!inlineEditId) return;
+    const title = inlineTitleEl.value.trim();
+    if (!title) {
+      if (!auto) toast('Please enter a title', true);
+      return;
+    }
+
+    const notesHtml = (quillInline.getText().trim()) ? quillInline.root.innerHTML : '';
+
+    const fd = new FormData();
+    fd.append('title', title);
+    fd.append('category', inlineCatEl.value);
+    if (notesHtml) fd.append('notes', notesHtml);
+    inlineStagedVideos.forEach(v => fd.append('files', v.file));
+
+    try {
+      const result = await apiFetch(`/api/ideas/${inlineEditId}`, { method: 'PUT', body: fd });
+
+      // Replace blob URLs with real URLs if videos were uploaded
+      if (inlineStagedVideos.length && result.files && result.files.length) {
+        let updatedNotes = notesHtml;
+        inlineStagedVideos.forEach((v, i) => {
+          if (result.files[i]) {
+            updatedNotes = updatedNotes.split(v.blobUrl).join(result.files[i].file_url);
+          }
+        });
+        if (updatedNotes !== notesHtml) {
+          const fd2 = new FormData();
+          fd2.append('title', title);
+          fd2.append('category', inlineCatEl.value);
+          fd2.append('notes', updatedNotes);
+          await apiFetch(`/api/ideas/${inlineEditId}`, { method: 'PUT', body: fd2 });
+        }
+      }
+
+      inlineStagedVideos = [];
+      const idea = ideas.find(i => i.id === inlineEditId);
+      if (idea) {
+        idea.title = title;
+        idea.category = inlineCatEl.value;
+        idea.notes = notesHtml;
+      }
+      toast(auto ? 'Saved' : 'Idea saved!');
+      closeDocumentEditor();
+      await loadIdeas();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // ── Toolbar state updater ─────────────────────────────────
+  function updateTbState() {
+    if (!quillInline) return;
+    const sel = quillInline.getSelection();
+    const fmt = sel ? quillInline.getFormat(sel) : {};
+    document.getElementById('tb-bold').classList.toggle('active', !!fmt.bold);
+    document.getElementById('tb-italic').classList.toggle('active', !!fmt.italic);
+    document.getElementById('tb-underline').classList.toggle('active', !!fmt.underline);
+    document.getElementById('tb-strike').classList.toggle('active', !!fmt.strike);
+    document.getElementById('tb-bullet').classList.toggle('active', fmt.list === 'bullet');
+    document.getElementById('tb-ordered').classList.toggle('active', fmt.list === 'ordered');
+    document.getElementById('tb-align-left').classList.toggle('active', !fmt.align || fmt.align === 'left');
+    document.getElementById('tb-align-center').classList.toggle('active', fmt.align === 'center');
+    document.getElementById('tb-align-right').classList.toggle('active', fmt.align === 'right');
+
+    const sizeEl = document.getElementById('tb-size-select');
+    if (fmt.header === 1) sizeEl.value = 'h1';
+    else if (fmt.header === 2) sizeEl.value = 'h2';
+    else if (fmt.size) sizeEl.value = fmt.size;
+    else sizeEl.value = '';
+  }
+
+  // ── Toolbar button handlers ───────────────────────────────
+  function tbToggle(format, value) {
+    const sel = quillInline.getSelection(true);
+    const fmt = quillInline.getFormat(sel);
+    const current = fmt[format];
+    if (format === 'list') {
+      quillInline.format('list', current === value ? false : value, 'user');
+    } else {
+      quillInline.format(format, !current, 'user');
+    }
+    quillInline.focus();
+    updateTbState();
+  }
+
+  document.getElementById('tb-bold').addEventListener('click', () => tbToggle('bold'));
+  document.getElementById('tb-italic').addEventListener('click', () => tbToggle('italic'));
+  document.getElementById('tb-underline').addEventListener('click', () => tbToggle('underline'));
+  document.getElementById('tb-strike').addEventListener('click', () => tbToggle('strike'));
+  document.getElementById('tb-bullet').addEventListener('click', () => tbToggle('list', 'bullet'));
+  document.getElementById('tb-ordered').addEventListener('click', () => tbToggle('list', 'ordered'));
+
+  document.getElementById('tb-align-left').addEventListener('click', () => {
+    quillInline.format('align', false, 'user'); quillInline.focus(); updateTbState();
+  });
+  document.getElementById('tb-align-center').addEventListener('click', () => {
+    quillInline.format('align', 'center', 'user'); quillInline.focus(); updateTbState();
+  });
+  document.getElementById('tb-align-right').addEventListener('click', () => {
+    quillInline.format('align', 'right', 'user'); quillInline.focus(); updateTbState();
+  });
+
+  document.getElementById('tb-size-select').addEventListener('change', function() {
+    const val = this.value;
+    if (val === 'h1') {
+      quillInline.format('header', 1, 'user');
+      quillInline.format('size', false, 'user');
+    } else if (val === 'h2') {
+      quillInline.format('header', 2, 'user');
+      quillInline.format('size', false, 'user');
+    } else {
+      quillInline.format('header', false, 'user');
+      quillInline.format('size', val || false, 'user');
+    }
+    quillInline.focus();
+    updateTbState();
+  });
+
+  document.getElementById('tb-clean').addEventListener('click', () => {
+    const sel = quillInline.getSelection(true);
+    if (sel && sel.length > 0) {
+      quillInline.removeFormat(sel.index, sel.length, 'user');
+    }
+    quillInline.focus();
+    updateTbState();
+  });
+
+  // ── Media: Insert Image ───────────────────────────────────
+  document.getElementById('tb-image').addEventListener('click', () => {
+    inlineCursorRange = quillInline.getSelection();
+    inlineImageFileEl.value = '';
+    inlineImageFileEl.click();
+  });
+
+  inlineImageFileEl.addEventListener('change', () => {
+    const file = inlineImageFileEl.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const range = inlineCursorRange || { index: quillInline.getLength() - 1 };
+      quillInline.insertEmbed(range.index, 'image', e.target.result, 'user');
+      quillInline.setSelection(range.index + 1, 0, 'silent');
+      quillInline.focus();
+      inlineIsDirty = true;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // ── Media: Insert Video ───────────────────────────────────
+  document.getElementById('tb-video').addEventListener('click', () => {
+    inlineCursorRange = quillInline.getSelection();
+    inlineVideoFileEl.value = '';
+    inlineVideoFileEl.click();
+  });
+
+  inlineVideoFileEl.addEventListener('change', () => {
+    const file = inlineVideoFileEl.files[0];
+    if (!file) return;
+    const blobUrl = URL.createObjectURL(file);
+    inlineStagedVideos.push({ file, blobUrl });
+    const range = inlineCursorRange || { index: quillInline.getLength() - 1 };
+    quillInline.insertEmbed(range.index, 'uploaded-video', blobUrl, 'user');
+    quillInline.setSelection(range.index + 1, 0, 'silent');
+    quillInline.focus();
+    inlineIsDirty = true;
+  });
+
+  // ── Media: Insert URL ─────────────────────────────────────
+  document.getElementById('tb-url-insert').addEventListener('click', () => {
+    inlineCursorRange = quillInline.getSelection();
+    inlineUrlInputEl.value = '';
+    inlineUrlPopupEl.removeAttribute('hidden');
+    setTimeout(() => inlineUrlInputEl.focus(), 60);
+  });
+
+  document.getElementById('inline-url-cancel').addEventListener('click', () => {
+    inlineUrlPopupEl.setAttribute('hidden', '');
+    quillInline.focus();
+  });
+
+  document.getElementById('inline-url-confirm').addEventListener('click', insertUrlEmbed);
+  inlineUrlInputEl.addEventListener('keydown', e => { if (e.key === 'Enter') insertUrlEmbed(); });
+
+  function insertUrlEmbed() {
+    const url = inlineUrlInputEl.value.trim();
+    if (!url) return;
+    inlineUrlPopupEl.setAttribute('hidden', '');
+
+    const ytId = extractYouTubeId(url);
+    const pos = inlineCursorRange ? inlineCursorRange.index : (quillInline.getLength() - 1);
+
+    if (ytId) {
+      const embedUrl = `https://www.youtube.com/embed/${ytId}`;
+      quillInline.clipboard.dangerouslyPasteHTML(pos,
+        `<iframe src="${esc(embedUrl)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`, 'user');
+    } else if (isInstagramUrl(url)) {
+      const normUrl = normaliseInstagramUrl(url);
+      quillInline.clipboard.dangerouslyPasteHTML(pos,
+        `<a href="${esc(normUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(135deg,#f09433,#dc2743,#bc1888);border-radius:8px;color:#fff;text-decoration:none;font-size:13px;font-weight:600;margin:4px 0">${IG_SVG} Instagram: ${esc(igShortLabel(normUrl))}</a>`, 'user');
+    } else {
+      quillInline.clipboard.dangerouslyPasteHTML(pos,
+        `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>`, 'user');
+    }
+    quillInline.setSelection(pos + 1, 0, 'silent');
+    quillInline.focus();
+    inlineIsDirty = true;
+  }
+
+  // ── Save / Cancel buttons ─────────────────────────────────
+  document.getElementById('tb-save').addEventListener('click', () => saveDocumentEditor(false));
+  document.getElementById('tb-cancel').addEventListener('click', () => {
+    closeDocumentEditor();
+    loadIdeas();
+  });
+
+  // ── Click-away auto-save ──────────────────────────────────
+  document.addEventListener('mousedown', e => {
+    if (!inlineEditId) return;
+    const inside = e.target.closest(
+      '#inline-editor-toolbar, #inline-editor-panel, #inline-url-popup'
+    );
+    if (!inside) {
+      e.preventDefault();
+      if (inlineIsDirty) saveDocumentEditor(true);
+      else closeDocumentEditor();
+    }
+  }, true);
+
+  // Escape key closes inline editor
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && inlineEditId && inlineUrlPopupEl.hidden) {
+      if (inlineIsDirty) saveDocumentEditor(true);
+      else closeDocumentEditor();
+    }
+  });
 
   // ── Quill editors ────────────────────────────────────────
   const NOTES_TOOLBAR = [
