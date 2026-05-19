@@ -1726,6 +1726,25 @@
       #inline-editor-toolbar { padding: 6px 10px; gap: 2px; }
     }
 
+    /* ── New subfolder button ───────────────────────────────── */
+    #new-subfolder-btn.drag-target-active { border-color: var(--gold-bdh); color: var(--gold); }
+    #new-subfolder-btn.drag-over {
+      background: var(--gold-bg); border-color: var(--gold); color: var(--gold-lt);
+      box-shadow: 0 0 14px rgba(201,168,76,0.4);
+    }
+
+    /* ── Breadcrumb drag states ─────────────────────────────── */
+    #breadcrumb [data-bc-drop] {
+      border-radius: 4px; padding: 2px 5px; margin: -2px -5px;
+      transition: background 0.12s, box-shadow 0.12s, color 0.12s;
+    }
+    #breadcrumb .bc-drag-target { box-shadow: 0 0 0 1px var(--gold-bdh); cursor: copy; }
+    #breadcrumb .bc-drag-hover {
+      background: rgba(201,168,76,0.18);
+      box-shadow: 0 0 0 2px var(--gold), 0 0 10px rgba(201,168,76,0.35);
+      color: var(--gold-lt) !important;
+    }
+
     /* ── Category tree (sidebar) ────────────────────────────── */
     .cat-node { position: relative; }
     .cat-node.collapsed .cat-children { display: none; }
@@ -1813,6 +1832,13 @@
     <button class="btn btn-outline" id="import-btn">↑ Import</button>
     <input type="file" id="import-file" accept=".md,text/markdown,text/plain" style="display:none">
     <button class="btn btn-outline" id="extract-open-btn">⚡ Extract</button>
+    <button class="btn btn-outline" id="new-subfolder-btn" style="padding:7px 10px" title="New subfolder">
+      <svg width="16" height="13" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 3A1.5 1.5 0 0 1 2.5 1.5h3.3a1.5 1.5 0 0 1 1.06.44l.94.94A1.5 1.5 0 0 0 8.86 3.5H16A1.5 1.5 0 0 1 17.5 5v6.5A1.5 1.5 0 0 1 16 13H2A1.5 1.5 0 0 1 .5 11.5V3z"/>
+        <line x1="9" y1="6.5" x2="9" y2="11"/>
+        <line x1="6.5" y1="8.75" x2="11.5" y2="8.75"/>
+      </svg>
+    </button>
     <button class="btn btn-gold" id="add-btn">+ New Idea</button>
   </div>
 </header>
@@ -2061,6 +2087,8 @@
 <div id="ctx-menu" class="ctx-menu" hidden>
   <button class="ctx-item" id="ctx-edit">✎ Edit</button>
   <div class="ctx-divider"></div>
+  <button class="ctx-item" id="ctx-create-folder">📁 Create folder here</button>
+  <div class="ctx-divider"></div>
   <button class="ctx-item danger" id="ctx-delete">🗑 Move to Trash</button>
 </div>
 
@@ -2256,6 +2284,7 @@
   let collapsedCats = new Set(JSON.parse(localStorage.getItem('ideas-collapsed-cats') || '[]'));
   let ctxCatId = null;
   let newCatParentId = null;
+  let newCatIdeaToMove = null;
   let draggingCatId = null;
   const DEFAULT_COLORS = {
     Marketing:  '#4a90d9',
@@ -2605,15 +2634,16 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     const bc = document.getElementById('breadcrumb');
     if (!bc) return;
     const showBc = !activeFolderId && !activeTrash && activeFilter !== 'All' && activeFilter !== 'Favourites';
-    if (!showBc) { bc.hidden = true; return; }
+    if (!showBc) { bc.hidden = true; updateNewSubfolderBtn(); return; }
     const path = catAncestors(activeFilter);
     bc.hidden = false;
     bc.innerHTML = `<span class="bc-home" data-bc-all>All</span><span class="bc-sep">›</span>` +
       path.map((n, i) =>
         i < path.length - 1
-          ? `<span class="bc-link" data-bc-filter="${esc(n)}">${esc(n)}</span><span class="bc-sep">›</span>`
-          : `<span class="bc-current">${esc(n)}</span>`
+          ? `<span class="bc-link" data-bc-filter="${esc(n)}" data-bc-drop="${esc(n)}" title="Move here: ${esc(n)}">${esc(n)}</span><span class="bc-sep">›</span>`
+          : `<span class="bc-current" data-bc-drop="${esc(n)}" title="Move here: ${esc(n)}">${esc(n)}</span>`
       ).join('');
+    updateNewSubfolderBtn();
   }
 
   document.getElementById('breadcrumb').addEventListener('click', e => {
@@ -3122,6 +3152,14 @@ CREATE POLICY "allow all" ON ideas FOR ALL
         btn.classList.add('cat-drag-target');
       }
     });
+    // Highlight breadcrumb as drop targets
+    const bcEl = document.getElementById('breadcrumb');
+    if (bcEl && !bcEl.hidden) {
+      bcEl.querySelectorAll('[data-bc-drop]').forEach(el => el.classList.add('bc-drag-target'));
+    }
+    // Highlight new-subfolder button
+    const sfBtn = document.getElementById('new-subfolder-btn');
+    if (sfBtn && !sfBtn.disabled) sfBtn.classList.add('drag-target-active');
   }
 
   function endCardDrag() {
@@ -3133,6 +3171,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     document.querySelectorAll('.sidebar-item.cat-drag-target, .sidebar-item.cat-drag-hover').forEach(btn => {
       btn.classList.remove('cat-drag-target', 'cat-drag-hover');
     });
+    document.querySelectorAll('#breadcrumb .bc-drag-target, #breadcrumb .bc-drag-hover').forEach(el => {
+      el.classList.remove('bc-drag-target', 'bc-drag-hover');
+    });
+    const sfBtn = document.getElementById('new-subfolder-btn');
+    if (sfBtn) sfBtn.classList.remove('drag-target-active', 'drag-over');
   }
 
   function initFolderDropTargets() {
@@ -3793,6 +3836,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   function closeNewCat() {
+    newCatParentId = null;
+    newCatIdeaToMove = null;
     newCatOverlay.setAttribute('hidden', '');
     document.body.style.overflow = '';
   }
@@ -3816,8 +3861,10 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       categories.push(result.category);
       buildSidebar();
       buildFormSelect();
+      const ideaId = newCatIdeaToMove;
       closeNewCat();
       toast(`Category "${name}" added`);
+      if (ideaId) await moveIdeaToCategory(ideaId, name);
     } catch (err) {
       console.error('[NewCat] API error:', err.message);
       newCatError.textContent = err.message;
@@ -4186,6 +4233,18 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   function showCtxMenu(e, id) {
     e.preventDefault();
     ctxTargetId = id;
+    const cfBtn = document.getElementById('ctx-create-folder');
+    if (cfBtn) {
+      const isCatView = !activeFolderId && !activeTrash && activeFilter !== 'All' && activeFilter !== 'Favourites';
+      let canCreate = isCatView, tip = '';
+      if (isCatView) {
+        const activeCat = categories.find(c => c.name === activeFilter);
+        if (activeCat && catDepth(activeCat.id) >= MAX_DEPTH) { canCreate = false; tip = `Max depth (${MAX_DEPTH}) reached`; }
+      } else { tip = 'Select a category first'; }
+      cfBtn.style.opacity = canCreate ? '' : '0.4';
+      cfBtn.style.pointerEvents = canCreate ? '' : 'none';
+      cfBtn.title = tip;
+    }
     const menu = document.getElementById('ctx-menu');
     menu.style.visibility = 'hidden';
     menu.removeAttribute('hidden');
@@ -4220,6 +4279,101 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') hideCtxMenu();
   }, true);
+
+  // ── Create folder from context menu ──────────────────────
+  document.getElementById('ctx-create-folder').addEventListener('click', () => {
+    const id = ctxTargetId;
+    hideCtxMenu();
+    openNewCatForIdea(id);
+  });
+
+  function openNewCatForIdea(ideaId) {
+    const isCatView = !activeFolderId && !activeTrash && activeFilter !== 'All' && activeFilter !== 'Favourites';
+    const activeCat = isCatView ? categories.find(c => c.name === activeFilter) : null;
+    newCatIdeaToMove = ideaId;
+    openNewCat(activeCat?.id || null);
+  }
+
+  function updateNewSubfolderBtn() {
+    const btn = document.getElementById('new-subfolder-btn');
+    if (!btn) return;
+    const isCatView = !activeFolderId && !activeTrash && activeFilter !== 'All' && activeFilter !== 'Favourites';
+    let atMax = false, tip;
+    if (isCatView) {
+      const activeCat = categories.find(c => c.name === activeFilter);
+      atMax = activeCat ? catDepth(activeCat.id) >= MAX_DEPTH : false;
+      tip = atMax ? `Max depth (${MAX_DEPTH}) reached` : `New subfolder under "${activeFilter}"`;
+    } else {
+      tip = activeFilter === 'All' ? 'New top-level category' : 'New subfolder';
+    }
+    btn.disabled = atMax;
+    btn.title = tip;
+    btn.style.opacity = atMax ? '0.45' : '';
+  }
+
+  // ── New-subfolder button ──────────────────────────────────
+  const newSubfolderBtn = document.getElementById('new-subfolder-btn');
+  newSubfolderBtn.addEventListener('click', () => openNewCatForIdea(null));
+  newSubfolderBtn.addEventListener('dragover', e => {
+    if (!document.body.classList.contains('dragging-cards') || newSubfolderBtn.disabled) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    newSubfolderBtn.classList.add('drag-over');
+  });
+  newSubfolderBtn.addEventListener('dragleave', () => newSubfolderBtn.classList.remove('drag-over'));
+  newSubfolderBtn.addEventListener('drop', e => {
+    if (!document.body.classList.contains('dragging-cards') || newSubfolderBtn.disabled) return;
+    e.preventDefault();
+    const id = dragIdeaId;
+    newSubfolderBtn.classList.remove('drag-over');
+    endCardDrag();
+    if (!id) return;
+    openNewCatForIdea(id);
+  });
+
+  // ── Breadcrumb drag-drop ──────────────────────────────────
+  const bcEl = document.getElementById('breadcrumb');
+  bcEl.addEventListener('dragover', e => {
+    if (!document.body.classList.contains('dragging-cards')) return;
+    const tgt = e.target.closest('[data-bc-drop]');
+    if (!tgt) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    bcEl.querySelectorAll('.bc-drag-hover').forEach(el => el.classList.remove('bc-drag-hover'));
+    tgt.classList.add('bc-drag-hover');
+  });
+  bcEl.addEventListener('dragleave', e => {
+    if (!bcEl.contains(e.relatedTarget)) {
+      bcEl.querySelectorAll('.bc-drag-hover').forEach(el => el.classList.remove('bc-drag-hover'));
+    }
+  });
+  bcEl.addEventListener('drop', async e => {
+    const tgt = e.target.closest('[data-bc-drop]');
+    if (!tgt || !dragIdeaId) return;
+    e.preventDefault();
+    const catName = tgt.dataset.bcDrop;
+    const id = dragIdeaId;
+    endCardDrag();
+    if (catName) await moveIdeaToCategory(id, catName);
+  });
+
+  // ── Double-tap on mobile shows context menu ───────────────
+  let _dtEl = null, _dtTimer = null;
+  document.addEventListener('touchend', e => {
+    if (e.target.closest('.star-btn,.card-del,.yt-thumb,.ig-card')) return;
+    const card = e.target.closest('.idea-card, .list-row');
+    if (!card) { _dtEl = null; clearTimeout(_dtTimer); return; }
+    if (_dtEl === card) {
+      clearTimeout(_dtTimer); _dtEl = null;
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      showCtxMenu({ clientX: t.clientX, clientY: t.clientY, preventDefault() {} }, card.dataset.id);
+    } else {
+      _dtEl = card;
+      clearTimeout(_dtTimer);
+      _dtTimer = setTimeout(() => { _dtEl = null; }, 400);
+    }
+  }, { passive: false });
 
   document.getElementById('sidebar-cats').addEventListener('contextmenu', e => {
     const row = e.target.closest('.cat-row');
