@@ -4681,39 +4681,39 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   const inlineUrlPopupEl    = document.getElementById('inline-url-popup');
   const inlineUrlInputEl    = document.getElementById('inline-url-input');
 
-  // Initialize the inline Quill editor (no built-in toolbar)
-  quillInline = new Quill('#inline-editor-quill', {
-    theme: 'snow',
-    modules: { toolbar: false },
-    placeholder: 'Write your thoughts, ideas, links, media…',
-  });
-
-  quillInline.on('text-change', () => { inlineIsDirty = true; updateTbState(); });
-  quillInline.on('selection-change', () => updateTbState());
-
   function openDocumentEditor(idea) {
     if (!idea) return;
     inlineEditId = idea.id;
     inlineIsDirty = false;
     inlineStagedVideos = [];
 
-    // Populate title
+    // Populate title and category BEFORE showing panel
     inlineTitleEl.value = idea.title || '';
-
-    // Populate category dropdown
     inlineCatEl.innerHTML = categories.map(c =>
       `<option value="${esc(c)}"${c === idea.category ? ' selected' : ''}>${esc(c)}</option>`
     ).join('');
 
-    // Load notes into Quill
-    loadIntoQuill(quillInline, idea.notes || '');
-
-    // Show toolbar and panel, hide main grid
+    // Show toolbar and panel first — Quill MUST init on a visible element
     inlineToolbarEl.removeAttribute('hidden');
     inlinePanelEl.removeAttribute('hidden');
     contentAreaEl.classList.add('editing-mode');
 
-    // Focus title
+    // Init Quill lazily on first open (panel is now visible)
+    if (!quillInline) {
+      quillInline = new Quill('#inline-editor-quill', {
+        theme: 'snow',
+        modules: { toolbar: false },
+        placeholder: 'Write your thoughts, ideas, links, media…',
+      });
+      quillInline.on('text-change', () => { inlineIsDirty = true; updateTbState(); });
+      quillInline.on('selection-change', () => updateTbState());
+    }
+
+    // Load content into the now-live editor
+    loadIntoQuill(quillInline, idea.notes || '');
+    inlineIsDirty = false; // reset: loadIntoQuill fires text-change
+
+    // Focus title; user can tab to editor
     setTimeout(() => {
       inlineTitleEl.focus();
       inlineTitleEl.select();
