@@ -3118,6 +3118,36 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     await softDeleteIdea(id);
   }
 
+  // ── Multi-drag helpers ────────────────────────────────────
+  function getDragIds() {
+    if (dragIdeaId && selectedIds.has(dragIdeaId) && selectedIds.size > 1) return [...selectedIds];
+    return dragIdeaId ? [dragIdeaId] : [];
+  }
+
+  async function moveIdeasToCategory(ids, newCat) {
+    if (!ids || !ids.length) return;
+    if (ids.length === 1) { await moveIdeaToCategory(ids[0], newCat); return; }
+    const toMove = ids.filter(id => {
+      const idea = ideas.find(i => i.id === id);
+      return idea && idea.category !== newCat;
+    });
+    if (!toMove.length) return;
+    toMove.forEach(id => { const idea = ideas.find(i => i.id === id); if (idea) idea.category = newCat; });
+    render();
+    buildSidebarCategories();
+    try {
+      await Promise.all(toMove.map(id => {
+        const idea = ideas.find(i => i.id === id);
+        const fd = new FormData();
+        fd.append('title', idea.title);
+        fd.append('category', newCat);
+        if (idea.notes) fd.append('notes', idea.notes);
+        return apiFetch(`/api/ideas/${id}`, { method: 'PUT', body: fd });
+      }));
+      toast(`Moved ${toMove.length} ideas to ${newCat}`);
+    } catch (err) { toast(err.message, true); await loadIdeas(); }
+  }
+
   // ── Card → Folder drag-and-drop ──────────────────────────
   function startCardDrag(e, cardEl) {
     const id = cardEl.dataset.id;
@@ -3125,18 +3155,34 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', id);
 
-    // Custom ghost: clone element, size for card vs list row
+    // Custom ghost
+    const isMulti = selectedIds.has(id) && selectedIds.size > 1;
     const isRow = cardEl.classList.contains('list-row');
-    const ghost = cardEl.cloneNode(true);
-    Object.assign(ghost.style, {
-      position: 'fixed', top: '-1000px', left: '-1000px',
-      width: isRow ? '420px' : '200px',
-      opacity: '0.88', pointerEvents: 'none',
-      borderRadius: isRow ? '8px' : '12px',
-      overflow: 'hidden', zIndex: '9999',
-    });
+    let ghost;
+    if (isMulti) {
+      ghost = document.createElement('div');
+      ghost.textContent = `Moving ${selectedIds.size} ideas`;
+      Object.assign(ghost.style, {
+        position: 'fixed', top: '-1000px', left: '-1000px',
+        background: 'var(--bg2)', border: '1px solid var(--gold)',
+        color: 'var(--gold-lt)', padding: '10px 18px',
+        borderRadius: '8px', fontSize: '13px', fontWeight: '600',
+        fontFamily: 'Inter, sans-serif', zIndex: '9999',
+        pointerEvents: 'none', whiteSpace: 'nowrap',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+      });
+    } else {
+      ghost = cardEl.cloneNode(true);
+      Object.assign(ghost.style, {
+        position: 'fixed', top: '-1000px', left: '-1000px',
+        width: isRow ? '420px' : '200px',
+        opacity: '0.88', pointerEvents: 'none',
+        borderRadius: isRow ? '8px' : '12px',
+        overflow: 'hidden', zIndex: '9999',
+      });
+    }
     document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, isRow ? 40 : 20, isRow ? 18 : 20);
+    e.dataTransfer.setDragImage(ghost, isMulti ? 80 : (isRow ? 40 : 20), isMulti ? 22 : (isRow ? 18 : 20));
     setTimeout(() => ghost.remove(), 0);
 
     document.body.classList.add('dragging-cards');
@@ -3209,21 +3255,28 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     document.querySelectorAll('.sidebar-item[data-cat]').forEach(btn => {
       btn.addEventListener('dragover', e => {
         if (!document.body.classList.contains('dragging-cards')) return;
-        const idea = ideas.find(i => i.id === dragIdeaId);
-        if (!idea || btn.dataset.filter === idea.category) return;
+        const ids = getDragIds();
+        if (!ids.length) return;
+        if (ids.length === 1) {
+          const idea = ideas.find(i => i.id === ids[0]);
+          if (!idea || btn.dataset.filter === idea.category) return;
+        } else {
+          const allSame = ids.every(id => { const idea = ideas.find(i => i.id === id); return !idea || idea.category === btn.dataset.filter; });
+          if (allSame) return;
+        }
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         document.querySelectorAll('.sidebar-item.cat-drag-hover').forEach(b => b.classList.remove('cat-drag-hover'));
         btn.classList.add('cat-drag-hover');
       });
       btn.addEventListener('dragleave', () => btn.classList.remove('cat-drag-hover'));
-      btn.addEventListener('drop', e => {
+      btn.addEventListener('drop', async e => {
         e.preventDefault();
         e.stopPropagation();
         const newCat = btn.dataset.filter;
-        const id = dragIdeaId;
+        const ids = getDragIds();
         endCardDrag();
-        if (id) moveIdeaToCategory(id, newCat);
+        if (ids.length) await moveIdeasToCategory(ids, newCat);
       });
     });
   }
@@ -3861,10 +3914,10 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       categories.push(result.category);
       buildSidebar();
       buildFormSelect();
-      const ideaId = newCatIdeaToMove;
+      const ideaIds = newCatIdeaToMove;
       closeNewCat();
       toast(`Category "${name}" added`);
-      if (ideaId) await moveIdeaToCategory(ideaId, name);
+      if (ideaIds && ideaIds.length) await moveIdeasToCategory(ideaIds, name);
     } catch (err) {
       console.error('[NewCat] API error:', err.message);
       newCatError.textContent = err.message;
@@ -4290,7 +4343,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   function openNewCatForIdea(ideaId) {
     const isCatView = !activeFolderId && !activeTrash && activeFilter !== 'All' && activeFilter !== 'Favourites';
     const activeCat = isCatView ? categories.find(c => c.name === activeFilter) : null;
-    newCatIdeaToMove = ideaId;
+    if (ideaId && selectedIds.has(ideaId) && selectedIds.size > 1) {
+      newCatIdeaToMove = [...selectedIds];
+    } else {
+      newCatIdeaToMove = ideaId ? [ideaId] : null;
+    }
     openNewCat(activeCat?.id || null);
   }
 
@@ -4328,7 +4385,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     newSubfolderBtn.classList.remove('drag-over');
     endCardDrag();
     if (!id) return;
-    openNewCatForIdea(id);
+    openNewCatForIdea(id); // openNewCatForIdea checks selectedIds internally
   });
 
   // ── Breadcrumb drag-drop ──────────────────────────────────
@@ -4349,12 +4406,13 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   });
   bcEl.addEventListener('drop', async e => {
     const tgt = e.target.closest('[data-bc-drop]');
-    if (!tgt || !dragIdeaId) return;
+    if (!tgt) return;
+    const ids = getDragIds();
+    if (!ids.length) return;
     e.preventDefault();
     const catName = tgt.dataset.bcDrop;
-    const id = dragIdeaId;
     endCardDrag();
-    if (catName) await moveIdeaToCategory(id, catName);
+    if (catName) await moveIdeasToCategory(ids, catName);
   });
 
   // ── Double-tap on mobile shows context menu ───────────────
