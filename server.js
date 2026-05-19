@@ -621,7 +621,7 @@ function tokenSimilarity (a, b) {
 app.get('/api/ideas/categories', async (req, res) => {
   const { data, error } = await supabase
     .from('idea_categories')
-    .select('id, name, parent_id')
+    .select('id, name, parent_id, colour')
     .order('created_at', { ascending: true })
   if (error) {
     console.error('[Categories] GET error:', error.code, error.message)
@@ -635,11 +635,12 @@ app.post('/api/ideas/categories', async (req, res) => {
   console.log('[Categories] POST body:', req.body)
   const name = (req.body?.name || '').trim()
   const parent_id = req.body?.parent_id || null
+  const colour = req.body?.colour || null
   if (!name) return res.status(400).json({ error: 'Name required' })
   const { data, error } = await supabase
     .from('idea_categories')
-    .insert({ name, parent_id })
-    .select('id, name, parent_id')
+    .insert({ name, parent_id, colour })
+    .select('id, name, parent_id, colour')
     .single()
   if (error) {
     console.error('[Categories] insert error:', error.code, error.message)
@@ -652,10 +653,11 @@ app.post('/api/ideas/categories', async (req, res) => {
 
 app.patch('/api/ideas/categories/:id', express.json(), async (req, res) => {
   const { id } = req.params
-  const { name, parent_id } = req.body || {}
+  const { name, parent_id, colour } = req.body || {}
   const updates = {}
   if (name !== undefined) updates.name = name.trim()
   if ('parent_id' in (req.body || {})) updates.parent_id = parent_id
+  if ('colour' in (req.body || {})) updates.colour = colour
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'Nothing to update' })
   if (updates.name) {
     const { data: cat } = await supabase.from('idea_categories').select('name').eq('id', id).single()
@@ -664,7 +666,7 @@ app.patch('/api/ideas/categories/:id', express.json(), async (req, res) => {
     }
   }
   const { data, error } = await supabase
-    .from('idea_categories').update(updates).eq('id', id).select('id, name, parent_id').single()
+    .from('idea_categories').update(updates).eq('id', id).select('id, name, parent_id, colour').single()
   if (error) return res.status(500).json({ error: error.message })
   res.json({ category: data })
 })

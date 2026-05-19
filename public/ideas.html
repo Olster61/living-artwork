@@ -2307,12 +2307,26 @@
     Research:   '#00cec9',
     Other:      '#9b9baa',
   };
-  const COLOR_PALETTE = ['#e74c3c','#e67e22','#27ae60','#8e44ad','#16a085','#2980b9','#d35400','#1abc9c','#f39c12','#fd79a8'];
-  const colorAssignments = {};
+  const CAT_PALETTE = ['#c9a84c','#16a085','#e17055','#8e44ad','#27ae60','#e67e22','#fd79a8'];
+  const colorAssignments = {}; // fallback for names not in categories[]
   function catColor(name) {
+    const cat = categories.find(c => c.name === name);
+    if (cat) {
+      // Walk up to root top-level category
+      let root = cat;
+      while (root.parent_id) {
+        const p = categories.find(c => c.id === root.parent_id);
+        if (!p) break;
+        root = p;
+      }
+      if (root.colour) return root.colour;
+      // Fallback: stable palette position by index in top-level list
+      const idx = categories.filter(c => !c.parent_id).findIndex(c => c.id === root.id);
+      return CAT_PALETTE[Math.max(0, idx) % CAT_PALETTE.length];
+    }
     if (DEFAULT_COLORS[name]) return DEFAULT_COLORS[name];
     if (!colorAssignments[name]) {
-      colorAssignments[name] = COLOR_PALETTE[Object.keys(colorAssignments).length % COLOR_PALETTE.length];
+      colorAssignments[name] = CAT_PALETTE[Object.keys(colorAssignments).length % CAT_PALETTE.length];
     }
     return colorAssignments[name];
   }
@@ -2501,17 +2515,32 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       categories = data.categories || [];
     } catch {
       categories = [
-        {id:'fb-1',name:'Marketing',parent_id:null},
-        {id:'fb-2',name:'Technology',parent_id:null},
-        {id:'fb-3',name:'Animation',parent_id:null},
-        {id:'fb-4',name:'Business',parent_id:null},
-        {id:'fb-5',name:'Artwork',parent_id:null},
-        {id:'fb-6',name:'Research',parent_id:null},
-        {id:'fb-7',name:'Other',parent_id:null},
+        {id:'fb-1',name:'Marketing',parent_id:null,colour:null},
+        {id:'fb-2',name:'Technology',parent_id:null,colour:null},
+        {id:'fb-3',name:'Animation',parent_id:null,colour:null},
+        {id:'fb-4',name:'Business',parent_id:null,colour:null},
+        {id:'fb-5',name:'Artwork',parent_id:null,colour:null},
+        {id:'fb-6',name:'Research',parent_id:null,colour:null},
+        {id:'fb-7',name:'Other',parent_id:null,colour:null},
       ];
     }
+    ensureCatColours();
     buildSidebar();
     buildFormSelect();
+  }
+
+  function ensureCatColours() {
+    const topLevel = categories.filter(c => !c.parent_id);
+    topLevel.forEach((cat, idx) => {
+      if (!cat.colour) {
+        cat.colour = CAT_PALETTE[idx % CAT_PALETTE.length];
+        apiFetch(`/api/ideas/categories/${cat.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ colour: cat.colour }),
+        }).catch(() => {});
+      }
+    });
   }
 
   function catDescendantNames(name) {
@@ -2588,6 +2617,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
         const active = !activeFolderId && !activeTrash && activeFilter === cat.name;
         const d = Math.min(depth, MAX_DEPTH);
         const indent = (depth - 1) * 14;
+        const dotSize = [12, 9, 7][d - 1] || 7;
         return `<div class="cat-node${isCollapsed ? ' collapsed' : ''}" data-cat-id="${esc(cat.id)}">
           <div class="sidebar-item cat-row cat-l${d}${active ? ' active' : ''}"
                data-filter="${esc(cat.name)}" data-cat="true" draggable="true"
@@ -2595,7 +2625,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
             ${hasChildren
               ? `<span class="cat-toggle" title="${isCollapsed ? 'Expand' : 'Collapse'}">${isCollapsed ? '▶' : '▼'}</span>`
               : `<span class="cat-toggle-ph"></span>`}
-            <span class="si-icon" style="color:${color}">●</span>
+            <span class="si-icon" style="color:${color};font-size:${dotSize}px;line-height:1">●</span>
             <span class="si-label">${esc(cat.name)}</span>
             ${count ? `<span class="si-count">${count}</span>` : ''}
           </div>
@@ -3917,10 +3947,13 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     newCatError.textContent = '';
     try {
       console.log('[NewCat] posting to /api/ideas/categories...');
+      const colour = newCatParentId
+        ? null
+        : CAT_PALETTE[categories.filter(c => !c.parent_id).length % CAT_PALETTE.length];
       const result = await apiFetch('/api/ideas/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, parent_id: newCatParentId }),
+        body: JSON.stringify({ name, parent_id: newCatParentId, colour }),
       });
       console.log('[NewCat] API response:', result);
       categories.push(result.category);
