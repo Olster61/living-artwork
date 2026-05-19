@@ -3042,6 +3042,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
   document.getElementById('content-area').addEventListener('mousedown', e => {
     if (e.button !== 0) return;
+    if (inlineEditId) return;  // editor active — don't steal focus or start marquee
     if (e.target.closest('.idea-card,.list-row,.star-btn,.card-sel,.row-sel,.card-footer,.sel-toolbar,button,a')) return;
     mqStart = { x: e.clientX, y: e.clientY };
     mqEl = document.createElement('div');
