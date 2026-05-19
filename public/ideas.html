@@ -1725,6 +1725,47 @@
       .tb-btn { min-width: 36px; height: 36px; }
       #inline-editor-toolbar { padding: 6px 10px; gap: 2px; }
     }
+
+    /* ── Category tree (sidebar) ────────────────────────────── */
+    .cat-node { position: relative; }
+    .cat-node.collapsed .cat-children { display: none; }
+    .cat-children { /* visible by default */ }
+    .cat-toggle {
+      width: 14px; height: 14px; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 8px; color: var(--text3);
+      cursor: pointer; border-radius: 3px;
+      transition: color 0.15s, background 0.12s;
+    }
+    .cat-toggle:hover { color: var(--gold-lt); background: var(--gold-bg); }
+    .cat-toggle-ph { width: 14px; flex-shrink: 0; display: inline-block; }
+    .cat-row.cat-l1 { font-weight: 600; font-size: 13px; }
+    .cat-row.cat-l2 { font-size: 12.5px; }
+    .cat-row.cat-l3 { font-size: 12px; }
+    .cat-row.cat-l3.active { color: var(--gold-lt); }
+    .cat-drop-hover { background: rgba(201,168,76,0.16) !important; outline: 1px solid var(--gold-bdh); }
+
+    /* ── Breadcrumb ─────────────────────────────────────────── */
+    #breadcrumb {
+      padding: 7px 32px;
+      border-bottom: 1px solid var(--gold-bd);
+      background: var(--bg2);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--text3);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    #breadcrumb[hidden] { display: none; }
+    .bc-link { color: var(--text2); cursor: pointer; transition: color 0.15s; }
+    .bc-link:hover { color: var(--gold-lt); }
+    .bc-current { color: var(--text); font-weight: 500; }
+    .bc-sep { color: var(--text3); padding: 0 1px; }
+    .bc-home { color: var(--text3); cursor: pointer; }
+    .bc-home:hover { color: var(--gold-lt); }
+    @media (max-width: 768px) { #breadcrumb { padding: 6px 14px; } }
   </style>
 </head>
 <body>
@@ -1908,6 +1949,7 @@
       <input type="file" id="inline-image-file" accept="image/*" style="display:none">
     </div>
 
+    <div id="breadcrumb" hidden></div>
     <div id="main"></div>
   </div>
 
@@ -2001,7 +2043,8 @@
 <!-- ── New Category modal ─────────────────────────────────── -->
 <div class="overlay" id="new-cat-overlay" hidden>
   <div class="form-panel" style="max-width:380px">
-    <h2 class="modal-heading">New Category</h2>
+    <h2 class="modal-heading" id="new-cat-heading">New Category</h2>
+    <p id="new-cat-parent-label" style="font-size:12px;color:var(--text3);margin-bottom:14px;margin-top:-10px" hidden></p>
     <div class="form-group">
       <label>Category name <span style="color:var(--err)">*</span></label>
       <input type="text" id="new-cat-input" placeholder="e.g. Strategy" maxlength="60">
@@ -2169,6 +2212,14 @@
   <button class="ctx-item" id="view-field-ctx-edit">✎ Edit</button>
 </div>
 
+<!-- ── Category context menu ─────────────────────────────── -->
+<div id="cat-ctx-menu" class="ctx-menu" hidden>
+  <button class="ctx-item" id="cat-ctx-new-sub">+ New Subcategory</button>
+  <button class="ctx-item" id="cat-ctx-rename">✎ Rename</button>
+  <div class="ctx-divider"></div>
+  <button class="ctx-item danger" id="cat-ctx-delete">Delete</button>
+</div>
+
 <!-- ── Toast ───────────────────────────────────────────────── -->
 <div id="toast"></div>
 
@@ -2200,7 +2251,12 @@
 
 <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
 <script>
-  let categories = [];
+  const MAX_DEPTH = 3;
+  let categories = []; // [{id, name, parent_id}]
+  let collapsedCats = new Set(JSON.parse(localStorage.getItem('ideas-collapsed-cats') || '[]'));
+  let ctxCatId = null;
+  let newCatParentId = null;
+  let draggingCatId = null;
   const DEFAULT_COLORS = {
     Marketing:  '#4a90d9',
     Technology: '#7c4dff',
@@ -2403,25 +2459,108 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       const data = await apiFetch('/api/ideas/categories');
       categories = data.categories || [];
     } catch {
-      categories = ['Marketing','Technology','Animation','Business','Artwork','Research','Other'];
+      categories = [
+        {id:'fb-1',name:'Marketing',parent_id:null},
+        {id:'fb-2',name:'Technology',parent_id:null},
+        {id:'fb-3',name:'Animation',parent_id:null},
+        {id:'fb-4',name:'Business',parent_id:null},
+        {id:'fb-5',name:'Artwork',parent_id:null},
+        {id:'fb-6',name:'Research',parent_id:null},
+        {id:'fb-7',name:'Other',parent_id:null},
+      ];
     }
     buildSidebar();
     buildFormSelect();
   }
 
+  function catDescendantNames(name) {
+    const cat = categories.find(c => c.name === name);
+    if (!cat) return new Set([name]);
+    const result = new Set([name]);
+    function collect(id) {
+      categories.filter(c => c.parent_id === id).forEach(c => { result.add(c.name); collect(c.id); });
+    }
+    collect(cat.id);
+    return result;
+  }
+
+  function catDescendantIds(id) {
+    const result = new Set([id]);
+    function collect(cid) {
+      categories.filter(c => c.parent_id === cid).forEach(c => { result.add(c.id); collect(c.id); });
+    }
+    collect(id);
+    return result;
+  }
+
+  function catDescendantNamesById(id) {
+    const cat = categories.find(c => c.id === id);
+    if (!cat) return new Set();
+    return catDescendantNames(cat.name);
+  }
+
+  function catAncestors(name) {
+    const cat = categories.find(c => c.name === name);
+    if (!cat) return [name];
+    const path = [];
+    let cur = cat;
+    while (cur) {
+      path.unshift(cur.name);
+      cur = cur.parent_id ? categories.find(c => c.id === cur.parent_id) : null;
+    }
+    return path;
+  }
+
+  function catDepth(catId) {
+    let depth = 1;
+    let cur = categories.find(c => c.id === catId);
+    while (cur && cur.parent_id) { depth++; cur = categories.find(c => c.id === cur.parent_id); }
+    return depth;
+  }
+
+  function buildHierarchyOptions(parentId = null, depth = 0) {
+    return categories
+      .filter(c => (c.parent_id ?? null) === parentId)
+      .map(c => {
+        const prefix = ' '.repeat(depth * 3);
+        return `<option value="${esc(c.name)}">${prefix}${esc(c.name)}</option>` +
+          buildHierarchyOptions(c.id, depth + 1);
+      }).join('');
+  }
+
   function buildSidebarCategories() {
     const el = document.getElementById('sidebar-cats');
-    el.innerHTML = categories.map(c => {
-      const color = catColor(c);
-      const count = ideas.filter(i => i.category === c).length;
-      const active = !activeFolderId && activeFilter === c;
-      return `<button class="sidebar-item${active ? ' active' : ''}" data-filter="${esc(c)}" data-cat="true">
-        <span class="si-icon" style="color:${color}">●</span>
-        <span class="si-label">${esc(c)}</span>
-        ${count ? `<span class="si-count">${count}</span>` : ''}
-      </button>`;
-    }).join('');
+    el.innerHTML = renderCatTree(null, 1);
     initCategoryDropTargets();
+    initCatDrag();
+  }
+
+  function renderCatTree(parentId, depth) {
+    return categories
+      .filter(c => (c.parent_id ?? null) === parentId)
+      .map(cat => {
+        const children = categories.filter(c => c.parent_id === cat.id);
+        const hasChildren = children.length > 0;
+        const isCollapsed = collapsedCats.has(cat.id);
+        const color = catColor(cat.name);
+        const count = ideas.filter(i => catDescendantNamesById(cat.id).has(i.category)).length;
+        const active = !activeFolderId && !activeTrash && activeFilter === cat.name;
+        const d = Math.min(depth, MAX_DEPTH);
+        const indent = (depth - 1) * 14;
+        return `<div class="cat-node${isCollapsed ? ' collapsed' : ''}" data-cat-id="${esc(cat.id)}">
+          <div class="sidebar-item cat-row cat-l${d}${active ? ' active' : ''}"
+               data-filter="${esc(cat.name)}" data-cat="true" draggable="true"
+               style="padding-left:${16 + indent}px">
+            ${hasChildren
+              ? `<span class="cat-toggle" title="${isCollapsed ? 'Expand' : 'Collapse'}">${isCollapsed ? '▶' : '▼'}</span>`
+              : `<span class="cat-toggle-ph"></span>`}
+            <span class="si-icon" style="color:${color}">●</span>
+            <span class="si-label">${esc(cat.name)}</span>
+            ${count ? `<span class="si-count">${count}</span>` : ''}
+          </div>
+          <div class="cat-children">${hasChildren ? renderCatTree(cat.id, depth + 1) : ''}</div>
+        </div>`;
+      }).join('');
   }
 
   function buildSidebarFolders() {
@@ -2459,8 +2598,37 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   function buildFormSelect() {
-    formCatEl.innerHTML = categories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    formCatEl.innerHTML = buildHierarchyOptions();
   }
+
+  function renderBreadcrumb() {
+    const bc = document.getElementById('breadcrumb');
+    if (!bc) return;
+    const showBc = !activeFolderId && !activeTrash && activeFilter !== 'All' && activeFilter !== 'Favourites';
+    if (!showBc) { bc.hidden = true; return; }
+    const path = catAncestors(activeFilter);
+    bc.hidden = false;
+    bc.innerHTML = `<span class="bc-home" data-bc-all>All</span><span class="bc-sep">›</span>` +
+      path.map((n, i) =>
+        i < path.length - 1
+          ? `<span class="bc-link" data-bc-filter="${esc(n)}">${esc(n)}</span><span class="bc-sep">›</span>`
+          : `<span class="bc-current">${esc(n)}</span>`
+      ).join('');
+  }
+
+  document.getElementById('breadcrumb').addEventListener('click', e => {
+    if (e.target.closest('[data-bc-all]')) {
+      activeTrash = false; activeFolderId = null; activeFilter = 'All';
+      buildSidebar(); render();
+    } else {
+      const link = e.target.closest('[data-bc-filter]');
+      if (link) {
+        activeTrash = false; activeFolderId = null;
+        activeFilter = link.dataset.bcFilter;
+        buildSidebar(); render();
+      }
+    }
+  });
 
   // ── Render ───────────────────────────────────────────────
   function getFiltered() {
@@ -2471,7 +2639,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     } else if (activeFilter === 'Favourites') {
       list = list.filter(i => i.is_favourite);
     } else if (activeFilter !== 'All') {
-      list = list.filter(i => i.category === activeFilter);
+      const descNames = catDescendantNames(activeFilter);
+      list = list.filter(i => descNames.has(i.category));
     }
     const q = searchEl.value.trim().toLowerCase();
     if (q) list = list.filter(i =>
@@ -2482,6 +2651,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   function render() {
+    renderBreadcrumb();
     if (activeTrash) { renderTrash(); return; }
     const filtered = getFiltered();
 
@@ -2515,10 +2685,11 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       const groupByCat = !activeFolderId && activeFilter === 'All' && !searchEl.value.trim();
 
       if (groupByCat) {
+        const catNameList = categories.map(c => c.name);
         const map = {};
-        categories.forEach(c => { map[c] = []; });
+        catNameList.forEach(c => { map[c] = []; });
         filtered.forEach(i => { (map[i.category] = map[i.category] || []).push(i); });
-        const allCats = [...categories, ...Object.keys(map).filter(c => !categories.includes(c))];
+        const allCats = [...catNameList, ...Object.keys(map).filter(c => !catNameList.includes(c))];
 
         mainEl.innerHTML = allCats
           .filter(c => map[c] && map[c].length)
@@ -3014,6 +3185,134 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     });
   }
 
+  function initCatDrag() {
+    const catsEl = document.getElementById('sidebar-cats');
+    catsEl.querySelectorAll('.cat-row[draggable]').forEach(row => {
+      row.addEventListener('dragstart', e => {
+        if (document.body.classList.contains('dragging-cards')) { e.preventDefault(); return; }
+        const node = row.closest('.cat-node');
+        if (!node) return;
+        draggingCatId = node.dataset.catId;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', draggingCatId);
+        document.body.classList.add('dragging-cat');
+        setTimeout(() => row.style.opacity = '0.45', 0);
+      });
+      row.addEventListener('dragend', () => {
+        row.style.opacity = '';
+        draggingCatId = null;
+        document.body.classList.remove('dragging-cat');
+        document.querySelectorAll('.cat-drop-hover').forEach(r => r.classList.remove('cat-drop-hover'));
+      });
+      row.addEventListener('dragover', e => {
+        if (!draggingCatId) return;
+        const node = row.closest('.cat-node');
+        const targetId = node?.dataset.catId;
+        if (!targetId || targetId === draggingCatId) return;
+        if (catDescendantIds(draggingCatId).has(targetId)) return;
+        if (catDepth(targetId) >= MAX_DEPTH) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        document.querySelectorAll('.cat-drop-hover').forEach(r => r.classList.remove('cat-drop-hover'));
+        row.classList.add('cat-drop-hover');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('cat-drop-hover'));
+      row.addEventListener('drop', async e => {
+        e.preventDefault();
+        e.stopPropagation();
+        row.classList.remove('cat-drop-hover');
+        const node = row.closest('.cat-node');
+        const targetId = node?.dataset.catId;
+        const cid = draggingCatId;
+        draggingCatId = null;
+        document.body.classList.remove('dragging-cat');
+        if (!cid || !targetId || targetId === cid || catDescendantIds(cid).has(targetId)) return;
+        if (catDepth(targetId) >= MAX_DEPTH) { toast('Max depth reached', true); return; }
+        await reparentCat(cid, targetId);
+      });
+    });
+  }
+
+  async function reparentCat(catId, newParentId) {
+    try {
+      await apiFetch(`/api/ideas/categories/${catId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_id: newParentId }),
+      });
+      const cat = categories.find(c => c.id === catId);
+      if (cat) cat.parent_id = newParentId;
+      buildSidebar();
+      toast('Category moved');
+    } catch (err) { toast(err.message, true); }
+  }
+
+  async function startCatRename(catId) {
+    const cat = categories.find(c => c.id === catId);
+    if (!cat) return;
+    const row = document.querySelector(`.cat-row[data-filter="${CSS.escape(cat.name)}"]`);
+    if (!row) return;
+    const label = row.querySelector('.si-label');
+    if (!label) return;
+    const original = cat.name;
+    label.contentEditable = 'true';
+    label.focus();
+    const range = document.createRange();
+    range.selectNodeContents(label);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    let committed = false;
+    function onKey(e) {
+      if (e.key === 'Enter') { e.preventDefault(); label.blur(); }
+      if (e.key === 'Escape') {
+        committed = true; label.textContent = original; label.contentEditable = 'false';
+        label.removeEventListener('keydown', onKey);
+      }
+    }
+    label.addEventListener('keydown', onKey);
+    label.addEventListener('blur', async () => {
+      if (committed) return;
+      committed = true;
+      label.removeEventListener('keydown', onKey);
+      const newName = label.textContent.trim();
+      label.contentEditable = 'false';
+      if (!newName || newName === original) { label.textContent = original; return; }
+      try {
+        await apiFetch(`/api/ideas/categories/${catId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: newName }),
+        });
+        if (activeFilter === original) activeFilter = newName;
+        cat.name = newName;
+        ideas.forEach(i => { if (i.category === original) i.category = newName; });
+        buildSidebar(); buildFormSelect(); renderBreadcrumb();
+        toast(`Renamed to "${newName}"`);
+      } catch (err) { label.textContent = original; toast(err.message, true); }
+    }, { once: true });
+  }
+
+  async function deleteCat(catId) {
+    const cat = categories.find(c => c.id === catId);
+    if (!cat) return;
+    const childCount = categories.filter(c => c.parent_id === catId).length;
+    const descNames = catDescendantNamesById(catId);
+    const ideaCount = ideas.filter(i => descNames.has(i.category)).length;
+    let msg = `Delete category "${cat.name}"?`;
+    if (childCount > 0) msg += `\n\nThis will also delete ${childCount} subcategor${childCount === 1 ? 'y' : 'ies'}.`;
+    if (ideaCount > 0) msg += `\n\n${ideaCount} idea${ideaCount === 1 ? '' : 's'} will keep their category labels.`;
+    if (!confirm(msg)) return;
+    try {
+      await apiFetch(`/api/ideas/categories/${catId}`, { method: 'DELETE' });
+      const idsToRemove = catDescendantIds(catId);
+      categories = categories.filter(c => !idsToRemove.has(c.id));
+      if (descNames.has(activeFilter)) activeFilter = 'All';
+      buildSidebar(); buildFormSelect(); renderBreadcrumb(); render();
+      toast('Category deleted');
+    } catch (err) { toast(err.message, true); }
+  }
+
   // ── Selection ────────────────────────────────────────────
   function toggleCardSel(el) {
     const id = el.dataset.id;
@@ -3160,7 +3459,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     document.getElementById('form-save').textContent        = idea ? 'Save Changes' : 'Save Idea';
 
     formTitleEl.value = idea ? idea.title      : '';
-    formCatEl.value   = idea ? idea.category   : (categories[0] || '');
+    formCatEl.value   = idea ? idea.category   : (categories[0]?.name || '');
     formFileEl.value  = '';
     if (quillNotes) loadIntoQuill(quillNotes, idea ? (idea.notes || '') : '');
     filePreviewEl.innerHTML = '';
@@ -3394,7 +3693,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   let parsedEntries    = [];
 
   function parseMarkdown(text) {
-    const VALID = categories.length ? categories : ['Marketing','Technology','Animation','Business','Artwork','Research','Other'];
+    const VALID = categories.length ? categories.map(c => c.name) : ['Marketing','Technology','Animation','Business','Artwork','Research','Other'];
     const entries = [];
     let cat = 'Other', title = null, lines = [];
 
@@ -3476,8 +3775,16 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   const newCatInput   = document.getElementById('new-cat-input');
   const newCatError   = document.getElementById('new-cat-error');
 
-  function openNewCat() {
-    console.log('[NewCat] dialog opened');
+  function openNewCat(parentId = null) {
+    newCatParentId = parentId;
+    const parentCat = parentId ? categories.find(c => c.id === parentId) : null;
+    const headingEl = document.getElementById('new-cat-heading');
+    const parentLabel = document.getElementById('new-cat-parent-label');
+    if (headingEl) headingEl.textContent = parentCat ? 'New Subcategory' : 'New Category';
+    if (parentLabel) {
+      parentLabel.hidden = !parentCat;
+      parentLabel.textContent = parentCat ? `Under: ${parentCat.name}` : '';
+    }
     newCatInput.value = '';
     newCatError.textContent = '';
     newCatOverlay.removeAttribute('hidden');
@@ -3503,10 +3810,10 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       const result = await apiFetch('/api/ideas/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, parent_id: newCatParentId }),
       });
       console.log('[NewCat] API response:', result);
-      categories.push(name);
+      categories.push(result.category);
       buildSidebar();
       buildFormSelect();
       closeNewCat();
@@ -3586,6 +3893,17 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.getElementById('sidebar').addEventListener('click', e => {
     const delBtn = e.target.closest('[data-del-id]');
     if (delBtn) { deleteSmartFolder(delBtn.dataset.delId); return; }
+    const catToggle = e.target.closest('.cat-toggle');
+    if (catToggle) {
+      const node = catToggle.closest('.cat-node');
+      if (node) {
+        const catId = node.dataset.catId;
+        if (collapsedCats.has(catId)) collapsedCats.delete(catId); else collapsedCats.add(catId);
+        localStorage.setItem('ideas-collapsed-cats', JSON.stringify([...collapsedCats]));
+        buildSidebarCategories();
+      }
+      return;
+    }
     const folderRow = e.target.closest('.folder-row');
     if (folderRow && !e.target.closest('.folder-del')) {
       activeTrash = false;
@@ -3833,8 +4151,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     sel.className = 'inline-cat-select';
     categories.forEach(c => {
       const opt = document.createElement('option');
-      opt.value = c; opt.textContent = c;
-      if (c === original) opt.selected = true;
+      opt.value = c.name; opt.textContent = c.name;
+      if (c.name === original) opt.selected = true;
       sel.appendChild(opt);
     });
     badgeEl.replaceWith(sel);
@@ -3902,6 +4220,47 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') hideCtxMenu();
   }, true);
+
+  document.getElementById('sidebar-cats').addEventListener('contextmenu', e => {
+    const row = e.target.closest('.cat-row');
+    if (!row) return;
+    e.preventDefault();
+    const node = row.closest('.cat-node');
+    ctxCatId = node?.dataset.catId || null;
+    if (!ctxCatId) return;
+    const depth = catDepth(ctxCatId);
+    const canSub = depth < MAX_DEPTH;
+    const subBtn = document.getElementById('cat-ctx-new-sub');
+    subBtn.style.opacity = canSub ? '' : '0.4';
+    subBtn.style.pointerEvents = canSub ? '' : 'none';
+    subBtn.title = canSub ? '' : `Max depth (${MAX_DEPTH}) reached`;
+    const menu = document.getElementById('cat-ctx-menu');
+    menu.style.visibility = 'hidden';
+    menu.removeAttribute('hidden');
+    const x = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8);
+    const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
+    menu.style.left = x + 'px'; menu.style.top = y + 'px';
+    menu.style.visibility = '';
+  });
+
+  function hideCatCtxMenu() {
+    document.getElementById('cat-ctx-menu').setAttribute('hidden', '');
+    ctxCatId = null;
+  }
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#cat-ctx-menu')) hideCatCtxMenu();
+  });
+
+  document.getElementById('cat-ctx-new-sub').addEventListener('click', () => {
+    const id = ctxCatId; hideCatCtxMenu(); openNewCat(id);
+  });
+  document.getElementById('cat-ctx-rename').addEventListener('click', () => {
+    const id = ctxCatId; hideCatCtxMenu(); startCatRename(id);
+  });
+  document.getElementById('cat-ctx-delete').addEventListener('click', () => {
+    const id = ctxCatId; hideCatCtxMenu(); deleteCat(id);
+  });
 
   // ── View panel field editing ──────────────────────────────
   let viewCtxTargetEl   = null;
@@ -4198,9 +4557,9 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   function buildInsightsCats() {
     const el = document.getElementById('insights-cats')
     el.innerHTML = categories.map(c => {
-      const color = catColor(c)
-      return `<div class="cat-check-pill on" data-cat="${esc(c)}">
-        <span style="color:${color};font-size:9px;line-height:1">●</span>${esc(c)}
+      const color = catColor(c.name)
+      return `<div class="cat-check-pill on" data-cat="${esc(c.name)}">
+        <span style="color:${color};font-size:9px;line-height:1">●</span>${esc(c.name)}
       </div>`
     }).join('')
     el.querySelectorAll('.cat-check-pill').forEach(pill => {
@@ -4215,9 +4574,9 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   function buildExtractCats() {
     const el = document.getElementById('extract-cats')
     el.innerHTML = categories.map(c => {
-      const color = catColor(c)
-      return `<div class="cat-check-pill on" data-cat="${esc(c)}">
-        <span style="color:${color};font-size:9px;line-height:1">●</span>${esc(c)}
+      const color = catColor(c.name)
+      return `<div class="cat-check-pill on" data-cat="${esc(c.name)}">
+        <span style="color:${color};font-size:9px;line-height:1">●</span>${esc(c.name)}
       </div>`
     }).join('')
     el.querySelectorAll('.cat-check-pill').forEach(pill => {
@@ -4455,7 +4814,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     document.getElementById('manual-snippet').textContent = text
     document.getElementById('manual-save-title').value = ''
     const catSel = document.getElementById('manual-save-cat')
-    catSel.innerHTML = categories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')
+    catSel.innerHTML = buildHierarchyOptions()
     document.getElementById('manual-save-overlay').removeAttribute('hidden')
     setTimeout(() => document.getElementById('manual-save-title').focus(), 60)
   }
@@ -4693,9 +5052,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     inlineOriginalNotes = idea.notes || '';
 
     inlineTitleEl.value = idea.title || '';
-    inlineCatEl.innerHTML = categories.map(c =>
-      `<option value="${esc(c)}"${c === idea.category ? ' selected' : ''}>${esc(c)}</option>`
-    ).join('');
+    inlineCatEl.innerHTML = buildHierarchyOptions();
+    inlineCatEl.value = idea.category;
 
     // Set content directly into the editable div
     inlineBodyEl.innerHTML = idea.notes || '';
