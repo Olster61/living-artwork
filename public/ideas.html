@@ -4831,9 +4831,9 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   function tbExec(cmd, val) {
-    inlineBodyEl.focus();
+    if (document.activeElement !== inlineBodyEl) inlineBodyEl.focus();
     document.execCommand(cmd, false, val ?? null);
-    updateTbState();
+    requestAnimationFrame(updateTbState);
   }
 
   tbBtn('tb-bold',         () => tbExec('bold'));
