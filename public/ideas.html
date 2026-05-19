@@ -1595,54 +1595,74 @@
     #inline-editor-cat option { background: var(--bg3); }
     #inline-editor-cat:focus { border-color: var(--gold); }
 
-    .inline-editor-quill-wrap .ql-container.ql-snow {
+    #inline-editor-body {
+      background: var(--bg3);
+      border: 1px solid var(--gold-bd);
       border-radius: var(--radius);
-      border: 1px solid var(--gold-bd) !important;
-      min-height: 300px;
-    }
-    .inline-editor-quill-wrap .ql-editor {
-      min-height: 300px;
       padding: 20px 24px;
+      min-height: 300px;
       font-size: 15px;
       line-height: 1.8;
+      color: var(--text);
+      outline: none;
+      cursor: text;
+      word-break: break-word;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      flex: 1;
+      font-family: 'Inter', sans-serif;
     }
-    .inline-editor-quill-wrap .ql-editor img {
+    #inline-editor-body:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(201,168,76,0.08);
+    }
+    #inline-editor-body:empty::before {
+      content: 'Write your thoughts, ideas, links, media…';
+      color: var(--text3);
+      pointer-events: none;
+    }
+    #inline-editor-body img {
       max-width: 100%;
       height: auto;
       border-radius: var(--radius-sm);
       display: block;
       margin: 6px 0;
     }
-    .inline-editor-quill-wrap .ql-editor video {
+    #inline-editor-body video {
       max-width: 100%;
       height: auto;
       border-radius: var(--radius-sm);
       display: block;
       margin: 8px 0;
-      background: var(--bg3);
+      background: var(--bg);
     }
-    .inline-editor-quill-wrap .ql-editor iframe {
-      max-width: 100%;
-      border-radius: var(--radius-sm);
-      margin: 8px 0;
-      display: block;
-      border: none;
+    #inline-editor-body iframe {
+      width: 100%;
       aspect-ratio: 16/9;
+      border-radius: var(--radius-sm);
+      border: none;
+      display: block;
+      margin: 8px 0;
     }
-    .inline-editor-quill-wrap .ql-editor h1 {
+    #inline-editor-body h1 {
       font-family: 'Playfair Display', serif;
       font-size: 1.8em;
       font-weight: 600;
       color: var(--text);
       margin: 0.4em 0 0.2em;
     }
-    .inline-editor-quill-wrap .ql-editor h2 {
+    #inline-editor-body h2 {
       font-family: 'Playfair Display', serif;
       font-size: 1.4em;
       font-weight: 600;
       color: var(--text);
       margin: 0.3em 0 0.15em;
     }
+    #inline-editor-body a { color: var(--gold); }
+    #inline-editor-body ul { padding-left: 1.6em; margin: 0.3em 0; list-style: disc; }
+    #inline-editor-body ol { padding-left: 1.6em; margin: 0.3em 0; list-style: decimal; }
+    #inline-editor-body li { margin: 0.1em 0; }
+    #inline-editor-body p  { margin: 0; }
 
     /* ── URL insert popup ────────────────────────────────────── */
     #inline-url-popup {
@@ -1883,9 +1903,7 @@
         <input type="text" id="inline-editor-title" placeholder="Idea title…" maxlength="200" autocomplete="off">
         <select id="inline-editor-cat"></select>
       </div>
-      <div class="inline-editor-quill-wrap">
-        <div id="inline-editor-quill"></div>
-      </div>
+      <div id="inline-editor-body" contenteditable="true" spellcheck="true"></div>
       <input type="file" id="inline-video-file" accept="video/*" style="display:none">
       <input type="file" id="inline-image-file" accept="image/*" style="display:none">
     </div>
@@ -4648,85 +4666,67 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.getElementById('extract-tab-manual').addEventListener('click', () => setExtractMode('manual'))
   document.getElementById('extract-tab-insights').addEventListener('click', () => setExtractMode('insights'))
 
-  // ── Custom Quill blot for uploaded videos ─────────────────
-  const BlockEmbed = Quill.import('blots/block/embed');
-  class UploadedVideoBlot extends BlockEmbed {
-    static create(url) {
-      const node = super.create();
-      node.setAttribute('src', url);
-      node.setAttribute('controls', '');
-      node.setAttribute('playsinline', '');
-      return node;
-    }
-    static value(node) { return node.getAttribute('src'); }
-  }
-  UploadedVideoBlot.blotName = 'uploaded-video';
-  UploadedVideoBlot.tagName = 'VIDEO';
-  Quill.register(UploadedVideoBlot);
+  // ── Inline document editor (native contenteditable) ─────────
+  let inlineEditId        = null;
+  let inlineIsDirty       = false;
+  let inlineStagedVideos  = [];
+  let inlineOriginalNotes = '';
+  let inlineSavedRange    = null;
 
-  // ── Inline document editor ────────────────────────────────
-  let inlineEditId   = null;
-  let quillInline    = null;
-  let inlineIsDirty  = false;
-  let inlineStagedVideos = [];  // { file, blobUrl }
-  let inlineCursorRange = null;
-
-  const contentAreaEl       = document.getElementById('content-area');
-  const inlineToolbarEl     = document.getElementById('inline-editor-toolbar');
-  const inlinePanelEl       = document.getElementById('inline-editor-panel');
-  const inlineTitleEl       = document.getElementById('inline-editor-title');
-  const inlineCatEl         = document.getElementById('inline-editor-cat');
-  const inlineVideoFileEl   = document.getElementById('inline-video-file');
-  const inlineImageFileEl   = document.getElementById('inline-image-file');
-  const inlineUrlPopupEl    = document.getElementById('inline-url-popup');
-  const inlineUrlInputEl    = document.getElementById('inline-url-input');
+  const contentAreaEl     = document.getElementById('content-area');
+  const inlineToolbarEl   = document.getElementById('inline-editor-toolbar');
+  const inlinePanelEl     = document.getElementById('inline-editor-panel');
+  const inlineTitleEl     = document.getElementById('inline-editor-title');
+  const inlineCatEl       = document.getElementById('inline-editor-cat');
+  const inlineBodyEl      = document.getElementById('inline-editor-body');
+  const inlineVideoFileEl = document.getElementById('inline-video-file');
+  const inlineImageFileEl = document.getElementById('inline-image-file');
+  const inlineUrlPopupEl  = document.getElementById('inline-url-popup');
+  const inlineUrlInputEl  = document.getElementById('inline-url-input');
 
   function openDocumentEditor(idea) {
     if (!idea) return;
-    inlineEditId = idea.id;
-    inlineIsDirty = false;
-    inlineStagedVideos = [];
+    inlineEditId        = idea.id;
+    inlineIsDirty       = false;
+    inlineStagedVideos  = [];
+    inlineOriginalNotes = idea.notes || '';
 
-    // Populate title and category BEFORE showing panel
     inlineTitleEl.value = idea.title || '';
     inlineCatEl.innerHTML = categories.map(c =>
       `<option value="${esc(c)}"${c === idea.category ? ' selected' : ''}>${esc(c)}</option>`
     ).join('');
 
-    // Show toolbar and panel first — Quill MUST init on a visible element
+    // Set content directly into the editable div
+    inlineBodyEl.innerHTML = idea.notes || '';
+
+    // Show UI
     inlineToolbarEl.removeAttribute('hidden');
     inlinePanelEl.removeAttribute('hidden');
     contentAreaEl.classList.add('editing-mode');
 
-    // Init Quill lazily on first open (panel is now visible)
-    if (!quillInline) {
-      quillInline = new Quill('#inline-editor-quill', {
-        theme: 'snow',
-        modules: { toolbar: false },
-        placeholder: 'Write your thoughts, ideas, links, media…',
-      });
-      quillInline.on('text-change', () => { inlineIsDirty = true; updateTbState(); });
-      quillInline.on('selection-change', () => updateTbState());
-    }
-
-    // Load content into the now-live editor
-    loadIntoQuill(quillInline, idea.notes || '');
-    inlineIsDirty = false; // reset: loadIntoQuill fires text-change
-
-    // Focus title; user can tab to editor
+    // Focus and place cursor at start of editor
     setTimeout(() => {
-      inlineTitleEl.focus();
-      inlineTitleEl.select();
-    }, 60);
+      inlineBodyEl.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.setStart(inlineBodyEl, 0);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }, 50);
 
     updateTbState();
   }
 
   function closeDocumentEditor() {
-    inlineEditId = null;
-    inlineIsDirty = false;
-    inlineStagedVideos = [];
-    inlineCursorRange = null;
+    inlineEditId        = null;
+    inlineIsDirty       = false;
+    inlineStagedVideos  = [];
+    inlineOriginalNotes = '';
+    inlineSavedRange    = null;
+    inlineBodyEl.innerHTML = '';
     inlineToolbarEl.setAttribute('hidden', '');
     inlinePanelEl.setAttribute('hidden', '');
     contentAreaEl.classList.remove('editing-mode');
@@ -4740,7 +4740,13 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       return;
     }
 
-    const notesHtml = (quillInline.getText().trim()) ? quillInline.root.innerHTML : '';
+    let notesHtml = inlineBodyEl.innerHTML;
+    if (!inlineBodyEl.textContent.trim() &&
+        !notesHtml.includes('<img') &&
+        !notesHtml.includes('<video') &&
+        !notesHtml.includes('<iframe')) {
+      notesHtml = '';
+    }
 
     const fd = new FormData();
     fd.append('title', title);
@@ -4751,13 +4757,10 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     try {
       const result = await apiFetch(`/api/ideas/${inlineEditId}`, { method: 'PUT', body: fd });
 
-      // Replace blob URLs with real URLs if videos were uploaded
       if (inlineStagedVideos.length && result.files && result.files.length) {
         let updatedNotes = notesHtml;
         inlineStagedVideos.forEach((v, i) => {
-          if (result.files[i]) {
-            updatedNotes = updatedNotes.split(v.blobUrl).join(result.files[i].file_url);
-          }
+          if (result.files[i]) updatedNotes = updatedNotes.split(v.blobUrl).join(result.files[i].file_url);
         });
         if (updatedNotes !== notesHtml) {
           const fd2 = new FormData();
@@ -4770,11 +4773,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
       inlineStagedVideos = [];
       const idea = ideas.find(i => i.id === inlineEditId);
-      if (idea) {
-        idea.title = title;
-        idea.category = inlineCatEl.value;
-        idea.notes = notesHtml;
-      }
+      if (idea) { idea.title = title; idea.category = inlineCatEl.value; idea.notes = notesHtml; }
       toast(auto ? 'Saved' : 'Idea saved!');
       closeDocumentEditor();
       await loadIdeas();
@@ -4783,135 +4782,125 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
   }
 
-  // ── Toolbar state updater ─────────────────────────────────
+  // ── Toolbar state via queryCommandState ───────────────────
   function updateTbState() {
-    if (!quillInline) return;
-    const sel = quillInline.getSelection();
-    const fmt = sel ? quillInline.getFormat(sel) : {};
-    document.getElementById('tb-bold').classList.toggle('active', !!fmt.bold);
-    document.getElementById('tb-italic').classList.toggle('active', !!fmt.italic);
-    document.getElementById('tb-underline').classList.toggle('active', !!fmt.underline);
-    document.getElementById('tb-strike').classList.toggle('active', !!fmt.strike);
-    document.getElementById('tb-bullet').classList.toggle('active', fmt.list === 'bullet');
-    document.getElementById('tb-ordered').classList.toggle('active', fmt.list === 'ordered');
-    document.getElementById('tb-align-left').classList.toggle('active', !fmt.align || fmt.align === 'left');
-    document.getElementById('tb-align-center').classList.toggle('active', fmt.align === 'center');
-    document.getElementById('tb-align-right').classList.toggle('active', fmt.align === 'right');
+    if (!inlineEditId) return;
+    try {
+      document.getElementById('tb-bold').classList.toggle('active', document.queryCommandState('bold'));
+      document.getElementById('tb-italic').classList.toggle('active', document.queryCommandState('italic'));
+      document.getElementById('tb-underline').classList.toggle('active', document.queryCommandState('underline'));
+      document.getElementById('tb-strike').classList.toggle('active', document.queryCommandState('strikeThrough'));
+      document.getElementById('tb-bullet').classList.toggle('active', document.queryCommandState('insertUnorderedList'));
+      document.getElementById('tb-ordered').classList.toggle('active', document.queryCommandState('insertOrderedList'));
+      document.getElementById('tb-align-left').classList.toggle('active',
+        document.queryCommandState('justifyLeft') || document.queryCommandState('justifyFull'));
+      document.getElementById('tb-align-center').classList.toggle('active', document.queryCommandState('justifyCenter'));
+      document.getElementById('tb-align-right').classList.toggle('active', document.queryCommandState('justifyRight'));
 
-    const sizeEl = document.getElementById('tb-size-select');
-    if (fmt.header === 1) sizeEl.value = 'h1';
-    else if (fmt.header === 2) sizeEl.value = 'h2';
-    else if (fmt.size) sizeEl.value = fmt.size;
-    else sizeEl.value = '';
+      const sizeEl = document.getElementById('tb-size-select');
+      const block = (document.queryCommandValue('formatBlock') || '').toLowerCase().replace(/[<>]/g, '');
+      if      (block === 'h1') sizeEl.value = 'h1';
+      else if (block === 'h2') sizeEl.value = 'h2';
+      else {
+        const sz = document.queryCommandValue('fontSize');
+        if (sz === '1' || sz === '2')           sizeEl.value = 'small';
+        else if (sz === '5' || sz === '6' || sz === '7') sizeEl.value = 'large';
+        else                                    sizeEl.value = '';
+      }
+    } catch {}
   }
 
-  // ── Toolbar button handlers ───────────────────────────────
-  function tbToggle(format, value) {
-    const sel = quillInline.getSelection(true);
-    const fmt = quillInline.getFormat(sel);
-    const current = fmt[format];
-    if (format === 'list') {
-      quillInline.format('list', current === value ? false : value, 'user');
-    } else {
-      quillInline.format(format, !current, 'user');
-    }
-    quillInline.focus();
+  document.addEventListener('selectionchange', () => { if (inlineEditId) updateTbState(); });
+
+  // ── Helper: save/restore cursor for media inserts ─────────
+  function saveInlineSel() {
+    const sel = window.getSelection();
+    inlineSavedRange = (sel && sel.rangeCount) ? sel.getRangeAt(0).cloneRange() : null;
+  }
+  function restoreInlineSel() {
+    if (!inlineSavedRange) return;
+    const sel = window.getSelection();
+    if (sel) { sel.removeAllRanges(); sel.addRange(inlineSavedRange); }
+  }
+
+  // ── Toolbar buttons via execCommand ──────────────────────
+  // Use mousedown + preventDefault so the editor never loses focus
+  function tbBtn(id, fn) {
+    document.getElementById(id).addEventListener('mousedown', e => { e.preventDefault(); fn(); });
+  }
+
+  function tbExec(cmd, val) {
+    inlineBodyEl.focus();
+    document.execCommand(cmd, false, val ?? null);
     updateTbState();
   }
 
-  document.getElementById('tb-bold').addEventListener('click', () => tbToggle('bold'));
-  document.getElementById('tb-italic').addEventListener('click', () => tbToggle('italic'));
-  document.getElementById('tb-underline').addEventListener('click', () => tbToggle('underline'));
-  document.getElementById('tb-strike').addEventListener('click', () => tbToggle('strike'));
-  document.getElementById('tb-bullet').addEventListener('click', () => tbToggle('list', 'bullet'));
-  document.getElementById('tb-ordered').addEventListener('click', () => tbToggle('list', 'ordered'));
+  tbBtn('tb-bold',         () => tbExec('bold'));
+  tbBtn('tb-italic',       () => tbExec('italic'));
+  tbBtn('tb-underline',    () => tbExec('underline'));
+  tbBtn('tb-strike',       () => tbExec('strikeThrough'));
+  tbBtn('tb-bullet',       () => tbExec('insertUnorderedList'));
+  tbBtn('tb-ordered',      () => tbExec('insertOrderedList'));
+  tbBtn('tb-align-left',   () => tbExec('justifyLeft'));
+  tbBtn('tb-align-center', () => tbExec('justifyCenter'));
+  tbBtn('tb-align-right',  () => tbExec('justifyRight'));
+  tbBtn('tb-clean',        () => tbExec('removeFormat'));
 
-  document.getElementById('tb-align-left').addEventListener('click', () => {
-    quillInline.format('align', false, 'user'); quillInline.focus(); updateTbState();
-  });
-  document.getElementById('tb-align-center').addEventListener('click', () => {
-    quillInline.format('align', 'center', 'user'); quillInline.focus(); updateTbState();
-  });
-  document.getElementById('tb-align-right').addEventListener('click', () => {
-    quillInline.format('align', 'right', 'user'); quillInline.focus(); updateTbState();
-  });
-
-  document.getElementById('tb-size-select').addEventListener('change', function() {
-    const val = this.value;
-    if (val === 'h1') {
-      quillInline.format('header', 1, 'user');
-      quillInline.format('size', false, 'user');
-    } else if (val === 'h2') {
-      quillInline.format('header', 2, 'user');
-      quillInline.format('size', false, 'user');
-    } else {
-      quillInline.format('header', false, 'user');
-      quillInline.format('size', val || false, 'user');
-    }
-    quillInline.focus();
-    updateTbState();
-  });
-
-  document.getElementById('tb-clean').addEventListener('click', () => {
-    const sel = quillInline.getSelection(true);
-    if (sel && sel.length > 0) {
-      quillInline.removeFormat(sel.index, sel.length, 'user');
-    }
-    quillInline.focus();
+  document.getElementById('tb-size-select').addEventListener('change', function () {
+    inlineBodyEl.focus();
+    const v = this.value;
+    if      (v === 'h1')    document.execCommand('formatBlock', false, 'h1');
+    else if (v === 'h2')    document.execCommand('formatBlock', false, 'h2');
+    else if (v === 'small') { document.execCommand('formatBlock', false, 'p'); document.execCommand('fontSize', false, '1'); }
+    else if (v === 'large') { document.execCommand('formatBlock', false, 'p'); document.execCommand('fontSize', false, '5'); }
+    else                    { document.execCommand('formatBlock', false, 'p'); document.execCommand('fontSize', false, '3'); }
     updateTbState();
   });
 
   // ── Media: Insert Image ───────────────────────────────────
-  document.getElementById('tb-image').addEventListener('click', () => {
-    inlineCursorRange = quillInline.getSelection();
-    inlineImageFileEl.value = '';
-    inlineImageFileEl.click();
-  });
+  tbBtn('tb-image', () => { saveInlineSel(); inlineImageFileEl.value = ''; inlineImageFileEl.click(); });
 
   inlineImageFileEl.addEventListener('change', () => {
     const file = inlineImageFileEl.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => {
-      const range = inlineCursorRange || { index: quillInline.getLength() - 1 };
-      quillInline.insertEmbed(range.index, 'image', e.target.result, 'user');
-      quillInline.setSelection(range.index + 1, 0, 'silent');
-      quillInline.focus();
+    reader.onload = ev => {
+      inlineBodyEl.focus();
+      restoreInlineSel();
+      document.execCommand('insertHTML', false,
+        `<img src="${ev.target.result}" style="max-width:100%;height:auto;border-radius:8px;display:block;margin:6px 0">`);
       inlineIsDirty = true;
     };
     reader.readAsDataURL(file);
   });
 
   // ── Media: Insert Video ───────────────────────────────────
-  document.getElementById('tb-video').addEventListener('click', () => {
-    inlineCursorRange = quillInline.getSelection();
-    inlineVideoFileEl.value = '';
-    inlineVideoFileEl.click();
-  });
+  tbBtn('tb-video', () => { saveInlineSel(); inlineVideoFileEl.value = ''; inlineVideoFileEl.click(); });
 
   inlineVideoFileEl.addEventListener('change', () => {
     const file = inlineVideoFileEl.files[0];
     if (!file) return;
     const blobUrl = URL.createObjectURL(file);
     inlineStagedVideos.push({ file, blobUrl });
-    const range = inlineCursorRange || { index: quillInline.getLength() - 1 };
-    quillInline.insertEmbed(range.index, 'uploaded-video', blobUrl, 'user');
-    quillInline.setSelection(range.index + 1, 0, 'silent');
-    quillInline.focus();
+    inlineBodyEl.focus();
+    restoreInlineSel();
+    document.execCommand('insertHTML', false,
+      `<video src="${blobUrl}" controls playsinline style="max-width:100%;height:auto;border-radius:8px;display:block;margin:8px 0"></video>`);
     inlineIsDirty = true;
   });
 
   // ── Media: Insert URL ─────────────────────────────────────
-  document.getElementById('tb-url-insert').addEventListener('click', () => {
-    inlineCursorRange = quillInline.getSelection();
+  tbBtn('tb-url-insert', () => {
+    saveInlineSel();
     inlineUrlInputEl.value = '';
     inlineUrlPopupEl.removeAttribute('hidden');
-    setTimeout(() => inlineUrlInputEl.focus(), 60);
+    setTimeout(() => inlineUrlInputEl.focus(), 50);
   });
 
   document.getElementById('inline-url-cancel').addEventListener('click', () => {
     inlineUrlPopupEl.setAttribute('hidden', '');
-    quillInline.focus();
+    inlineBodyEl.focus();
+    restoreInlineSel();
   });
 
   document.getElementById('inline-url-confirm').addEventListener('click', insertUrlEmbed);
@@ -4921,33 +4910,32 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     const url = inlineUrlInputEl.value.trim();
     if (!url) return;
     inlineUrlPopupEl.setAttribute('hidden', '');
-
+    inlineBodyEl.focus();
+    restoreInlineSel();
     const ytId = extractYouTubeId(url);
-    const pos = inlineCursorRange ? inlineCursorRange.index : (quillInline.getLength() - 1);
-
     if (ytId) {
-      const embedUrl = `https://www.youtube.com/embed/${ytId}`;
-      quillInline.clipboard.dangerouslyPasteHTML(pos,
-        `<iframe src="${esc(embedUrl)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`, 'user');
+      document.execCommand('insertHTML', false,
+        `<iframe src="https://www.youtube.com/embed/${esc(ytId)}" style="width:100%;aspect-ratio:16/9;border-radius:8px;border:none;display:block;margin:8px 0" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe>`);
     } else if (isInstagramUrl(url)) {
       const normUrl = normaliseInstagramUrl(url);
-      quillInline.clipboard.dangerouslyPasteHTML(pos,
-        `<a href="${esc(normUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(135deg,#f09433,#dc2743,#bc1888);border-radius:8px;color:#fff;text-decoration:none;font-size:13px;font-weight:600;margin:4px 0">${IG_SVG} Instagram: ${esc(igShortLabel(normUrl))}</a>`, 'user');
+      document.execCommand('insertHTML', false,
+        `<a href="${esc(normUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(135deg,#f09433,#dc2743,#bc1888);border-radius:8px;color:#fff;text-decoration:none;font-size:13px;font-weight:600;margin:4px 0">📷 Instagram: ${esc(igShortLabel(normUrl))}</a>`);
     } else {
-      quillInline.clipboard.dangerouslyPasteHTML(pos,
-        `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>`, 'user');
+      document.execCommand('insertHTML', false,
+        `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>`);
     }
-    quillInline.setSelection(pos + 1, 0, 'silent');
-    quillInline.focus();
     inlineIsDirty = true;
   }
 
-  // ── Save / Cancel buttons ─────────────────────────────────
+  // ── Save / Cancel ─────────────────────────────────────────
   document.getElementById('tb-save').addEventListener('click', () => saveDocumentEditor(false));
   document.getElementById('tb-cancel').addEventListener('click', () => {
+    inlineBodyEl.innerHTML = inlineOriginalNotes;
     closeDocumentEditor();
-    loadIdeas();
   });
+
+  // Mark dirty on any keystroke / paste
+  inlineBodyEl.addEventListener('input', () => { if (inlineEditId) inlineIsDirty = true; });
 
   // ── Click-away auto-save ──────────────────────────────────
   document.addEventListener('mousedown', e => {
@@ -4962,11 +4950,16 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
   }, true);
 
-  // Escape key closes inline editor
+  // Escape key: close URL popup first, then close editor
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && inlineEditId && inlineUrlPopupEl.hidden) {
-      if (inlineIsDirty) saveDocumentEditor(true);
-      else closeDocumentEditor();
+    if (e.key === 'Escape' && inlineEditId) {
+      if (!inlineUrlPopupEl.hidden) {
+        inlineUrlPopupEl.setAttribute('hidden', '');
+        inlineBodyEl.focus();
+      } else {
+        if (inlineIsDirty) saveDocumentEditor(true);
+        else closeDocumentEditor();
+      }
     }
   });
 
