@@ -617,7 +617,11 @@
     .view-bar-meta { display: flex; align-items: center; gap: 10px; margin-left: 10px; }
     .view-bar-date { font-size: 12px; color: var(--text3); }
 
-    .view-body { max-width: 740px; width: 100%; margin: 0 auto; padding: 44px 32px 100px; }
+    .view-nav-btn { padding: 5px 10px; font-size: 13px; line-height: 1; min-width: 30px; }
+    .view-nav-btn:disabled { opacity: 0.25; cursor: default; pointer-events: none; }
+    .view-nav-counter { font-size: 12px; color: var(--text3); min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+
+    .view-body { max-width: 740px; width: 100%; margin: 0 auto; padding: 44px 32px 100px; transition: opacity 0.15s ease; }
 
     #view-title {
       font-family: 'Playfair Display', serif;
@@ -2054,7 +2058,11 @@
   <div class="view-bar">
     <button class="btn btn-outline" id="view-close" style="padding:7px 14px;font-size:13px">← Back</button>
     <div class="view-bar-meta" id="view-bar-meta"></div>
-    <div style="margin-left:auto;display:flex;gap:8px">
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <button class="btn btn-outline view-nav-btn" id="view-prev" title="Previous (←)">◀</button>
+      <span class="view-nav-counter" id="view-nav-counter"></span>
+      <button class="btn btn-outline view-nav-btn" id="view-next" title="Next (→)">▶</button>
+      <div style="width:1px;height:18px;background:var(--gold-bd);margin:0 4px;flex-shrink:0"></div>
       <button class="btn btn-outline" id="view-edit" style="padding:7px 14px;font-size:13px">Edit</button>
       <button class="btn btn-danger" id="view-delete">Delete</button>
     </div>
@@ -3562,6 +3570,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       media.style.display = 'none';
     }
 
+    updateViewNav();
     viewOverlay.removeAttribute('hidden');
     document.body.style.overflow = 'hidden';
   }
@@ -3570,6 +3579,35 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     viewOverlay.setAttribute('hidden', '');
     document.body.style.overflow = '';
     viewingId = null;
+  }
+
+  function updateViewNav() {
+    const list = getFiltered();
+    const idx = list.findIndex(i => i.id === viewingId);
+    const prevBtn = document.getElementById('view-prev');
+    const nextBtn = document.getElementById('view-next');
+    const counter = document.getElementById('view-nav-counter');
+    if (!prevBtn) return;
+    prevBtn.disabled = idx <= 0;
+    nextBtn.disabled = idx < 0 || idx >= list.length - 1;
+    counter.textContent = idx >= 0 ? `${idx + 1} / ${list.length}` : '';
+  }
+
+  async function navigateView(dir) {
+    if (inlineEditId) {
+      if (inlineIsDirty) await saveDocumentEditor(true);
+      else closeDocumentEditor();
+    }
+    const list = getFiltered();
+    const idx = list.findIndex(i => i.id === viewingId);
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= list.length) return;
+
+    const body = document.querySelector('.view-body');
+    body.style.opacity = '0';
+    await new Promise(r => setTimeout(r, 150));
+    openView(list[newIdx].id);
+    requestAnimationFrame(() => { body.style.opacity = '1'; });
   }
 
   // ── Delete ───────────────────────────────────────────────
@@ -4024,6 +4062,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   document.getElementById('add-btn').addEventListener('click', () => openForm());
   document.getElementById('form-cancel').addEventListener('click', closeForm);
   document.getElementById('view-close').addEventListener('click', closeView);
+  document.getElementById('view-prev').addEventListener('click', () => navigateView(-1));
+  document.getElementById('view-next').addEventListener('click', () => navigateView(1));
 
   document.getElementById('view-edit').addEventListener('click', () => {
     const idea = ideas.find(i => i.id === viewingId);
@@ -4045,6 +4085,14 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     else if (!importOverlay.hidden) closeImport();
     else if (!inlineUrlPopupEl?.hidden) inlineUrlPopupEl.setAttribute('hidden', '');
     else hideFolderDropdown();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (viewOverlay.hidden) return;
+    if (inlineEditId) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); navigateView(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); navigateView(1); }
   });
 
   document.getElementById('sidebar').addEventListener('click', e => {
