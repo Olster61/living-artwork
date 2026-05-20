@@ -28,6 +28,30 @@
       --radius-sm:8px;
     }
 
+    [data-theme="light"] {
+      --bg:       #F4F6FA;
+      --bg2:      #FFFFFF;
+      --bg3:      #F0F2F7;
+      --card:     #FFFFFF;
+      --gold:     #C4923A;
+      --gold-lt:  #B07D2A;
+      --gold-dk:  #8B5E18;
+      --gold-bg:  rgba(196,146,58,0.09);
+      --gold-bd:  rgba(196,146,58,0.28);
+      --gold-bdh: rgba(196,146,58,0.60);
+      --text:     #1A1A2E;
+      --text2:    #6B7280;
+      --text3:    #9BA3AF;
+    }
+
+    /* Smooth cross-fade when toggling theme */
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s !important, color 0.3s !important,
+                  border-color 0.3s !important, box-shadow 0.3s !important;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -1805,8 +1829,84 @@
     .bc-home { color: var(--text3); cursor: pointer; }
     .bc-home:hover { color: var(--gold-lt); }
     @media (max-width: 768px) { #breadcrumb { padding: 6px 14px; } }
+
+    /* ── Light mode overrides for hardcoded colours ──────── */
+
+    /* Inputs: replace near-invisible rgba(255,255,255,0.07) border */
+    [data-theme="light"] #search,
+    [data-theme="light"] input[type=text],
+    [data-theme="light"] select,
+    [data-theme="light"] textarea,
+    [data-theme="light"] #form-youtube,
+    [data-theme="light"] #inline-url-input,
+    [data-theme="light"] #tb-size-select { border-color: var(--gold-bd); }
+
+    /* Select dropdown arrow (re-encoded for --text2 #6B7280) */
+    [data-theme="light"] select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+    [data-theme="light"] #inline-editor-cat,
+    [data-theme="light"] #tb-size-select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%236B7280' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-color: var(--bg3);
+    }
+
+    /* View overlay uses hardcoded near-black */
+    [data-theme="light"] .view-overlay { background: rgba(240,242,247,0.98); }
+    [data-theme="light"] .view-bar     { background: rgba(255,255,255,0.97); }
+
+    /* Cards get the specified light-mode shadow */
+    [data-theme="light"] .idea-card { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    [data-theme="light"] .idea-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+
+    /* Active sidebar items use the specified #EEF2FF */
+    [data-theme="light"] .sidebar-item.active,
+    [data-theme="light"] .folder-row.active { background: #EEF2FF; }
+
+    /* Soften floating element shadows */
+    [data-theme="light"] .sel-toolbar       { box-shadow: 0 8px 32px rgba(0,0,0,0.10); }
+    [data-theme="light"] .folder-dropdown   { box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+    [data-theme="light"] .ctx-menu          { box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+    [data-theme="light"] #inline-url-popup  { box-shadow: 0 12px 40px rgba(0,0,0,0.08); }
+    [data-theme="light"] #toast             { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+
+    /* Restore button border */
+    [data-theme="light"] .restore-btn { border-color: var(--gold-bd); }
+
+    /* Quill editor borders */
+    [data-theme="light"] .ql-toolbar.ql-snow {
+      border: 1px solid var(--gold-bd) !important;
+      border-bottom: 1px solid rgba(196,146,58,0.15) !important;
+    }
+    [data-theme="light"] .ql-container.ql-snow {
+      border: 1px solid var(--gold-bd) !important;
+      border-top: none !important;
+    }
+
+    /* Card selection circle */
+    [data-theme="light"] .card-sel {
+      border-color: rgba(0,0,0,0.18);
+      background: rgba(255,255,255,0.75);
+    }
+
+    /* Sidebar folders section tint */
+    [data-theme="light"] #sidebar-folders-wrap {
+      background: rgba(196,146,58,0.03);
+      border-top-color: rgba(196,146,58,0.15);
+    }
+
+    /* Theme toggle button */
+    #theme-toggle-btn { padding: 7px 10px; font-size: 16px; line-height: 1; }
+
   </style>
 </head>
+<script>
+  /* Anti-flash: restore theme before first paint */
+  (function() {
+    var t = localStorage.getItem('ideas-theme');
+    if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  }());
+</script>
 <body>
 
 <!-- ── Header ─────────────────────────────────────────────── -->
@@ -1855,6 +1955,7 @@
     <button class="btn btn-outline" id="new-subfolder-btn" style="padding:7px 11px;font-size:14px" title="Drop ideas here to create new folder">
       <span style="font-size:15px;line-height:1">📁</span><span style="font-size:13px;font-weight:700;line-height:1;margin-left:1px">+</span>
     </button>
+    <button class="btn btn-outline" id="theme-toggle-btn" title="Switch to light mode">☀</button>
     <button class="btn btn-gold" id="add-btn">+ New Idea</button>
   </div>
 </header>
@@ -5673,6 +5774,24 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     modules: { toolbar: false },
     placeholder: 'Paste your conversation or article here…',
   })
+
+  // ── Theme toggle ─────────────────────────────────────────
+  const themeToggleBtn = document.getElementById('theme-toggle-btn');
+  function syncThemeBtn() {
+    const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+    themeToggleBtn.textContent = theme === 'light' ? '🌙' : '☀';
+    themeToggleBtn.title = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+  }
+  syncThemeBtn();
+  themeToggleBtn.addEventListener('click', () => {
+    const html = document.documentElement;
+    const next = (html.getAttribute('data-theme') || 'dark') === 'dark' ? 'light' : 'dark';
+    html.classList.add('theme-transition');
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('ideas-theme', next);
+    syncThemeBtn();
+    setTimeout(() => html.classList.remove('theme-transition'), 350);
+  });
 
   // ── Boot ─────────────────────────────────────────────────
   async function init() {
