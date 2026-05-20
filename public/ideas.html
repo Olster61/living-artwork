@@ -3938,25 +3938,32 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   async function saveNewCat() {
-    console.log('[NewCat] save clicked');
     const name = newCatInput.value.trim();
-    console.log('[NewCat] name:', JSON.stringify(name));
     if (!name) { newCatError.textContent = 'Please enter a name'; return; }
     const saveBtn = document.getElementById('new-cat-save');
     saveBtn.disabled = true;
+    saveBtn.textContent = 'Adding…';
     newCatError.textContent = '';
+
+    // Optimistic update — add to sidebar immediately so the user sees it now
+    const colour = newCatParentId
+      ? null
+      : CAT_PALETTE[categories.filter(c => !c.parent_id).length % CAT_PALETTE.length];
+    const tempCat = { id: '_temp_' + Date.now(), name, parent_id: newCatParentId, colour };
+    categories.push(tempCat);
+    buildSidebar();
+    buildFormSelect();
+
     try {
-      console.log('[NewCat] posting to /api/ideas/categories...');
-      const colour = newCatParentId
-        ? null
-        : CAT_PALETTE[categories.filter(c => !c.parent_id).length % CAT_PALETTE.length];
       const result = await apiFetch('/api/ideas/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, parent_id: newCatParentId, colour }),
       });
-      console.log('[NewCat] API response:', result);
-      categories.push(result.category);
+      // Replace temp entry with the real record from the server
+      const idx = categories.indexOf(tempCat);
+      if (idx !== -1) categories[idx] = result.category;
+      else categories.push(result.category);
       buildSidebar();
       buildFormSelect();
       const ideaIds = newCatIdeaToMove;
@@ -3964,11 +3971,16 @@ CREATE POLICY "allow all" ON ideas FOR ALL
       toast(`Category "${name}" added`);
       if (ideaIds && ideaIds.length) await moveIdeasToCategory(ideaIds, name);
     } catch (err) {
-      console.error('[NewCat] API error:', err.message);
+      // Roll back the optimistic entry
+      const idx = categories.indexOf(tempCat);
+      if (idx !== -1) categories.splice(idx, 1);
+      buildSidebar();
+      buildFormSelect();
       newCatError.textContent = err.message;
       toast(err.message, true);
     } finally {
       saveBtn.disabled = false;
+      saveBtn.textContent = 'Add Category';
     }
   }
 

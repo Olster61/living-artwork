@@ -632,22 +632,25 @@ app.get('/api/ideas/categories', async (req, res) => {
 })
 
 app.post('/api/ideas/categories', async (req, res) => {
-  console.log('[Categories] POST body:', req.body)
+  const t0 = Date.now()
+  console.log('[Categories] POST start, body:', req.body)
   const name = (req.body?.name || '').trim()
   const parent_id = req.body?.parent_id || null
   const colour = req.body?.colour || null
   if (!name) return res.status(400).json({ error: 'Name required' })
+  console.log('[Categories] POST calling supabase insert,', Date.now() - t0, 'ms since start')
   const { data, error } = await supabase
     .from('idea_categories')
     .insert({ name, parent_id, colour })
     .select('id, name, parent_id, colour')
     .single()
+  console.log('[Categories] POST supabase returned,', Date.now() - t0, 'ms since start')
   if (error) {
     console.error('[Categories] insert error:', error.code, error.message)
     if (error.code === '23505') return res.status(409).json({ error: 'Category already exists' })
     return res.status(500).json({ error: error.message })
   }
-  console.log('[Categories] created:', data.name)
+  console.log('[Categories] created:', data.name, '— total', Date.now() - t0, 'ms')
   res.json({ category: data })
 })
 
