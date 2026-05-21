@@ -1062,6 +1062,18 @@
       .view-bar   { padding: 8px 12px; }
     }
 
+    /* ── Desktop: view overlay stays right of sidebar ─────── */
+    @media (min-width: 769px) {
+      .view-overlay { left: 220px; }
+    }
+
+    /* ── Brand icon (mobile) vs text (desktop) ───────────── */
+    .brand-icon { display: none; font-style: normal; }
+    @media (max-width: 768px) {
+      .brand-text { display: none; }
+      .brand-icon { display: inline; font-size: 22px; line-height: 1; }
+    }
+
     /* ── Context menu ─────────────────────────────────────── */
     .ctx-menu {
       position: fixed;
@@ -1920,7 +1932,8 @@
   </button>
 
   <div class="brand">
-    Ideas
+    <span class="brand-text">Ideas</span>
+    <span class="brand-icon" aria-hidden="true">💡</span>
     <small>Knowledge Base</small>
   </div>
 
@@ -3673,7 +3686,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
     updateViewNav();
     viewOverlay.removeAttribute('hidden');
-    document.body.style.overflow = 'hidden';
+    if (window.innerWidth <= 768) document.body.style.overflow = 'hidden';
   }
 
   function closeView() {
