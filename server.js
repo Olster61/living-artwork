@@ -1118,6 +1118,74 @@ app.post('/api/smart-folders/:id/items', async (req, res) => {
   res.json({ ok: true })
 })
 
+// ── Whiteboard ─────────────────────────────────────────────────────────────
+
+app.get('/api/whiteboard/nodes', async (req, res) => {
+  const { data, error } = await supabase
+    .from('whiteboard_nodes')
+    .select('*')
+    .order('created_at')
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ nodes: data })
+})
+
+app.post('/api/whiteboard/nodes', express.json(), async (req, res) => {
+  const { idea_id, x_pos = 0, y_pos = 0 } = req.body
+  if (!idea_id) return res.status(400).json({ error: 'idea_id required' })
+  const { data, error } = await supabase
+    .from('whiteboard_nodes')
+    .insert({ idea_id, x_pos, y_pos })
+    .select()
+    .single()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ node: data })
+})
+
+app.patch('/api/whiteboard/nodes/:id', express.json(), async (req, res) => {
+  const { x_pos, y_pos } = req.body
+  const { data, error } = await supabase
+    .from('whiteboard_nodes')
+    .update({ x_pos, y_pos })
+    .eq('id', req.params.id)
+    .select()
+    .single()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ node: data })
+})
+
+app.delete('/api/whiteboard/nodes/:id', async (req, res) => {
+  const { error } = await supabase.from('whiteboard_nodes').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
+app.get('/api/whiteboard/edges', async (req, res) => {
+  const { data, error } = await supabase
+    .from('whiteboard_edges')
+    .select('*')
+    .order('created_at')
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ edges: data })
+})
+
+app.post('/api/whiteboard/edges', express.json(), async (req, res) => {
+  const { from_node, to_node, colour = 'gold' } = req.body
+  if (!from_node || !to_node) return res.status(400).json({ error: 'from_node and to_node required' })
+  const { data, error } = await supabase
+    .from('whiteboard_edges')
+    .insert({ from_node, to_node, colour })
+    .select()
+    .single()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ edge: data })
+})
+
+app.delete('/api/whiteboard/edges/:id', async (req, res) => {
+  const { error } = await supabase.from('whiteboard_edges').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ ok: true })
+})
+
 // ── Static / Admin page ───────────────────────────────────────────────────────
 
 app.use('/public', express.static(path.join(__dirname, 'public')))

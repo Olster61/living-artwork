@@ -176,8 +176,16 @@
       color: var(--err);
     }
 
+    /* ── Mobile: round + add button ─────────────────────── */
+    .add-btn-icon { display: none; }
+    @media (max-width: 768px) {
+      .add-btn-text { display: none; }
+      .add-btn-icon { display: block; font-size: 26px; font-weight: 300; line-height: 1; }
+      #add-btn { width: 44px; height: 44px; border-radius: 50%; padding: 0; justify-content: center; flex-shrink: 0; }
+    }
+
     /* ── Page layout ──────────────────────────────────────── */
-    .page-body { display: flex; flex: 1; overflow: hidden; }
+    .page-body { display: flex; flex: 1; overflow: hidden; position: relative; }
 
     /* ── Sidebar ──────────────────────────────────────────── */
     .sidebar {
@@ -1068,6 +1076,167 @@
     @media (max-width: 768px) {
       .brand-text { display: none; }
       .brand-icon { display: inline; font-size: 22px; line-height: 1; }
+    }
+
+    /* ── Whiteboard ──────────────────────────────────────── */
+    .wb-root {
+      position: absolute; inset: 0; z-index: 60;
+      display: flex; flex-direction: column; background: var(--bg);
+    }
+    .wb-root[hidden] { display: none; }
+
+    .wb-viewport {
+      flex: 1; overflow: hidden; position: relative; cursor: grab;
+      background-color: #0a0a0a;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.13) 1px, transparent 1px);
+      background-size: 30px 30px;
+    }
+    [data-theme="light"] .wb-viewport {
+      background-color: #eef0f5;
+      background-image: radial-gradient(circle, rgba(0,0,0,0.18) 1px, transparent 1px);
+    }
+    .wb-viewport.wb-panning { cursor: grabbing; }
+    .wb-viewport.wb-arrow-tool { cursor: crosshair; }
+
+    .wb-world {
+      position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform;
+    }
+    #wb-svg {
+      position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none;
+    }
+    #wb-nodes { position: absolute; top: 0; left: 0; }
+    #wb-edge-hits { position: absolute; top: 0; left: 0; pointer-events: none; }
+
+    .wb-card {
+      position: absolute; width: 220px;
+      background: var(--card); border: 1.5px solid var(--gold-bd);
+      border-radius: var(--radius); padding: 12px 14px 12px;
+      cursor: grab; user-select: none;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .wb-card:hover { border-color: var(--gold-bdh); box-shadow: 0 6px 24px rgba(0,0,0,0.55); }
+    .wb-card.wb-selected { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,168,76,0.25); }
+    .wb-card-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+    .wb-card-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .wb-card-cat { font-size: 10px; color: var(--text3); letter-spacing: 0.07em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .wb-card-title { font-family: 'Playfair Display', serif; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 5px; line-height: 1.35; }
+    .wb-card-preview { font-size: 11px; color: var(--text2); line-height: 1.5; }
+    .wb-card-del {
+      position: absolute; top: 6px; right: 6px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: rgba(217,83,79,0); border: none; color: transparent;
+      cursor: pointer; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; line-height: 1;
+    }
+    .wb-card:hover .wb-card-del { background: rgba(217,83,79,0.75); color: #fff; }
+    .wb-card-del:hover { background: var(--err) !important; }
+
+    /* Edge delete dot at midpoint */
+    .wb-edge-del {
+      position: absolute; transform: translate(-50%, -50%);
+      width: 18px; height: 18px; border-radius: 50%;
+      border: none; cursor: pointer; font-size: 10px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.15s;
+      color: #fff; line-height: 1;
+    }
+    #wb-edge-hits:hover .wb-edge-del,
+    .wb-edge-del:hover { opacity: 1; }
+    .wb-edge-del:hover { transform: translate(-50%, -50%) scale(1.2); }
+
+    /* Left floating tool panel */
+    .wb-tools {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      z-index: 70; display: flex; flex-direction: column; align-items: center; gap: 4px;
+      background: var(--bg2); border: 1px solid var(--gold-bd);
+      border-radius: 12px; padding: 8px 6px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.55);
+    }
+    .wb-tool-btn {
+      width: 36px; height: 36px; border-radius: 8px; border: none;
+      background: none; color: var(--text2);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: background 0.15s, color 0.15s;
+    }
+    .wb-tool-btn:hover { background: var(--bg3); color: var(--text); }
+    .wb-tool-btn.active { background: var(--gold-bg); color: var(--gold-lt); }
+    .wb-tool-sep { width: 24px; height: 1px; background: var(--gold-bd); margin: 2px 0; }
+    .wb-color-btn {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid transparent; cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    .wb-color-btn.active { border-color: var(--text); transform: scale(1.25); }
+
+    /* Top control bar */
+    .wb-ctrl {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 14px; flex-shrink: 0;
+      background: var(--bg2); border-bottom: 1px solid var(--gold-bd); z-index: 70;
+    }
+    .wb-ctrl-title { font-size: 12px; font-weight: 600; color: var(--text2); letter-spacing: 0.06em; text-transform: uppercase; }
+    .wb-zoom-group { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+    .wb-zoom-btn {
+      width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--gold-bd);
+      background: none; color: var(--text2); font-size: 14px; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .wb-zoom-btn:hover { background: var(--gold-bg); color: var(--gold-lt); }
+    .wb-zoom-label { font-size: 11px; color: var(--text3); min-width: 40px; text-align: center; font-variant-numeric: tabular-nums; }
+
+    /* Right panels (Add ideas / Detail / Setup) */
+    .wb-panel {
+      position: absolute; top: 0; right: 0; bottom: 0; width: 320px; z-index: 70;
+      background: var(--bg2); border-left: 1px solid var(--gold-bd);
+      display: flex; flex-direction: column;
+      box-shadow: -4px 0 20px rgba(0,0,0,0.5);
+    }
+    .wb-panel[hidden] { display: none; }
+    .wb-panel-head {
+      padding: 14px 14px 10px; border-bottom: 1px solid var(--gold-bd);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .wb-panel-head h3 { font-family: 'Playfair Display', serif; font-size: 15px; color: var(--gold-lt); flex: 1; margin: 0; }
+    .wb-search {
+      margin: 10px 12px 4px;
+      padding: 7px 12px; background: var(--bg3);
+      border: 1px solid var(--gold-bd); border-radius: var(--radius-sm);
+      color: var(--text); font-size: 13px; font-family: 'Inter',sans-serif;
+      outline: none; width: calc(100% - 24px); flex-shrink: 0;
+    }
+    .wb-search:focus { border-color: var(--gold-bdh); }
+    .wb-idea-list { flex: 1; overflow-y: auto; padding: 4px 8px 8px; }
+    .wb-idea-row {
+      display: flex; align-items: center; gap: 9px; padding: 8px 8px;
+      border-radius: var(--radius-sm); cursor: pointer; transition: background 0.12s;
+    }
+    .wb-idea-row:hover { background: var(--bg3); }
+    .wb-idea-row input[type=checkbox] { accent-color: var(--gold); flex-shrink: 0; width: 15px; height: 15px; cursor: pointer; }
+    .wb-idea-dot2 { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .wb-idea-name { font-size: 13px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wb-on-badge { font-size: 9px; letter-spacing: 0.07em; color: var(--text3); text-transform: uppercase; flex-shrink: 0; }
+    .wb-panel-foot { padding: 10px 12px; border-top: 1px solid var(--gold-bd); display: flex; gap: 8px; flex-shrink: 0; }
+    .wb-panel-foot button { flex: 1; }
+
+    /* Detail panel (wider) */
+    .wb-detail-panel { width: 380px; }
+    .wb-detail-body { padding: 22px 18px 60px; overflow-y: auto; flex: 1; }
+    .wb-detail-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 14px; }
+    .wb-detail-notes { font-size: 14px; line-height: 1.8; color: var(--text2); word-break: break-word; }
+    .wb-detail-notes h1 { font-family: 'Playfair Display', serif; font-size: 1.4em; margin: 0.5em 0 0.3em; }
+    .wb-detail-notes p + p { margin-top: 0.4em; }
+
+    /* Setup panel */
+    .wb-setup-body { padding: 14px 14px; overflow-y: auto; flex: 1; font-size: 13px; color: var(--text2); line-height: 1.7; }
+    .wb-setup-body a { color: var(--gold-lt); }
+    .wb-setup-sql {
+      margin-top: 10px; padding: 12px; background: var(--bg3);
+      border: 1px solid var(--gold-bd); border-radius: var(--radius-sm);
+      font-size: 11px; overflow-x: auto; white-space: pre;
+      font-family: monospace; color: var(--text2); line-height: 1.6;
     }
 
     /* ── Context menu ─────────────────────────────────────── */
@@ -1963,7 +2132,20 @@
       <span style="font-size:15px;line-height:1">📁</span><span style="font-size:13px;font-weight:700;line-height:1;margin-left:1px">+</span>
     </button>
     <button class="btn btn-outline" id="theme-toggle-btn" title="Switch to light mode">☀</button>
-    <button class="btn btn-gold" id="add-btn">+ New Idea</button>
+    <button class="btn btn-outline" id="wb-mode-btn" title="Whiteboard">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="1" width="13" height="13" rx="2"/>
+        <circle cx="4.5" cy="4.5" r="1" fill="currentColor" stroke="none"/>
+        <circle cx="10.5" cy="4.5" r="1" fill="currentColor" stroke="none"/>
+        <circle cx="4.5" cy="10.5" r="1" fill="currentColor" stroke="none"/>
+        <circle cx="10.5" cy="10.5" r="1" fill="currentColor" stroke="none"/>
+        <path d="M5.5 4.5 L9.5 4.5 M4.5 5.5 L10.5 10.5"/>
+      </svg>
+    </button>
+    <button class="btn btn-gold" id="add-btn">
+      <span class="add-btn-text">+ New Idea</span>
+      <span class="add-btn-icon" aria-hidden="true">+</span>
+    </button>
   </div>
 </header>
 
@@ -2123,6 +2305,100 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Whiteboard ─────────────────────────────────────────── -->
+  <div id="whiteboard-view" class="wb-root" hidden>
+
+    <!-- Top control bar -->
+    <div class="wb-ctrl">
+      <span class="wb-ctrl-title">Whiteboard</span>
+      <button class="btn btn-outline" id="wb-add-ideas-btn" style="padding:5px 12px;font-size:12px">+ Add Ideas</button>
+      <button class="btn btn-outline" id="wb-setup-btn" style="padding:5px 10px;font-size:12px" title="Show database setup SQL">⚙</button>
+      <div class="wb-zoom-group">
+        <button class="wb-zoom-btn" id="wb-zoom-out" title="Zoom out">−</button>
+        <span class="wb-zoom-label" id="wb-zoom-label">100%</span>
+        <button class="wb-zoom-btn" id="wb-zoom-in" title="Zoom in">+</button>
+        <button class="wb-zoom-btn" id="wb-zoom-fit" title="Fit all nodes" style="font-size:10px;width:auto;padding:0 7px">Fit</button>
+      </div>
+    </div>
+
+    <!-- Canvas viewport -->
+    <div id="wb-viewport" class="wb-viewport">
+      <div id="wb-world" class="wb-world">
+        <!-- SVG arrows (pointer-events:none — rendering only) -->
+        <svg id="wb-svg">
+          <defs>
+            <marker id="wbm-gold" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#c9a84c"/></marker>
+            <marker id="wbm-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4a90d9"/></marker>
+            <marker id="wbm-red"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#e17055"/></marker>
+            <marker id="wbm-grey" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#9b9baa"/></marker>
+          </defs>
+        </svg>
+        <!-- Edge delete buttons (HTML, positioned at bezier midpoints) -->
+        <div id="wb-edge-hits"></div>
+        <!-- Node cards -->
+        <div id="wb-nodes"></div>
+      </div>
+    </div>
+
+    <!-- Left floating tools -->
+    <div class="wb-tools" id="wb-tools">
+      <button class="wb-tool-btn active" id="wb-tool-select" title="Select / Pan (V)">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.5 2 L3.5 12.5 L6.5 9.5 L8.5 13.5 L10 12.8 L8 8.8 L12 8.8 Z" fill="currentColor" stroke="none" opacity="0.7"/>
+        </svg>
+      </button>
+      <button class="wb-tool-btn" id="wb-tool-arrow" title="Connect (A)">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12 Q7.5 7.5 12 3"/><path d="M8 3 L12 3 L12 7"/>
+        </svg>
+      </button>
+      <div class="wb-tool-sep"></div>
+      <button class="wb-color-btn active" data-colour="gold" style="background:#c9a84c" title="Gold"></button>
+      <button class="wb-color-btn" data-colour="blue" style="background:#4a90d9" title="Blue"></button>
+      <button class="wb-color-btn" data-colour="red"  style="background:#e17055" title="Red"></button>
+      <button class="wb-color-btn" data-colour="grey" style="background:#9b9baa" title="Grey"></button>
+    </div>
+
+    <!-- Add ideas panel (right) -->
+    <div id="wb-add-panel" class="wb-panel" hidden>
+      <div class="wb-panel-head">
+        <h3>Add Ideas</h3>
+        <button class="btn btn-outline" id="wb-add-close" style="padding:4px 9px;font-size:12px">✕</button>
+      </div>
+      <input type="search" class="wb-search" id="wb-add-search" placeholder="Filter…" autocomplete="off">
+      <div class="wb-idea-list" id="wb-idea-list"></div>
+      <div class="wb-panel-foot">
+        <button class="btn btn-outline" id="wb-add-cancel">Cancel</button>
+        <button class="btn btn-gold" id="wb-add-confirm">Add to Board</button>
+      </div>
+    </div>
+
+    <!-- Idea detail panel (right) -->
+    <div id="wb-detail" class="wb-panel wb-detail-panel" hidden>
+      <div class="wb-panel-head">
+        <button class="btn btn-outline" id="wb-detail-close" style="padding:4px 9px;font-size:12px">← Back</button>
+        <span id="wb-detail-meta"></span>
+      </div>
+      <div class="wb-detail-body">
+        <h2 class="wb-detail-title" id="wb-detail-title"></h2>
+        <div class="wb-detail-notes" id="wb-detail-notes"></div>
+      </div>
+    </div>
+
+    <!-- Setup SQL panel (right) -->
+    <div id="wb-setup-panel" class="wb-panel" hidden>
+      <div class="wb-panel-head">
+        <h3>Database Setup</h3>
+        <button class="btn btn-outline" id="wb-setup-close" style="padding:4px 9px;font-size:12px">✕</button>
+      </div>
+      <div class="wb-setup-body">
+        <p>Run this SQL once in your <a href="https://app.supabase.com" target="_blank">Supabase SQL editor</a> to enable whiteboard saving:</p>
+        <pre class="wb-setup-sql" id="wb-setup-sql"></pre>
+      </div>
+    </div>
+
+  </div><!-- /whiteboard-view -->
 
 </div>
 
@@ -5802,6 +6078,474 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     syncThemeBtn();
     setTimeout(() => html.classList.remove('theme-transition'), 350);
   });
+
+  // ── Whiteboard ────────────────────────────────────────────
+  const WB_NODE_W  = 220;
+  const WB_NODE_H  = 92;  // approximate card height
+  const WB_GRID    = 30;
+  const WB_COLOURS = { gold: '#c9a84c', blue: '#4a90d9', red: '#e17055', grey: '#9b9baa' };
+  const WB_SETUP_SQL = `CREATE TABLE IF NOT EXISTS whiteboard_nodes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  idea_id uuid REFERENCES ideas(id) ON DELETE CASCADE,
+  x_pos float DEFAULT 0,
+  y_pos float DEFAULT 0,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE whiteboard_nodes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow all" ON whiteboard_nodes FOR ALL USING (true) WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS whiteboard_edges (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  from_node uuid REFERENCES whiteboard_nodes(id) ON DELETE CASCADE,
+  to_node uuid REFERENCES whiteboard_nodes(id) ON DELETE CASCADE,
+  colour text DEFAULT 'gold',
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE whiteboard_edges ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (true);`;
+
+  let wbActive       = false;
+  let wbNodes        = [];
+  let wbEdges        = [];
+  let wbPan          = { x: 0, y: 0 };
+  let wbScale        = 1;
+  let wbTool         = 'select';
+  let wbColour       = 'gold';
+  let wbPanning      = false;
+  let wbPanStart     = { x: 0, y: 0 };
+  let wbDragging     = null; // { nodeId, startX, startY, mouseX, mouseY }
+  let wbDrawing      = null; // { fromId, fromX, fromY }
+  let wbSaveTimers   = {};
+  let wbPinchDist    = 0;
+
+  const wbRootEl     = document.getElementById('whiteboard-view');
+  const wbViewport   = document.getElementById('wb-viewport');
+  const wbWorldEl    = document.getElementById('wb-world');
+  const wbSvgEl      = document.getElementById('wb-svg');
+  const wbNodesEl    = document.getElementById('wb-nodes');
+  const wbHitsEl     = document.getElementById('wb-edge-hits');
+  const wbZoomLabel  = document.getElementById('wb-zoom-label');
+  const wbAddPanel   = document.getElementById('wb-add-panel');
+  const wbDetailEl   = document.getElementById('wb-detail');
+  const wbSetupEl    = document.getElementById('wb-setup-panel');
+
+  // ── Transform helpers ──────────────────────────────────────
+  function wbApply() {
+    wbWorldEl.style.transform = `translate(${wbPan.x}px,${wbPan.y}px) scale(${wbScale})`;
+    const gx = ((wbPan.x % WB_GRID) + WB_GRID) % WB_GRID;
+    const gy = ((wbPan.y % WB_GRID) + WB_GRID) % WB_GRID;
+    wbViewport.style.backgroundPosition = `${gx}px ${gy}px`;
+    wbZoomLabel.textContent = Math.round(wbScale * 100) + '%';
+  }
+
+  function wbToWorld(sx, sy) {
+    const r = wbViewport.getBoundingClientRect();
+    return { x: (sx - r.left - wbPan.x) / wbScale, y: (sy - r.top - wbPan.y) / wbScale };
+  }
+
+  function wbEdgePath(fn, tn) {
+    const fx = fn.x_pos + WB_NODE_W / 2, fy = fn.y_pos + WB_NODE_H / 2;
+    const tx = tn.x_pos + WB_NODE_W / 2, ty = tn.y_pos + WB_NODE_H / 2;
+    const dx = tx - fx, curve = Math.min(Math.abs(dx) * 0.5, 160);
+    return { d: `M${fx},${fy} C${fx+curve},${fy} ${tx-curve},${ty} ${tx},${ty}`, fx, fy, tx, ty, cx: (fx+tx)/2, cy: (fy+ty)/2 };
+  }
+
+  // ── Render ─────────────────────────────────────────────────
+  function wbRender() { wbRenderNodes(); wbRenderEdges(); }
+
+  function wbRenderNodes() {
+    wbNodesEl.innerHTML = '';
+    for (const node of wbNodes) {
+      const idea = ideas.find(i => i.id === node.idea_id);
+      if (!idea) continue;
+      const col = catColor(idea.category);
+      const prev = stripHtml(idea.notes || '').slice(0, 55);
+      const card = document.createElement('div');
+      card.className = 'wb-card';
+      card.dataset.nid = node.id;
+      card.style.cssText = `left:${node.x_pos}px;top:${node.y_pos}px`;
+      card.innerHTML = `
+        <button class="wb-card-del" tabindex="-1">✕</button>
+        <div class="wb-card-head">
+          <div class="wb-card-dot" style="background:${col}"></div>
+          <div class="wb-card-cat">${esc(idea.category)}</div>
+        </div>
+        <div class="wb-card-title">${esc(idea.title)}</div>
+        ${prev ? `<div class="wb-card-preview">${esc(prev)}…</div>` : ''}`;
+      card.addEventListener('mousedown', wbOnCardDown);
+      card.addEventListener('dblclick', e => { e.stopPropagation(); if (wbTool !== 'arrow') wbShowDetail(node.idea_id); });
+      card.querySelector('.wb-card-del').addEventListener('click', async e => {
+        e.stopPropagation();
+        if (!confirm('Remove from whiteboard?')) return;
+        try {
+          await apiFetch(`/api/whiteboard/nodes/${node.id}`, { method: 'DELETE' });
+          wbNodes = wbNodes.filter(n => n.id !== node.id);
+          wbEdges = wbEdges.filter(ed => ed.from_node !== node.id && ed.to_node !== node.id);
+          wbRender();
+        } catch (err) { toast(err.message, true); }
+      });
+      wbNodesEl.appendChild(card);
+    }
+  }
+
+  function wbRenderEdges() {
+    // Clear SVG paths (keep defs)
+    [...wbSvgEl.children].filter(c => c.tagName.toLowerCase() !== 'defs').forEach(c => c.remove());
+    wbHitsEl.innerHTML = '';
+
+    for (const edge of wbEdges) {
+      const fn = wbNodes.find(n => n.id === edge.from_node);
+      const tn = wbNodes.find(n => n.id === edge.to_node);
+      if (!fn || !tn) continue;
+      const col = WB_COLOURS[edge.colour] || WB_COLOURS.gold;
+      const { d, cx, cy } = wbEdgePath(fn, tn);
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('stroke', col);
+      path.setAttribute('stroke-width', '2.5');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('marker-end', `url(#wbm-${edge.colour || 'gold'})`);
+      wbSvgEl.appendChild(path);
+
+      // Clickable delete dot at midpoint (HTML over SVG)
+      const btn = document.createElement('button');
+      btn.className = 'wb-edge-del';
+      btn.style.cssText = `left:${cx}px;top:${cy}px;background:${col}`;
+      btn.title = 'Delete connection';
+      btn.textContent = '✕';
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        try {
+          await apiFetch(`/api/whiteboard/edges/${edge.id}`, { method: 'DELETE' });
+          wbEdges = wbEdges.filter(ed => ed.id !== edge.id);
+          wbRenderEdges();
+        } catch (err) { toast(err.message, true); }
+      });
+      wbHitsEl.appendChild(btn);
+    }
+  }
+
+  // ── Temp arrow while drawing ────────────────────────────────
+  function wbSetTemp(fx, fy, tx, ty) {
+    let el = document.getElementById('wb-temp');
+    if (!el) {
+      el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      el.id = 'wb-temp';
+      el.setAttribute('fill', 'none');
+      el.setAttribute('stroke-dasharray', '7 4');
+      el.setAttribute('stroke-width', '2');
+      el.setAttribute('stroke-linecap', 'round');
+      wbSvgEl.appendChild(el);
+    }
+    const dx = tx - fx, curve = Math.min(Math.abs(dx) * 0.5, 160);
+    el.setAttribute('d', `M${fx},${fy} C${fx+curve},${fy} ${tx-curve},${ty} ${tx},${ty}`);
+    el.setAttribute('stroke', WB_COLOURS[wbColour] || WB_COLOURS.gold);
+    el.setAttribute('stroke-opacity', '0.65');
+  }
+  function wbClearTemp() { const el = document.getElementById('wb-temp'); if (el) el.remove(); }
+
+  // ── Card interaction ────────────────────────────────────────
+  function wbOnCardDown(e) {
+    if (e.target.closest('.wb-card-del')) return;
+    e.stopPropagation();
+    const card = e.currentTarget;
+    const nid  = card.dataset.nid;
+    const node = wbNodes.find(n => n.id === nid);
+    if (!node) return;
+
+    if (wbTool === 'arrow') {
+      wbDrawing = { fromId: nid, fromX: node.x_pos + WB_NODE_W/2, fromY: node.y_pos + WB_NODE_H/2 };
+      card.classList.add('wb-selected');
+    } else {
+      wbDragging = { nodeId: nid, startX: node.x_pos, startY: node.y_pos, mouseX: e.clientX, mouseY: e.clientY };
+      card.style.cursor = 'grabbing';
+      card.classList.add('wb-selected');
+    }
+  }
+
+  // ── Viewport mouse events ────────────────────────────────────
+  wbViewport.addEventListener('mousedown', e => {
+    const onBg = e.target === wbViewport || e.target === wbWorldEl || e.target === wbSvgEl;
+    if (!onBg) return;
+    if (e.button !== 0 && e.button !== 1) return;
+    wbPanning = true;
+    wbPanStart = { x: e.clientX - wbPan.x, y: e.clientY - wbPan.y };
+    wbViewport.classList.add('wb-panning');
+  });
+
+  wbViewport.addEventListener('mousemove', e => {
+    if (wbPanning) {
+      wbPan.x = e.clientX - wbPanStart.x;
+      wbPan.y = e.clientY - wbPanStart.y;
+      wbApply(); return;
+    }
+    if (wbDragging) {
+      const node = wbNodes.find(n => n.id === wbDragging.nodeId);
+      if (!node) return;
+      node.x_pos = wbDragging.startX + (e.clientX - wbDragging.mouseX) / wbScale;
+      node.y_pos = wbDragging.startY + (e.clientY - wbDragging.mouseY) / wbScale;
+      const card = wbNodesEl.querySelector(`[data-nid="${wbDragging.nodeId}"]`);
+      if (card) { card.style.left = node.x_pos + 'px'; card.style.top = node.y_pos + 'px'; }
+      wbRenderEdges(); return;
+    }
+    if (wbDrawing) {
+      const w = wbToWorld(e.clientX, e.clientY);
+      wbSetTemp(wbDrawing.fromX, wbDrawing.fromY, w.x, w.y);
+    }
+  });
+
+  wbViewport.addEventListener('mouseup', async e => {
+    wbViewport.classList.remove('wb-panning');
+    if (wbPanning) { wbPanning = false; return; }
+
+    if (wbDragging) {
+      const node = wbNodes.find(n => n.id === wbDragging.nodeId);
+      const card = wbNodesEl.querySelector(`[data-nid="${wbDragging.nodeId}"]`);
+      if (card) { card.style.cursor = ''; card.classList.remove('wb-selected'); }
+      if (node) {
+        clearTimeout(wbSaveTimers[node.id]);
+        wbSaveTimers[node.id] = setTimeout(async () => {
+          try { await apiFetch(`/api/whiteboard/nodes/${node.id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ x_pos: Math.round(node.x_pos), y_pos: Math.round(node.y_pos) }) }); } catch {}
+        }, 600);
+      }
+      wbDragging = null; return;
+    }
+
+    if (wbDrawing) {
+      wbClearTemp();
+      const w = wbToWorld(e.clientX, e.clientY);
+      const snap = wbNearestNode(w.x, w.y, wbDrawing.fromId, 130);
+      if (snap) {
+        try {
+          const data = await apiFetch('/api/whiteboard/edges', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ from_node: wbDrawing.fromId, to_node: snap.id, colour: wbColour }) });
+          wbEdges.push(data.edge);
+          wbRenderEdges();
+        } catch (err) { toast(err.message, true); }
+      }
+      const fc = wbNodesEl.querySelector(`[data-nid="${wbDrawing.fromId}"]`);
+      if (fc) fc.classList.remove('wb-selected');
+      wbDrawing = null;
+    }
+  });
+
+  wbViewport.addEventListener('mouseleave', () => {
+    wbPanning = false;
+    wbViewport.classList.remove('wb-panning');
+    if (wbDrawing) { wbClearTemp(); const fc = wbNodesEl.querySelector(`[data-nid="${wbDrawing.fromId}"]`); if (fc) fc.classList.remove('wb-selected'); wbDrawing = null; }
+  });
+
+  wbViewport.addEventListener('wheel', e => {
+    e.preventDefault();
+    const f = e.deltaY < 0 ? 1.1 : 0.909;
+    const r = wbViewport.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    wbPan.x = mx - (mx - wbPan.x) * f;
+    wbPan.y = my - (my - wbPan.y) * f;
+    wbScale = Math.max(0.08, Math.min(4, wbScale * f));
+    wbApply();
+  }, { passive: false });
+
+  // Touch pan + pinch zoom
+  wbViewport.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      wbPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      wbPanning = false;
+    } else if (e.touches.length === 1) {
+      wbPanning = true;
+      wbPanStart = { x: e.touches[0].clientX - wbPan.x, y: e.touches[0].clientY - wbPan.y };
+    }
+  }, { passive: true });
+
+  wbViewport.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const f = d / (wbPinchDist || d);
+      wbPinchDist = d;
+      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const r = wbViewport.getBoundingClientRect();
+      const lx = mx - r.left, ly = my - r.top;
+      wbPan.x = lx - (lx - wbPan.x) * f;
+      wbPan.y = ly - (ly - wbPan.y) * f;
+      wbScale = Math.max(0.08, Math.min(4, wbScale * f));
+      wbApply();
+    } else if (e.touches.length === 1 && wbPanning) {
+      wbPan.x = e.touches[0].clientX - wbPanStart.x;
+      wbPan.y = e.touches[0].clientY - wbPanStart.y;
+      wbApply();
+    }
+  }, { passive: false });
+
+  wbViewport.addEventListener('touchend', () => { wbPanning = false; });
+
+  // ── Nearest node for snapping ──────────────────────────────
+  function wbNearestNode(wx, wy, excludeId, radius) {
+    let best = null, bd = Infinity;
+    for (const n of wbNodes) {
+      if (n.id === excludeId) continue;
+      const d = Math.hypot(wx - (n.x_pos + WB_NODE_W/2), wy - (n.y_pos + WB_NODE_H/2));
+      if (d < radius && d < bd) { best = n; bd = d; }
+    }
+    return best;
+  }
+
+  // ── Enter / Exit ────────────────────────────────────────────
+  async function enterWhiteboard() {
+    wbActive = true;
+    wbRootEl.removeAttribute('hidden');
+    document.getElementById('wb-mode-btn').classList.add('active');
+    document.getElementById('wb-setup-sql').textContent = WB_SETUP_SQL;
+    // Default pan: center of viewport
+    wbPan.x = (wbViewport.clientWidth  || 800) / 2 - WB_NODE_W / 2;
+    wbPan.y = (wbViewport.clientHeight || 500) / 2 - WB_NODE_H / 2;
+    wbApply();
+    await wbLoad();
+  }
+
+  function exitWhiteboard() {
+    wbActive = false;
+    wbRootEl.setAttribute('hidden', '');
+    document.getElementById('wb-mode-btn').classList.remove('active');
+    wbAddPanel.setAttribute('hidden', '');
+    wbDetailEl.setAttribute('hidden', '');
+    wbSetupEl.setAttribute('hidden', '');
+  }
+
+  async function wbLoad() {
+    try {
+      const [nd, ed] = await Promise.all([apiFetch('/api/whiteboard/nodes'), apiFetch('/api/whiteboard/edges')]);
+      wbNodes = nd.nodes || [];
+      wbEdges = ed.edges || [];
+      wbRender();
+    } catch {
+      // Tables not set up yet
+      wbNodes = []; wbEdges = []; wbRender();
+      wbSetupEl.removeAttribute('hidden');
+    }
+  }
+
+  // ── Tool buttons ────────────────────────────────────────────
+  document.getElementById('wb-tool-select').addEventListener('click', () => {
+    wbTool = 'select';
+    document.getElementById('wb-tool-select').classList.add('active');
+    document.getElementById('wb-tool-arrow').classList.remove('active');
+    wbViewport.classList.remove('wb-arrow-tool');
+  });
+  document.getElementById('wb-tool-arrow').addEventListener('click', () => {
+    wbTool = 'arrow';
+    document.getElementById('wb-tool-select').classList.remove('active');
+    document.getElementById('wb-tool-arrow').classList.add('active');
+    wbViewport.classList.add('wb-arrow-tool');
+  });
+  document.querySelectorAll('.wb-color-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      wbColour = btn.dataset.colour;
+      document.querySelectorAll('.wb-color-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // ── Zoom buttons ────────────────────────────────────────────
+  function wbZoom(f) {
+    const cx = wbViewport.clientWidth / 2, cy = wbViewport.clientHeight / 2;
+    wbPan.x = cx - (cx - wbPan.x) * f;
+    wbPan.y = cy - (cy - wbPan.y) * f;
+    wbScale = Math.max(0.08, Math.min(4, wbScale * f));
+    wbApply();
+  }
+  document.getElementById('wb-zoom-in').addEventListener('click',  () => wbZoom(1.2));
+  document.getElementById('wb-zoom-out').addEventListener('click', () => wbZoom(1/1.2));
+  document.getElementById('wb-zoom-fit').addEventListener('click', () => {
+    if (!wbNodes.length) { wbPan.x = wbViewport.clientWidth/2; wbPan.y = wbViewport.clientHeight/2; wbScale = 1; wbApply(); return; }
+    const xs = wbNodes.map(n => n.x_pos), ys = wbNodes.map(n => n.y_pos);
+    const minX = Math.min(...xs) - 50, minY = Math.min(...ys) - 50;
+    const maxX = Math.max(...xs) + WB_NODE_W + 50, maxY = Math.max(...ys) + WB_NODE_H + 50;
+    wbScale = Math.min(wbViewport.clientWidth / (maxX-minX), wbViewport.clientHeight / (maxY-minY), 1.5);
+    wbPan.x = wbViewport.clientWidth/2  - (minX + (maxX-minX)/2) * wbScale;
+    wbPan.y = wbViewport.clientHeight/2 - (minY + (maxY-minY)/2) * wbScale;
+    wbApply();
+  });
+
+  // ── Mode button (header) ────────────────────────────────────
+  document.getElementById('wb-mode-btn').addEventListener('click', () => {
+    if (wbActive) exitWhiteboard(); else enterWhiteboard();
+  });
+
+  // ── Add ideas panel ─────────────────────────────────────────
+  function wbPopulateList(q) {
+    const onIds = new Set(wbNodes.map(n => n.idea_id));
+    const sq = (q || '').toLowerCase();
+    const filtered = ideas.filter(i => !i.deleted_at && (!sq || i.title.toLowerCase().includes(sq) || (i.category || '').toLowerCase().includes(sq)));
+    const el = document.getElementById('wb-idea-list');
+    if (!filtered.length) { el.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:13px">No ideas match</div>'; return; }
+    el.innerHTML = filtered.map(idea => {
+      const on = onIds.has(idea.id);
+      const col = catColor(idea.category);
+      return `<label class="wb-idea-row">
+        <input type="checkbox" value="${esc(idea.id)}" ${on ? 'checked disabled' : ''}>
+        <div class="wb-idea-dot2" style="background:${col}"></div>
+        <span class="wb-idea-name">${esc(idea.title)}</span>
+        ${on ? '<span class="wb-on-badge">on board</span>' : ''}
+      </label>`;
+    }).join('');
+  }
+
+  document.getElementById('wb-add-ideas-btn').addEventListener('click', () => {
+    wbDetailEl.setAttribute('hidden', ''); wbSetupEl.setAttribute('hidden', '');
+    wbPopulateList('');
+    document.getElementById('wb-add-search').value = '';
+    wbAddPanel.removeAttribute('hidden');
+    document.getElementById('wb-add-search').focus();
+  });
+  document.getElementById('wb-add-close').addEventListener('click',  () => wbAddPanel.setAttribute('hidden', ''));
+  document.getElementById('wb-add-cancel').addEventListener('click', () => wbAddPanel.setAttribute('hidden', ''));
+  document.getElementById('wb-add-search').addEventListener('input', e => wbPopulateList(e.target.value));
+
+  document.getElementById('wb-add-confirm').addEventListener('click', async () => {
+    const checked = [...document.querySelectorAll('#wb-idea-list input:checked:not(:disabled)')].map(i => i.value);
+    if (!checked.length) { wbAddPanel.setAttribute('hidden', ''); return; }
+    const cx = (wbViewport.clientWidth/2  - wbPan.x) / wbScale;
+    const cy = (wbViewport.clientHeight/2 - wbPan.y) / wbScale;
+    try {
+      for (let i = 0; i < checked.length; i++) {
+        const r = Math.max(180, checked.length * 55);
+        const angle = (i / checked.length) * Math.PI * 2 - Math.PI / 2;
+        const x = Math.round(cx + Math.cos(angle) * r - WB_NODE_W / 2);
+        const y = Math.round(cy + Math.sin(angle) * r - WB_NODE_H / 2);
+        const data = await apiFetch('/api/whiteboard/nodes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ idea_id: checked[i], x_pos: x, y_pos: y }) });
+        wbNodes.push(data.node);
+      }
+      wbRender(); wbAddPanel.setAttribute('hidden', '');
+      toast(`Added ${checked.length} idea${checked.length > 1 ? 's' : ''} to whiteboard`);
+    } catch (err) {
+      toast(err.message, true);
+      if (err.message.toLowerCase().includes('exist') || err.message.includes('42P01')) {
+        wbAddPanel.setAttribute('hidden', ''); wbSetupEl.removeAttribute('hidden');
+      }
+    }
+  });
+
+  // ── Detail panel ────────────────────────────────────────────
+  function wbShowDetail(ideaId) {
+    const idea = ideas.find(i => i.id === ideaId);
+    if (!idea) return;
+    wbAddPanel.setAttribute('hidden', ''); wbSetupEl.setAttribute('hidden', '');
+    const col = catColor(idea.category);
+    document.getElementById('wb-detail-meta').innerHTML = `<span class="cat-badge" style="color:${col};border-color:${col}60;background:${col}18">${esc(idea.category)}</span>`;
+    document.getElementById('wb-detail-title').textContent = idea.title;
+    document.getElementById('wb-detail-notes').innerHTML = idea.notes || '<em style="color:var(--text3)">No notes</em>';
+    wbDetailEl.removeAttribute('hidden');
+  }
+  document.getElementById('wb-detail-close').addEventListener('click', () => wbDetailEl.setAttribute('hidden', ''));
+
+  // ── Setup panel ─────────────────────────────────────────────
+  document.getElementById('wb-setup-btn').addEventListener('click', () => {
+    wbAddPanel.setAttribute('hidden', ''); wbDetailEl.setAttribute('hidden', '');
+    wbSetupEl.removeAttribute('hidden');
+  });
+  document.getElementById('wb-setup-close').addEventListener('click', () => wbSetupEl.setAttribute('hidden', ''));
 
   // ── Boot ─────────────────────────────────────────────────
   async function init() {
