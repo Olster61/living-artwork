@@ -266,6 +266,7 @@
       flex: 1; min-width: 0;
       overflow-y: auto; overflow-x: hidden;
       display: flex; flex-direction: column;
+      position: relative;
     }
 
     /* ── Selection toolbar (fixed bottom) ──────────────────── */
@@ -615,10 +616,10 @@
 
     /* ── View overlay ─────────────────────────────────────── */
     .view-overlay {
-      position: fixed;
+      position: absolute;
       inset: 0;
-      background: rgba(4,4,4,0.95);
-      z-index: 400;
+      background: var(--bg);
+      z-index: 10;
       display: flex;
       flex-direction: column;
       overflow-y: auto;
@@ -628,7 +629,7 @@
     .view-bar {
       position: sticky;
       top: 0;
-      background: rgba(8,8,8,0.96);
+      background: var(--bg2);
       border-bottom: 1px solid var(--gold-bd);
       padding: 14px 32px;
       display: flex;
@@ -1060,11 +1061,6 @@
     @media (max-width: 480px) {
       #view-title { font-size: 20px; }
       .view-bar   { padding: 8px 12px; }
-    }
-
-    /* ── Desktop: view overlay stays right of sidebar ─────── */
-    @media (min-width: 769px) {
-      .view-overlay { left: 220px; }
     }
 
     /* ── Brand icon (mobile) vs text (desktop) ───────────── */
@@ -1863,9 +1859,7 @@
       background-color: var(--bg3);
     }
 
-    /* View overlay uses hardcoded near-black */
-    [data-theme="light"] .view-overlay { background: rgba(240,242,247,0.98); }
-    [data-theme="light"] .view-bar     { background: rgba(255,255,255,0.97); }
+    [data-theme="light"] .view-bar { background: var(--bg2); }
 
     /* Cards get the specified light-mode shadow */
     [data-theme="light"] .idea-card { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
@@ -2107,6 +2101,27 @@
 
     <div id="breadcrumb" hidden></div>
     <div id="main"></div>
+
+    <!-- ── View panel (inside content area, below header, right of sidebar) ── -->
+    <div class="view-overlay" id="view-overlay" hidden>
+      <div class="view-bar">
+        <button class="btn btn-outline" id="view-close" style="padding:7px 14px;font-size:13px">← Back</button>
+        <div class="view-bar-meta" id="view-bar-meta"></div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <button class="btn btn-outline view-nav-btn" id="view-prev" title="Previous (←)">◀</button>
+          <span class="view-nav-counter" id="view-nav-counter"></span>
+          <button class="btn btn-outline view-nav-btn" id="view-next" title="Next (→)">▶</button>
+          <div style="width:1px;height:18px;background:var(--gold-bd);margin:0 4px;flex-shrink:0"></div>
+          <button class="btn btn-outline" id="view-edit" style="padding:7px 14px;font-size:13px">Edit</button>
+          <button class="btn btn-danger" id="view-delete">Delete</button>
+        </div>
+      </div>
+      <div class="view-body">
+        <h1 id="view-title"></h1>
+        <div id="view-notes"></div>
+        <div class="view-media" id="view-media" style="display:none"></div>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -2164,27 +2179,6 @@
       <button class="btn btn-outline" id="form-cancel">Cancel</button>
       <button class="btn btn-gold" id="form-save">Save Idea</button>
     </div>
-  </div>
-</div>
-
-<!-- ── View overlay ────────────────────────────────────────── -->
-<div class="view-overlay" id="view-overlay" hidden>
-  <div class="view-bar">
-    <button class="btn btn-outline" id="view-close" style="padding:7px 14px;font-size:13px">← Back</button>
-    <div class="view-bar-meta" id="view-bar-meta"></div>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-      <button class="btn btn-outline view-nav-btn" id="view-prev" title="Previous (←)">◀</button>
-      <span class="view-nav-counter" id="view-nav-counter"></span>
-      <button class="btn btn-outline view-nav-btn" id="view-next" title="Next (→)">▶</button>
-      <div style="width:1px;height:18px;background:var(--gold-bd);margin:0 4px;flex-shrink:0"></div>
-      <button class="btn btn-outline" id="view-edit" style="padding:7px 14px;font-size:13px">Edit</button>
-      <button class="btn btn-danger" id="view-delete">Delete</button>
-    </div>
-  </div>
-  <div class="view-body">
-    <h1 id="view-title"></h1>
-    <div id="view-notes"></div>
-    <div class="view-media" id="view-media" style="display:none"></div>
   </div>
 </div>
 
@@ -3685,13 +3679,13 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
 
     updateViewNav();
+    const contentArea = document.getElementById('content-area');
+    contentArea.scrollTop = 0;
     viewOverlay.removeAttribute('hidden');
-    if (window.innerWidth <= 768) document.body.style.overflow = 'hidden';
   }
 
   function closeView() {
     viewOverlay.setAttribute('hidden', '');
-    document.body.style.overflow = '';
     viewingId = null;
   }
 
@@ -4225,6 +4219,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
     const folderRow = e.target.closest('.folder-row');
     if (folderRow && !e.target.closest('.folder-del')) {
+      if (!viewOverlay.hidden) closeView();
       activeTrash = false;
       activeFolderId = folderRow.dataset.folderId;
       activeFilter = 'All';
@@ -4234,6 +4229,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     }
     const filterBtn = e.target.closest('.sidebar-item[data-filter]');
     if (filterBtn) {
+      if (!viewOverlay.hidden) closeView();
       activeTrash = false;
       activeFolderId = null;
       activeFilter = filterBtn.dataset.filter;
@@ -4243,6 +4239,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   });
 
   document.getElementById('trash-btn').addEventListener('click', async () => {
+    if (!viewOverlay.hidden) closeView();
     activeTrash = true;
     activeFolderId = null;
     buildSidebar();
