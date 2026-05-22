@@ -1118,6 +1118,7 @@
     }
     .wb-card:hover { border-color: var(--gold-bdh); box-shadow: 0 6px 24px rgba(0,0,0,0.55); }
     .wb-card.wb-selected { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,168,76,0.25); }
+    .wb-card.wb-mobile-drag { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.5), 0 8px 32px rgba(0,0,0,0.55); transform: scale(1.05); z-index: 10; }
     .wb-card-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
     .wb-card-dot { display: block; width: 7px; height: 7px; border-radius: 50%; margin-bottom: 6px; flex-shrink: 0; }
     .wb-card-cat { font-size: 10px; color: var(--text3); letter-spacing: 0.07em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
@@ -1159,7 +1160,7 @@
     /* Left floating tool panel — position set entirely by JS */
     .wb-tools {
       position: fixed;
-      z-index: 70; display: flex; flex-direction: column; align-items: center; gap: 4px;
+      z-index: 100; display: flex; flex-direction: column; align-items: center; gap: 4px;
       background: var(--bg2); border: 1px solid var(--gold-bd);
       border-radius: 12px; padding: 4px 6px 8px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.55);
@@ -1262,7 +1263,7 @@
 
     /* Left pick sidebar */
     .wb-pick-sidebar {
-      width: 180px; flex-shrink: 0;
+      width: 193px; flex-shrink: 0; z-index: 200;
       background: var(--bg2); border-right: 1px solid var(--gold-bd);
       overflow-y: auto; display: flex; flex-direction: column;
       padding: 8px 0 60px;
@@ -1287,7 +1288,7 @@
 
     /* Middle compact idea list */
     .wb-pick-pane {
-      width: 200px; flex-shrink: 0;
+      width: 214px; flex-shrink: 0; z-index: 200;
       background: var(--bg); border-right: 1px solid var(--gold-bd);
       display: flex; flex-direction: column; overflow: hidden; position: relative;
     }
@@ -1332,9 +1333,9 @@
     }
     /* Panel toggle tab — rides the right edge of the panels */
     .wb-panel-tab {
-      position: absolute; left: 380px; top: 50%;
+      position: absolute; left: 407px; top: 50%;
       transform: translateY(-50%);
-      z-index: 100; background: var(--bg2); border: 1px solid var(--gold-bd);
+      z-index: 210; background: var(--bg2); border: 1px solid var(--gold-bd);
       border-left: none; border-radius: 0 8px 8px 0;
       width: 22px; height: 52px; display: flex; align-items: center; justify-content: center;
       cursor: pointer; color: var(--gold); font-size: 16px; font-weight: 600;
@@ -1344,9 +1345,9 @@
     .wb-panel-tab:hover { background: var(--gold-bg); color: var(--gold-lt); }
     .wb-body.wb-panes-hidden .wb-panel-tab { left: 0; }
     @media (max-width: 600px) {
-      .wb-pick-sidebar { width: 140px; }
-      .wb-pick-pane    { width: 160px; }
-      .wb-panel-tab    { left: 300px; }
+      .wb-pick-sidebar { width: 150px; }
+      .wb-pick-pane    { width: 171px; }
+      .wb-panel-tab    { left: 321px; }
     }
     @media (pointer: coarse) {
       .wb-cr-drag { opacity: 0.6; font-size: 13px; }
@@ -6276,6 +6277,8 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   let wbPickCat      = 'All';    // current category filter in pick sidebar
   let wbSaveTimers   = {};
   let wbPinchDist    = 0;
+  let wbTwoTouchMid  = null; // midpoint of 2-finger touch for pan
+  let wbLastTap      = {};   // { [nodeId]: timestamp } for double-tap detection
 
   const wbRootEl     = document.getElementById('whiteboard-view');
   const wbViewport   = document.getElementById('wb-viewport');
@@ -6329,6 +6332,73 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
         <div class="wb-card-title">${esc(titleShort)}</div>`;
       card.addEventListener('mousedown', wbOnCardDown);
       card.addEventListener('dblclick', e => { e.stopPropagation(); if (wbTool !== 'arrow') wbOpenIdeaView(node.idea_id); });
+      // Mobile touch: double-tap opens idea, long-press (400ms) drags node, short tap = click
+      card.addEventListener('touchstart', e => {
+        if (e.target.closest('.wb-card-del')) return;
+        if (e.touches.length !== 1) return;
+        e.stopPropagation();
+        const t0 = e.touches[0];
+        const startX = t0.clientX, startY = t0.clientY;
+        let dragging = false;
+        let moved = false;
+        // Double-tap detection
+        const now = Date.now();
+        if (wbLastTap[node.id] && (now - wbLastTap[node.id]) < 350) {
+          wbLastTap[node.id] = 0;
+          e.preventDefault();
+          if (wbTool !== 'arrow') wbOpenIdeaView(node.idea_id);
+          return;
+        }
+        wbLastTap[node.id] = now;
+        // Long-press timer for drag mode
+        const longPressTimer = setTimeout(() => {
+          if (moved) return;
+          dragging = true;
+          card.classList.add('wb-mobile-drag');
+          if (navigator.vibrate) navigator.vibrate(15);
+        }, 400);
+        function onTM(ev) {
+          if (ev.touches.length !== 1) { cancel(); return; }
+          ev.stopPropagation();
+          const t = ev.touches[0];
+          const dx = t.clientX - startX, dy = t.clientY - startY;
+          if (!dragging && Math.hypot(dx, dy) > 6) { moved = true; clearTimeout(longPressTimer); return; }
+          if (!dragging) return;
+          ev.preventDefault();
+          node.x_pos = (node.x_pos || 0) + (t.clientX - (onTM._lastX ?? startX)) / wbScale;
+          node.y_pos = (node.y_pos || 0) + (t.clientY - (onTM._lastY ?? startY)) / wbScale;
+          onTM._lastX = t.clientX; onTM._lastY = t.clientY;
+          card.style.left = node.x_pos + 'px';
+          card.style.top  = node.y_pos + 'px';
+          wbRenderEdges();
+        }
+        function onTE() {
+          clearTimeout(longPressTimer);
+          card.removeEventListener('touchmove', onTM);
+          card.removeEventListener('touchend', onTE);
+          card.removeEventListener('touchcancel', cancel);
+          if (dragging) {
+            card.classList.remove('wb-mobile-drag');
+            // Debounced save to Supabase
+            clearTimeout(wbSaveTimers[node.id]);
+            wbSaveTimers[node.id] = setTimeout(async () => {
+              try { await apiFetch(`/api/whiteboard/nodes/${node.id}`, { method: 'PATCH', body: JSON.stringify({ x_pos: node.x_pos, y_pos: node.y_pos }) }); }
+              catch (err) { toast(err.message, true); }
+            }, 400);
+          }
+        }
+        function cancel() {
+          clearTimeout(longPressTimer);
+          dragging = false;
+          card.classList.remove('wb-mobile-drag');
+          card.removeEventListener('touchmove', onTM);
+          card.removeEventListener('touchend', onTE);
+          card.removeEventListener('touchcancel', cancel);
+        }
+        card.addEventListener('touchmove', onTM, { passive: false });
+        card.addEventListener('touchend', onTE);
+        card.addEventListener('touchcancel', cancel);
+      }, { passive: true });
       card.querySelector('.wb-card-del').addEventListener('click', async e => {
         e.stopPropagation();
         try {
@@ -6695,19 +6765,20 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     wbApply();
   }, { passive: false });
 
-  // Touch pan + pinch zoom
+  // Touch: 2-finger pan + pinch zoom; 1-finger reserved for node interaction
   wbViewport.addEventListener('touchstart', e => {
     if (e.touches.length === 2) {
       wbPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-      wbPanning = false;
-    } else if (e.touches.length === 1) {
+      wbTwoTouchMid = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                        y: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
       wbPanning = true;
-      wbPanStart = { x: e.touches[0].clientX - wbPan.x, y: e.touches[0].clientY - wbPan.y };
+    } else {
+      wbPanning = false; // single finger does not pan
     }
   }, { passive: true });
 
   wbViewport.addEventListener('touchmove', e => {
-    if (e.touches.length === 2) {
+    if (e.touches.length === 2 && wbPanning) {
       e.preventDefault();
       const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
       const f = d / (wbPinchDist || d);
@@ -6716,18 +6787,18 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
       const r = wbViewport.getBoundingClientRect();
       const lx = mx - r.left, ly = my - r.top;
-      wbPan.x = lx - (lx - wbPan.x) * f;
-      wbPan.y = ly - (ly - wbPan.y) * f;
+      // Pan delta from midpoint movement, then zoom centred at new midpoint
+      const dmx = wbTwoTouchMid ? mx - wbTwoTouchMid.x : 0;
+      const dmy = wbTwoTouchMid ? my - wbTwoTouchMid.y : 0;
+      wbTwoTouchMid = { x: mx, y: my };
+      wbPan.x = lx - (lx - (wbPan.x + dmx)) * f;
+      wbPan.y = ly - (ly - (wbPan.y + dmy)) * f;
       wbScale = Math.max(0.08, Math.min(4, wbScale * f));
-      wbApply();
-    } else if (e.touches.length === 1 && wbPanning) {
-      wbPan.x = e.touches[0].clientX - wbPanStart.x;
-      wbPan.y = e.touches[0].clientY - wbPanStart.y;
       wbApply();
     }
   }, { passive: false });
 
-  wbViewport.addEventListener('touchend', () => { wbPanning = false; });
+  wbViewport.addEventListener('touchend', () => { wbPanning = false; wbTwoTouchMid = null; });
 
   // ── Nearest node for snapping ──────────────────────────────
   function wbNearestNode(wx, wy, excludeId, radius) {
