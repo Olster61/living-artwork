@@ -1158,12 +1158,20 @@
 
     /* Left floating tool panel */
     .wb-tools {
-      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      position: absolute; bottom: 16px; left: 16px;
       z-index: 70; display: flex; flex-direction: column; align-items: center; gap: 4px;
       background: var(--bg2); border: 1px solid var(--gold-bd);
-      border-radius: 12px; padding: 8px 6px;
+      border-radius: 12px; padding: 4px 6px 8px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.55);
     }
+    .wb-tool-drag {
+      width: 36px; height: 18px; display: flex; align-items: center; justify-content: center;
+      color: var(--text3); font-size: 13px; cursor: grab; line-height: 1;
+      user-select: none; -webkit-user-select: none;
+      transition: color 0.12s; border-radius: 6px 6px 0 0; margin-bottom: 1px;
+    }
+    .wb-tool-drag:hover { color: var(--text2); }
+    .wb-tool-drag.grabbing { cursor: grabbing; }
     .wb-tool-btn {
       width: 36px; height: 36px; border-radius: 8px; border: none;
       background: none; color: var(--text2);
@@ -1337,42 +1345,12 @@
       .wb-cr-drag { opacity: 0.6; font-size: 13px; }
     }
 
-    /* Floating colour picker panel */
-    .wb-colour-picker {
-      position: absolute; z-index: 150;
-      background: var(--bg2); border: 1px solid var(--gold-bd);
-      border-radius: 12px; box-shadow: 0 6px 28px rgba(0,0,0,0.55);
-      display: flex; flex-direction: column; align-items: stretch;
-      cursor: default; min-width: 0;
-    }
-    .wb-cp-handle {
-      padding: 6px 12px 5px; text-align: center;
-      cursor: grab; color: var(--text3); font-size: 14px; line-height: 1;
-      border-bottom: 1px solid var(--gold-bd); border-radius: 12px 12px 0 0;
-      transition: background 0.12s, color 0.12s;
-      user-select: none; -webkit-user-select: none;
-    }
-    .wb-cp-handle:hover { background: rgba(255,255,255,0.04); color: var(--text2); }
-    .wb-cp-handle.grabbing { cursor: grabbing; }
-    .wb-cp-body { display: flex; gap: 7px; padding: 9px 11px; align-items: center; }
-    .wb-cp-swatch {
-      width: 20px; height: 20px; border-radius: 50%;
-      border: 2px solid transparent; cursor: pointer;
-      transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
-      flex-shrink: 0;
-    }
-    .wb-cp-swatch:hover { transform: scale(1.25); }
-    .wb-cp-swatch.active {
-      border-color: rgba(255,255,255,0.85); transform: scale(1.12);
-      box-shadow: 0 0 0 2px rgba(0,0,0,0.45);
-    }
     .wb-pick-empty { padding: 16px 12px; font-size: 12px; color: var(--text3); }
     .wb-pick-foot { padding: 10px 12px; border-top: 1px solid var(--gold-bd); flex-shrink: 0; }
 
     /* Right canvas area */
     .wb-canvas-area { flex: 1; position: relative; display: flex; flex-direction: column; overflow: hidden; }
     .wb-canvas-area .wb-viewport { flex: 1; }
-    .wb-canvas-area .wb-tools { top: 50%; left: 12px; }
 
     /* Connecting-from glow */
     .wb-card.wb-connecting-from {
@@ -2484,6 +2462,7 @@
 
         <!-- Left floating tools -->
         <div class="wb-tools" id="wb-tools">
+          <div class="wb-tool-drag" id="wb-tool-drag" title="Drag to move">⠿</div>
           <button class="wb-tool-btn active" id="wb-tool-select" title="Select / Pan (V)">
             <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3.5 2 L3.5 12.5 L6.5 9.5 L8.5 13.5 L10 12.8 L8 8.8 L12 8.8 Z" fill="currentColor" stroke="none" opacity="0.7"/>
@@ -4712,8 +4691,14 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     document.getElementById('view-list-btn').classList.toggle('active', mode === 'list');
     render();
   }
-  document.getElementById('view-grid-btn').addEventListener('click', () => setViewMode('grid'));
-  document.getElementById('view-list-btn').addEventListener('click', () => setViewMode('list'));
+  document.getElementById('view-grid-btn').addEventListener('click', () => {
+    if (wbActive) exitWhiteboard();
+    setViewMode('grid');
+  });
+  document.getElementById('view-list-btn').addEventListener('click', () => {
+    if (wbActive) exitWhiteboard();
+    setViewMode('list');
+  });
 
   // ── Soft delete (move to trash) ──────────────────────────
   async function softDeleteIdea(id) {
@@ -6403,11 +6388,9 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
         } else if (wbSelectedEdge === edge.id) {
           wbSelectedEdge = null;
           wbRenderEdges();
-          wbSyncColourPicker();
         } else {
           wbSelectedEdge = edge.id;
           wbRenderEdges();
-          wbSyncColourPicker();
         }
       });
       wbSvgEl.appendChild(hit);
@@ -6443,88 +6426,36 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     { key: 'purple', hex: '#8e44ad' },
   ];
 
-  let wbPickerPos = null; // remembered position after dragging
+  let wbToolPos = null; // remembered toolbar position within session
 
-  function wbCreateColourPicker() {
-    if (document.getElementById('wb-colour-picker')) { wbSyncColourPicker(); return; }
-    const picker = document.createElement('div');
-    picker.id = 'wb-colour-picker';
-    picker.className = 'wb-colour-picker';
-    picker.innerHTML =
-      `<div class="wb-cp-handle" title="Drag to move">⠿</div>` +
-      `<div class="wb-cp-body">` +
-      WB_COLOUR_OPTIONS.map(c =>
-        `<button class="wb-cp-swatch" data-key="${c.key}" style="background:${c.hex}" title="${c.key}"></button>`
-      ).join('') +
-      `</div>`;
-
-    if (wbPickerPos) {
-      picker.style.left = wbPickerPos.left + 'px';
-      picker.style.top  = wbPickerPos.top  + 'px';
-    } else {
-      picker.style.left   = '16px';
-      picker.style.bottom = '16px';
-    }
-
-    picker.querySelectorAll('.wb-cp-swatch').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        const key = btn.dataset.key;
-        wbSetWbColour(key);
-        if (wbSelectedEdge) wbChangeEdgeColour(wbSelectedEdge, key);
-      });
-    });
-
-    wbInitPickerDrag(picker);
-    document.querySelector('.wb-canvas-area').appendChild(picker);
-    wbSyncColourPicker();
-  }
-
-  function wbRemoveColourPicker() {
-    const el = document.getElementById('wb-colour-picker');
-    if (el) el.remove();
-  }
-
-  function wbSyncColourPicker() {
-    const picker = document.getElementById('wb-colour-picker');
-    if (!picker) return;
-    const edge = wbSelectedEdge ? wbEdges.find(e => e.id === wbSelectedEdge) : null;
-    const activeKey = edge ? (edge.colour || 'gold') : wbColour;
-    picker.querySelectorAll('.wb-cp-swatch').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.key === activeKey);
-    });
-  }
-
-  function wbSetWbColour(key) {
-    wbColour = key;
-    document.querySelectorAll('.wb-color-btn').forEach(b => b.classList.toggle('active', b.dataset.colour === key));
-    wbSyncColourPicker();
-  }
-
-  function wbPickerEnsureTopLeft(picker) {
-    if (!picker.style.bottom) return;
+  function wbToolEnsureTopLeft() {
+    const tb = document.getElementById('wb-tools');
+    if (!tb || !tb.style.bottom) return;
     const ca = document.querySelector('.wb-canvas-area');
-    picker.style.top    = (ca.offsetHeight - picker.offsetHeight - (parseFloat(picker.style.bottom) || 16)) + 'px';
-    picker.style.bottom = '';
+    tb.style.top    = (ca.offsetHeight - tb.offsetHeight - (parseFloat(tb.style.bottom) || 16)) + 'px';
+    tb.style.left   = (parseFloat(tb.style.left) || 16) + 'px';
+    tb.style.bottom = '';
   }
 
-  function wbInitPickerDrag(picker) {
-    const h = picker.querySelector('.wb-cp-handle');
+  function wbInitToolbarDrag() {
+    const h = document.getElementById('wb-tool-drag');
+    if (!h) return;
 
     h.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       e.preventDefault();
-      wbPickerEnsureTopLeft(picker);
+      wbToolEnsureTopLeft();
+      const tb = document.getElementById('wb-tools');
       const sx = e.clientX, sy = e.clientY;
-      const sl = parseFloat(picker.style.left), st = parseFloat(picker.style.top);
+      const sl = parseFloat(tb.style.left), st = parseFloat(tb.style.top);
       h.classList.add('grabbing');
       function onMove(ev) {
-        picker.style.left = (sl + ev.clientX - sx) + 'px';
-        picker.style.top  = (st + ev.clientY - sy) + 'px';
+        tb.style.left = (sl + ev.clientX - sx) + 'px';
+        tb.style.top  = (st + ev.clientY - sy) + 'px';
       }
       function onUp() {
         h.classList.remove('grabbing');
-        wbPickerPos = { left: parseFloat(picker.style.left), top: parseFloat(picker.style.top) };
+        wbToolPos = { left: parseFloat(tb.style.left), top: parseFloat(tb.style.top) };
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
       }
@@ -6539,25 +6470,29 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       let tdrag = false, sl, st;
       const timer = setTimeout(() => {
         tdrag = true;
-        wbPickerEnsureTopLeft(picker);
-        sl = parseFloat(picker.style.left);
-        st = parseFloat(picker.style.top);
+        wbToolEnsureTopLeft();
+        const tb = document.getElementById('wb-tools');
+        sl = parseFloat(tb.style.left);
+        st = parseFloat(tb.style.top);
         h.classList.add('grabbing');
         if (navigator.vibrate) navigator.vibrate(12);
       }, 400);
       function onTM(ev) {
+        const tb = document.getElementById('wb-tools');
         const tt = ev.touches[0];
         if (!tdrag) {
           if (Math.hypot(tt.clientX - stx, tt.clientY - sty) > 10) { clearTimeout(timer); done(); }
           return;
         }
         ev.preventDefault();
-        picker.style.left = (sl + tt.clientX - stx) + 'px';
-        picker.style.top  = (st + tt.clientY - sty) + 'px';
+        tb.style.left = (sl + tt.clientX - stx) + 'px';
+        tb.style.top  = (st + tt.clientY - sty) + 'px';
       }
       function done() {
-        if (tdrag) wbPickerPos = { left: parseFloat(picker.style.left), top: parseFloat(picker.style.top) };
+        const tb = document.getElementById('wb-tools');
+        if (tdrag && tb) wbToolPos = { left: parseFloat(tb.style.left), top: parseFloat(tb.style.top) };
         tdrag = false;
+        clearTimeout(timer);
         h.classList.remove('grabbing');
         document.removeEventListener('touchmove', onTM);
         document.removeEventListener('touchend', done);
@@ -6823,8 +6758,16 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     // Default pan: center of viewport
     wbPan.x = (wbViewport.clientWidth  || 800) / 2 - WB_NODE_W / 2;
     wbPan.y = (wbViewport.clientHeight || 500) / 2 - WB_NODE_H / 2;
+    // Apply remembered or default toolbar position
+    const tb = document.getElementById('wb-tools');
+    if (wbToolPos) {
+      tb.style.left = wbToolPos.left + 'px';
+      tb.style.top  = wbToolPos.top  + 'px';
+      tb.style.bottom = '';
+    } else {
+      tb.style.left = ''; tb.style.top = ''; tb.style.bottom = '';
+    }
     wbApply();
-    wbCreateColourPicker();
     await wbLoad();
   }
 
@@ -6838,8 +6781,6 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     wbSetupEl.setAttribute('hidden', '');
     wbCancelConnect();
     wbSelections.clear();
-    wbRemoveColourPicker();
-    wbPickerPos = null;
     document.querySelector('.wb-body')?.classList.remove('wb-panes-hidden');
   }
 
@@ -6886,9 +6827,14 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   });
   document.querySelectorAll('.wb-color-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      wbSetWbColour(btn.dataset.colour);
+      const col = btn.dataset.colour;
+      wbColour = col;
+      document.querySelectorAll('.wb-color-btn').forEach(b => b.classList.toggle('active', b.dataset.colour === col));
+      if (wbSelectedEdge) wbChangeEdgeColour(wbSelectedEdge, col);
     });
   });
+
+  wbInitToolbarDrag();
 
   document.getElementById('wb-panel-tab').addEventListener('click', () => {
     document.querySelector('.wb-body')?.classList.toggle('wb-panes-hidden');
