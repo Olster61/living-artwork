@@ -1097,6 +1097,7 @@
     }
     .wb-viewport.wb-panning { cursor: grabbing; }
     .wb-viewport.wb-arrow-tool { cursor: crosshair; }
+    .wb-viewport.wb-drop-hover { background-image: radial-gradient(circle, rgba(201,168,76,0.28) 1px, transparent 1px); }
 
     .wb-world {
       position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform;
@@ -2197,6 +2198,16 @@
 
   <div id="header-actions" style="display:flex;align-items:center;gap:8px;margin-left:auto">
     <div class="view-toggle">
+      <button class="view-toggle-btn" id="wb-mode-btn" title="Whiteboard">
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1" y="1" width="13" height="13" rx="2"/>
+          <circle cx="4.5" cy="4.5" r="1" fill="currentColor" stroke="none"/>
+          <circle cx="10.5" cy="4.5" r="1" fill="currentColor" stroke="none"/>
+          <circle cx="4.5" cy="10.5" r="1" fill="currentColor" stroke="none"/>
+          <circle cx="10.5" cy="10.5" r="1" fill="currentColor" stroke="none"/>
+          <path d="M5.5 4.5 L9.5 4.5 M4.5 5.5 L10.5 10.5"/>
+        </svg>
+      </button>
       <button class="view-toggle-btn" id="view-grid-btn" title="Grid view">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor">
           <rect x="0" y="0" width="5.5" height="5.5" rx="1"/>
@@ -2220,16 +2231,6 @@
       <span style="font-size:15px;line-height:1">📁</span><span style="font-size:13px;font-weight:700;line-height:1;margin-left:1px">+</span>
     </button>
     <button class="btn btn-outline" id="theme-toggle-btn" title="Switch to light mode">☀</button>
-    <button class="btn btn-outline" id="wb-mode-btn" title="Whiteboard">
-      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="1" y="1" width="13" height="13" rx="2"/>
-        <circle cx="4.5" cy="4.5" r="1" fill="currentColor" stroke="none"/>
-        <circle cx="10.5" cy="4.5" r="1" fill="currentColor" stroke="none"/>
-        <circle cx="4.5" cy="10.5" r="1" fill="currentColor" stroke="none"/>
-        <circle cx="10.5" cy="10.5" r="1" fill="currentColor" stroke="none"/>
-        <path d="M5.5 4.5 L9.5 4.5 M4.5 5.5 L10.5 10.5"/>
-      </svg>
-    </button>
     <button class="btn btn-gold" id="add-btn">
       <span class="add-btn-text">+ New Idea</span>
       <span class="add-btn-icon" aria-hidden="true">+</span>
@@ -6283,7 +6284,6 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       card.addEventListener('dblclick', e => { e.stopPropagation(); if (wbTool !== 'arrow') wbOpenIdeaView(node.idea_id); });
       card.querySelector('.wb-card-del').addEventListener('click', async e => {
         e.stopPropagation();
-        if (!confirm('Remove from whiteboard?')) return;
         try {
           await apiFetch(`/api/whiteboard/nodes/${node.id}`, { method: 'DELETE' });
           wbNodes = wbNodes.filter(n => n.id !== node.id);
@@ -6578,6 +6578,35 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     wbViewport.classList.remove('wb-panning');
   });
 
+  // ── Drag from pick list → canvas ────────────────────────────
+  wbViewport.addEventListener('dragover', e => {
+    if (e.dataTransfer.types.includes('text/wb-idea-id')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
+  });
+  wbViewport.addEventListener('dragenter', e => {
+    if (e.dataTransfer.types.includes('text/wb-idea-id')) { e.preventDefault(); wbViewport.classList.add('wb-drop-hover'); }
+  });
+  wbViewport.addEventListener('dragleave', e => {
+    if (!wbViewport.contains(e.relatedTarget)) wbViewport.classList.remove('wb-drop-hover');
+  });
+  wbViewport.addEventListener('drop', async e => {
+    wbViewport.classList.remove('wb-drop-hover');
+    const ideaId = e.dataTransfer.getData('text/wb-idea-id');
+    if (!ideaId) return;
+    e.preventDefault();
+    if (wbNodes.find(n => n.idea_id === ideaId)) { wbTooltip('Already on whiteboard'); return; }
+    const w = wbToWorld(e.clientX, e.clientY);
+    const x = Math.round(w.x - WB_NODE_W / 2);
+    const y = Math.round(w.y - WB_NODE_H / 2);
+    try {
+      const data = await apiFetch('/api/whiteboard/nodes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea_id: ideaId, x_pos: x, y_pos: y })
+      });
+      wbNodes.push(data.node);
+      wbRender();
+    } catch (err) { toast(err.message, true); }
+  });
+
   wbViewport.addEventListener('wheel', e => {
     e.preventDefault();
     const f = e.deltaY < 0 ? 1.1 : 0.909;
@@ -6639,6 +6668,8 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     wbActive = true;
     wbRootEl.removeAttribute('hidden');
     document.getElementById('wb-mode-btn').classList.add('active');
+    document.getElementById('view-grid-btn').classList.remove('active');
+    document.getElementById('view-list-btn').classList.remove('active');
     document.getElementById('wb-setup-sql').textContent = WB_SETUP_SQL;
     wbPickCat = 'All';
     wbSelections.clear();
@@ -6655,6 +6686,8 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     wbActive = false;
     wbRootEl.setAttribute('hidden', '');
     document.getElementById('wb-mode-btn').classList.remove('active');
+    document.getElementById('view-grid-btn').classList.toggle('active', viewMode === 'grid');
+    document.getElementById('view-list-btn').classList.toggle('active', viewMode === 'list');
     wbDetailEl.setAttribute('hidden', '');
     wbSetupEl.setAttribute('hidden', '');
     wbCancelConnect();
@@ -6764,7 +6797,7 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       const title = words.length > 7 ? words.slice(0, 7).join(' ') + '…' : idea.title;
       const onBoard = onIds.has(idea.id);
       const checked = wbSelections.has(idea.id);
-      return `<label class="wb-compact-row${onBoard ? ' wb-cr-on' : ''}">
+      return `<label class="wb-compact-row${onBoard ? ' wb-cr-on' : ''}" data-idea-id="${esc(idea.id)}"${onBoard ? '' : ' draggable="true"'}>
         <input type="checkbox" class="wb-cr-check" data-id="${esc(idea.id)}" ${checked ? 'checked' : ''} ${onBoard ? 'disabled' : ''}>
         <span class="wb-cr-dot" style="background:${col}"></span>
         <span class="wb-cr-title">${esc(title)}</span>
@@ -6776,6 +6809,20 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
         if (cb.checked) wbSelections.add(cb.dataset.id);
         else wbSelections.delete(cb.dataset.id);
         wbUpdatePickFoot();
+      });
+    });
+    el.querySelectorAll('.wb-compact-row[draggable]').forEach(row => {
+      row.addEventListener('dragstart', e => {
+        const ideaId = row.dataset.ideaId;
+        const idea = ideas.find(i => i.id === ideaId);
+        e.dataTransfer.setData('text/wb-idea-id', ideaId);
+        e.dataTransfer.effectAllowed = 'copy';
+        const ghost = document.createElement('div');
+        ghost.textContent = idea ? (idea.title.split(' ').slice(0, 6).join(' ') + (idea.title.split(' ').length > 6 ? '…' : '')) : '';
+        ghost.style.cssText = 'position:fixed;top:-999px;left:-999px;background:#1c1c1c;color:#e0d5b8;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:500;font-family:Inter,sans-serif;border:1px solid rgba(201,168,76,0.5);white-space:nowrap;pointer-events:none';
+        document.body.appendChild(ghost);
+        e.dataTransfer.setDragImage(ghost, 12, 16);
+        setTimeout(() => ghost.remove(), 0);
       });
     });
   }
