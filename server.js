@@ -1180,6 +1180,13 @@ app.post('/api/whiteboard/edges', express.json(), async (req, res) => {
   res.json({ edge: data })
 })
 
+app.patch('/api/whiteboard/edges/:id', express.json(), async (req, res) => {
+  const { colour } = req.body
+  const { data, error } = await supabase.from('whiteboard_edges').update({ colour }).eq('id', req.params.id).select().single()
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ edge: data })
+})
+
 app.delete('/api/whiteboard/edges/:id', async (req, res) => {
   const { error } = await supabase.from('whiteboard_edges').delete().eq('id', req.params.id)
   if (error) return res.status(500).json({ error: error.message })

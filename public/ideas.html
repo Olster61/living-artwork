@@ -1294,8 +1294,25 @@
     .wb-compact-row.wb-cr-on { opacity: 0.5; }
     .wb-cr-check { accent-color: var(--gold); flex-shrink: 0; width: 14px; height: 14px; cursor: pointer; }
     .wb-cr-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-    .wb-cr-title { font-size: 12px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .wb-cr-badge { font-size: 11px; color: var(--gold); flex-shrink: 0; font-weight: 700; }
+    .wb-cr-title { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; letter-spacing: 0; }
+    .wb-cr-badge { font-size: 11px; color: var(--gold); flex-shrink: 0; font-weight: 700; text-transform: none; }
+
+    /* Edge colour picker popup */
+    .wb-colour-picker {
+      position: absolute; z-index: 150;
+      display: flex; gap: 6px; align-items: center;
+      background: var(--bg2); border: 1px solid var(--gold-bd);
+      border-radius: 24px; padding: 7px 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+      transform: translateX(-50%);
+    }
+    .wb-cp-swatch {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid transparent; cursor: pointer;
+      transition: transform 0.12s, border-color 0.12s;
+      flex-shrink: 0;
+    }
+    .wb-cp-swatch:hover { transform: scale(1.3); border-color: rgba(255,255,255,0.5); }
     .wb-pick-empty { padding: 16px 12px; font-size: 12px; color: var(--text3); }
     .wb-pick-foot { padding: 10px 12px; border-top: 1px solid var(--gold-bd); flex-shrink: 0; }
 
@@ -2433,10 +2450,12 @@
           <div id="wb-world" class="wb-world">
             <svg id="wb-svg">
               <defs>
-                <marker id="wbm-gold" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#c9a84c"/></marker>
-                <marker id="wbm-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#4a90d9"/></marker>
-                <marker id="wbm-red"  markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#e17055"/></marker>
-                <marker id="wbm-grey" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#9b9baa"/></marker>
+                <marker id="wbm-gold"   markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#c9a84c"/></marker>
+                <marker id="wbm-blue"   markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#4a90d9"/></marker>
+                <marker id="wbm-red"    markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#e17055"/></marker>
+                <marker id="wbm-grey"   markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#9b9baa"/></marker>
+                <marker id="wbm-green"  markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#27ae60"/></marker>
+                <marker id="wbm-purple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#8e44ad"/></marker>
               </defs>
             </svg>
             <div id="wb-edge-hits"></div>
@@ -3985,6 +4004,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
 
   // ── View ─────────────────────────────────────────────────
   function openView(id) {
+    stopViewVideos();
     const idea = ideas.find(i => i.id === id);
     if (!idea) return;
     viewingId = id;
@@ -4034,7 +4054,12 @@ CREATE POLICY "allow all" ON ideas FOR ALL
     viewOverlay.removeAttribute('hidden');
   }
 
+  function stopViewVideos() {
+    document.querySelectorAll('#view-overlay video').forEach(v => { v.pause(); v.currentTime = 0; });
+  }
+
   function closeView() {
+    stopViewVideos();
     if (wbViewingFrom) {
       wbViewingFrom = false;
       viewOverlay.setAttribute('hidden', '');
@@ -6165,7 +6190,7 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   const WB_NODE_W  = 160;
   const WB_NODE_H  = 62;  // approximate card height
   const WB_GRID    = 30;
-  const WB_COLOURS = { gold: '#c9a84c', blue: '#4a90d9', red: '#e17055', grey: '#9b9baa' };
+  const WB_COLOURS = { gold: '#c9a84c', blue: '#4a90d9', red: '#e17055', grey: '#9b9baa', green: '#27ae60', purple: '#8e44ad' };
   const WB_SETUP_SQL = `CREATE TABLE IF NOT EXISTS whiteboard_nodes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   idea_id uuid REFERENCES ideas(id) ON DELETE CASCADE,
@@ -6274,6 +6299,7 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   }
 
   function wbRenderEdges() {
+    wbDismissColourPicker();
     [...wbSvgEl.children].filter(c => c.tagName.toLowerCase() !== 'defs').forEach(c => c.remove());
     wbHitsEl.innerHTML = '';
 
@@ -6282,21 +6308,33 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       const tn = wbNodes.find(n => n.id === edge.to_node);
       if (!fn || !tn) continue;
       const isSelected = wbSelectedEdge === edge.id;
-      const col = isSelected ? '#e17055' : (WB_COLOURS[edge.colour] || WB_COLOURS.gold);
-      const markerKey = isSelected ? 'red' : (edge.colour || 'gold');
+      const col = WB_COLOURS[edge.colour] || WB_COLOURS.gold;
+      const markerKey = edge.colour || 'gold';
       const { d, cx, cy } = wbEdgePath(fn, tn);
 
-      // Visual path (no pointer events — hit path handles clicks)
+      // Selection glow (behind visual path)
+      if (isSelected) {
+        const glow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        glow.setAttribute('d', d);
+        glow.setAttribute('stroke', col);
+        glow.setAttribute('stroke-width', '7');
+        glow.setAttribute('stroke-opacity', '0.3');
+        glow.setAttribute('fill', 'none');
+        glow.style.pointerEvents = 'none';
+        wbSvgEl.appendChild(glow);
+      }
+
+      // Visual path
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('d', d);
       path.setAttribute('stroke', col);
-      path.setAttribute('stroke-width', isSelected ? '3.5' : '2.5');
+      path.setAttribute('stroke-width', isSelected ? '3' : '2.5');
       path.setAttribute('fill', 'none');
       path.setAttribute('marker-end', `url(#wbm-${markerKey})`);
       path.style.pointerEvents = 'none';
       wbSvgEl.appendChild(path);
 
-      // Wide transparent hit path — receives click events despite SVG pointer-events:none
+      // Wide transparent hit path
       const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       hit.setAttribute('d', d);
       hit.setAttribute('stroke', 'transparent');
@@ -6308,14 +6346,18 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
         e.stopPropagation();
         if (wbTool === 'arrow') {
           wbDeleteEdge(edge.id);
-        } else {
-          wbSelectedEdge = wbSelectedEdge === edge.id ? null : edge.id;
+        } else if (wbSelectedEdge === edge.id) {
+          wbSelectedEdge = null;
           wbRenderEdges();
+        } else {
+          wbSelectedEdge = edge.id;
+          wbRenderEdges();
+          wbShowColourPicker(edge.id, cx, cy);
         }
       });
       wbSvgEl.appendChild(hit);
 
-      // Midpoint delete button (always visible when selected; hover-visible otherwise)
+      // Midpoint delete button
       const btn = document.createElement('button');
       btn.className = 'wb-edge-del' + (isSelected ? ' selected' : '');
       btn.style.cssText = `left:${cx}px;top:${cy}px;background:${col}`;
@@ -6334,6 +6376,73 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       if (wbSelectedEdge === id) wbSelectedEdge = null;
       wbRenderEdges();
     } catch (err) { toast(err.message, true); }
+  }
+
+  // ── Edge colour picker ──────────────────────────────────────
+  const WB_COLOUR_OPTIONS = [
+    { key: 'gold',   hex: '#c9a84c' },
+    { key: 'blue',   hex: '#4a90d9' },
+    { key: 'red',    hex: '#e17055' },
+    { key: 'grey',   hex: '#9b9baa' },
+    { key: 'green',  hex: '#27ae60' },
+    { key: 'purple', hex: '#8e44ad' },
+  ];
+
+  function wbShowColourPicker(edgeId, worldCx, worldCy) {
+    wbDismissColourPicker();
+    const vpRect   = wbViewport.getBoundingClientRect();
+    const rootRect = wbRootEl.getBoundingClientRect();
+    const screenX  = vpRect.left - rootRect.left + worldCx * wbScale + wbPan.x;
+    const screenY  = vpRect.top  - rootRect.top  + worldCy * wbScale + wbPan.y;
+
+    const picker = document.createElement('div');
+    picker.id = 'wb-colour-picker';
+    picker.className = 'wb-colour-picker';
+    picker.style.left = screenX + 'px';
+    picker.style.top  = (screenY + 18) + 'px';
+
+    picker.innerHTML = WB_COLOUR_OPTIONS.map(c =>
+      `<button class="wb-cp-swatch" data-key="${c.key}" style="background:${c.hex}" title="${c.key}"></button>`
+    ).join('');
+
+    picker.querySelectorAll('.wb-cp-swatch').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        wbChangeEdgeColour(edgeId, btn.dataset.key);
+      });
+    });
+
+    wbRootEl.appendChild(picker);
+
+    setTimeout(() => {
+      document.addEventListener('click', wbDismissColourPicker, { once: true });
+    }, 0);
+  }
+
+  function wbDismissColourPicker() {
+    const el = document.getElementById('wb-colour-picker');
+    if (el) el.remove();
+  }
+
+  async function wbChangeEdgeColour(edgeId, colour) {
+    const edge = wbEdges.find(e => e.id === edgeId);
+    if (!edge) return;
+    const prev = edge.colour;
+    edge.colour = colour;
+    wbSelectedEdge = null;
+    wbDismissColourPicker();
+    wbRenderEdges();
+    try {
+      await apiFetch(`/api/whiteboard/edges/${edgeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ colour })
+      });
+    } catch (err) {
+      edge.colour = prev;
+      toast(err.message, true);
+      wbRenderEdges();
+    }
   }
 
   // ── Floating canvas tooltip ─────────────────────────────────
