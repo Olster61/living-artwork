@@ -1297,6 +1297,45 @@
     .wb-cr-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
     .wb-cr-title { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; letter-spacing: 0; }
     .wb-cr-badge { font-size: 11px; color: var(--gold); flex-shrink: 0; font-weight: 700; text-transform: none; }
+    .wb-cr-drag {
+      font-size: 11px; color: var(--text3); flex-shrink: 0;
+      cursor: grab; padding: 0 2px; opacity: 0.35;
+      user-select: none; -webkit-user-select: none; line-height: 1;
+    }
+    .wb-compact-row:hover .wb-cr-drag { opacity: 0.8; }
+    .wb-compact-row.wb-cr-dragging {
+      background: var(--gold-bg) !important; opacity: 1 !important;
+      outline: 1px solid var(--gold-bd);
+    }
+    .wb-touch-ghost {
+      position: fixed; z-index: 9999; pointer-events: none;
+      background: #1c1c1c; color: #e0d5b8; padding: 6px 14px;
+      border-radius: 8px; font-size: 12px; font-weight: 500;
+      font-family: Inter, sans-serif; border: 1px solid rgba(201,168,76,0.6);
+      white-space: nowrap; transform: translate(-50%, calc(-100% - 14px));
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    /* Panel slide-away on mobile drop */
+    .wb-pick-sidebar { transition: width 0.32s ease, opacity 0.2s ease; }
+    .wb-pick-pane { transition: width 0.32s ease, opacity 0.2s ease; }
+    .wb-body.wb-panes-hidden .wb-pick-sidebar,
+    .wb-body.wb-panes-hidden .wb-pick-pane {
+      width: 0 !important; min-width: 0 !important; opacity: 0; overflow: hidden;
+    }
+    /* Panel restore tab */
+    .wb-panel-tab {
+      position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+      z-index: 20; background: var(--bg2); border: 1px solid var(--gold-bd);
+      border-left: none; border-radius: 0 6px 6px 0;
+      width: 18px; height: 44px; display: none; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text2); font-size: 11px;
+      transition: background 0.1s; user-select: none;
+    }
+    .wb-panel-tab:hover { background: var(--gold-bg); color: var(--gold); }
+    .wb-body.wb-panes-hidden .wb-panel-tab { display: flex; }
+    @media (pointer: coarse) {
+      .wb-cr-drag { opacity: 0.6; font-size: 13px; }
+    }
 
     /* Edge colour picker popup */
     .wb-colour-picker {
@@ -2426,6 +2465,9 @@
 
       <!-- Right: canvas area -->
       <div class="wb-canvas-area">
+
+        <!-- Panel restore tab (visible only when panels are hidden) -->
+        <div class="wb-panel-tab" id="wb-panel-tab" title="Show sidebar">›</div>
 
         <!-- Left floating tools -->
         <div class="wb-tools" id="wb-tools">
@@ -6671,6 +6713,7 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     document.getElementById('view-grid-btn').classList.remove('active');
     document.getElementById('view-list-btn').classList.remove('active');
     document.getElementById('wb-setup-sql').textContent = WB_SETUP_SQL;
+    document.querySelector('.wb-body')?.classList.remove('wb-panes-hidden');
     wbPickCat = 'All';
     wbSelections.clear();
     wbBuildPickSidebar();
@@ -6692,6 +6735,11 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     wbSetupEl.setAttribute('hidden', '');
     wbCancelConnect();
     wbSelections.clear();
+    document.querySelector('.wb-body')?.classList.remove('wb-panes-hidden');
+  }
+
+  function wbSlidePickPaneAway() {
+    document.querySelector('.wb-body')?.classList.add('wb-panes-hidden');
   }
 
   async function wbLoad() {
@@ -6728,6 +6776,10 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       document.querySelectorAll('.wb-color-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     });
+  });
+
+  document.getElementById('wb-panel-tab').addEventListener('click', () => {
+    document.querySelector('.wb-body')?.classList.remove('wb-panes-hidden');
   });
 
   // ── Zoom buttons ────────────────────────────────────────────
@@ -6798,6 +6850,7 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       const onBoard = onIds.has(idea.id);
       const checked = wbSelections.has(idea.id);
       return `<label class="wb-compact-row${onBoard ? ' wb-cr-on' : ''}" data-idea-id="${esc(idea.id)}"${onBoard ? '' : ' draggable="true"'}>
+        ${onBoard ? '' : '<span class="wb-cr-drag" aria-hidden="true">⠿</span>'}
         <input type="checkbox" class="wb-cr-check" data-id="${esc(idea.id)}" ${checked ? 'checked' : ''} ${onBoard ? 'disabled' : ''}>
         <span class="wb-cr-dot" style="background:${col}"></span>
         <span class="wb-cr-title">${esc(title)}</span>
@@ -6824,6 +6877,81 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
         e.dataTransfer.setDragImage(ghost, 12, 16);
         setTimeout(() => ghost.remove(), 0);
       });
+
+      // Mobile long-press drag
+      let touchTimer = null;
+      let touchStartX = 0, touchStartY = 0;
+      let touchActive = false;
+      let touchGhost = null;
+
+      function cleanupTouch() {
+        clearTimeout(touchTimer); touchTimer = null;
+        touchActive = false;
+        row.classList.remove('wb-cr-dragging');
+        if (touchGhost) { touchGhost.remove(); touchGhost = null; }
+        document.removeEventListener('touchmove', onTouchMove);
+        document.removeEventListener('touchend', onTouchEnd);
+        document.removeEventListener('touchcancel', onTouchCancel);
+      }
+
+      function onTouchCancel() { cleanupTouch(); }
+
+      function onTouchMove(e) {
+        const t = e.touches[0];
+        if (!touchActive) {
+          if (Math.hypot(t.clientX - touchStartX, t.clientY - touchStartY) > 12) cleanupTouch();
+          return;
+        }
+        e.preventDefault();
+        if (touchGhost) {
+          touchGhost.style.left = t.clientX + 'px';
+          touchGhost.style.top  = t.clientY + 'px';
+        }
+      }
+
+      async function onTouchEnd(e) {
+        const dragging = touchActive;
+        const ct = e.changedTouches[0];
+        cleanupTouch();
+        if (!dragging) return;
+        const vr = wbViewport.getBoundingClientRect();
+        if (ct.clientX < vr.left || ct.clientX > vr.right || ct.clientY < vr.top || ct.clientY > vr.bottom) return;
+        const ideaId = row.dataset.ideaId;
+        if (wbNodes.find(n => n.idea_id === ideaId)) { wbTooltip('Already on whiteboard'); return; }
+        const w = wbToWorld(ct.clientX, ct.clientY);
+        try {
+          const data = await apiFetch('/api/whiteboard/nodes', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idea_id: ideaId, x_pos: Math.round(w.x - WB_NODE_W/2), y_pos: Math.round(w.y - WB_NODE_H/2) })
+          });
+          wbNodes.push(data.node);
+          wbRender();
+          wbSlidePickPaneAway();
+        } catch (err) { toast(err.message, true); }
+      }
+
+      row.addEventListener('touchstart', e => {
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        touchStartX = t.clientX; touchStartY = t.clientY;
+        touchActive = false;
+        document.addEventListener('touchmove', onTouchMove, { passive: false });
+        document.addEventListener('touchend', onTouchEnd, { passive: false });
+        document.addEventListener('touchcancel', onTouchCancel);
+        touchTimer = setTimeout(() => {
+          touchActive = true;
+          if (navigator.vibrate) navigator.vibrate(15);
+          row.classList.add('wb-cr-dragging');
+          const idea = ideas.find(i => i.id === row.dataset.ideaId);
+          const title = idea ? (idea.title.split(' ').slice(0, 6).join(' ') + (idea.title.split(' ').length > 6 ? '…' : '')) : '';
+          touchGhost = document.createElement('div');
+          touchGhost.className = 'wb-touch-ghost';
+          touchGhost.textContent = title;
+          touchGhost.style.left = touchStartX + 'px';
+          touchGhost.style.top  = touchStartY + 'px';
+          document.body.appendChild(touchGhost);
+        }, 500);
+      }, { passive: true });
     });
   }
 
