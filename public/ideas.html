@@ -1156,9 +1156,9 @@
       opacity: 0; transition: opacity 0.15s; white-space: nowrap;
     }
 
-    /* Left floating tool panel */
+    /* Left floating tool panel — position set entirely by JS */
     .wb-tools {
-      position: absolute; bottom: 16px; left: 16px;
+      position: fixed;
       z-index: 70; display: flex; flex-direction: column; align-items: center; gap: 4px;
       background: var(--bg2); border: 1px solid var(--gold-bd);
       border-radius: 12px; padding: 4px 6px 8px;
@@ -1262,7 +1262,7 @@
 
     /* Left pick sidebar */
     .wb-pick-sidebar {
-      width: 200px; flex-shrink: 0;
+      width: 180px; flex-shrink: 0;
       background: var(--bg2); border-right: 1px solid var(--gold-bd);
       overflow-y: auto; display: flex; flex-direction: column;
       padding: 8px 0 60px;
@@ -1287,7 +1287,7 @@
 
     /* Middle compact idea list */
     .wb-pick-pane {
-      width: 250px; flex-shrink: 0;
+      width: 200px; flex-shrink: 0;
       background: var(--bg); border-right: 1px solid var(--gold-bd);
       display: flex; flex-direction: column; overflow: hidden; position: relative;
     }
@@ -1332,7 +1332,7 @@
     }
     /* Panel toggle tab — rides the right edge of the panels */
     .wb-panel-tab {
-      position: absolute; left: 450px; top: 50%;
+      position: absolute; left: 380px; top: 50%;
       transform: translateY(-50%);
       z-index: 100; background: var(--bg2); border: 1px solid var(--gold-bd);
       border-left: none; border-radius: 0 8px 8px 0;
@@ -1343,6 +1343,11 @@
     }
     .wb-panel-tab:hover { background: var(--gold-bg); color: var(--gold-lt); }
     .wb-body.wb-panes-hidden .wb-panel-tab { left: 0; }
+    @media (max-width: 600px) {
+      .wb-pick-sidebar { width: 140px; }
+      .wb-pick-pane    { width: 160px; }
+      .wb-panel-tab    { left: 300px; }
+    }
     @media (pointer: coarse) {
       .wb-cr-drag { opacity: 0.6; font-size: 13px; }
     }
@@ -6430,37 +6435,39 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
 
   let wbToolPos = null; // remembered toolbar position within session
 
-  function wbToolEnsureTopLeft() {
-    const tb = document.getElementById('wb-tools');
-    if (!tb) return;
-    if (tb.style.top) return; // already using inline top/left
-    const ca = document.querySelector('.wb-canvas-area');
-    const caR = ca.getBoundingClientRect();
-    const tbR = tb.getBoundingClientRect();
-    tb.style.top    = Math.round(tbR.top  - caR.top)  + 'px';
-    tb.style.left   = Math.round(tbR.left - caR.left) + 'px';
-    tb.style.bottom = '';
+  function wbClampToolbar(tb, left, top) {
+    return {
+      left: Math.max(0, Math.min(window.innerWidth  - tb.offsetWidth,  left)),
+      top:  Math.max(0, Math.min(window.innerHeight - tb.offsetHeight, top))
+    };
+  }
+
+  function wbSetToolbarPos(tb, left, top) {
+    const c = wbClampToolbar(tb, left, top);
+    tb.style.left = c.left + 'px';
+    tb.style.top  = c.top  + 'px';
+    return c;
   }
 
   function wbInitToolbarDrag() {
     const h = document.getElementById('wb-tool-drag');
     if (!h) return;
 
+    // Mouse drag — immediate
     h.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       e.preventDefault();
-      wbToolEnsureTopLeft();
       const tb = document.getElementById('wb-tools');
       const sx = e.clientX, sy = e.clientY;
-      const sl = parseFloat(tb.style.left), st = parseFloat(tb.style.top);
+      const sl = parseFloat(tb.style.left) || 0;
+      const st = parseFloat(tb.style.top)  || 0;
       h.classList.add('grabbing');
       function onMove(ev) {
-        tb.style.left = (sl + ev.clientX - sx) + 'px';
-        tb.style.top  = (st + ev.clientY - sy) + 'px';
+        const c = wbSetToolbarPos(tb, sl + ev.clientX - sx, st + ev.clientY - sy);
+        wbToolPos = c;
       }
       function onUp() {
         h.classList.remove('grabbing');
-        wbToolPos = { left: parseFloat(tb.style.left), top: parseFloat(tb.style.top) };
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
       }
@@ -6468,36 +6475,23 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       document.addEventListener('mouseup', onUp);
     });
 
+    // Touch drag — immediate (single finger, no long-press)
     h.addEventListener('touchstart', e => {
       if (e.touches.length !== 1) return;
+      e.preventDefault(); // block scroll immediately
+      const tb = document.getElementById('wb-tools');
       const t = e.touches[0];
       const stx = t.clientX, sty = t.clientY;
-      let tdrag = false, sl, st;
-      const timer = setTimeout(() => {
-        tdrag = true;
-        wbToolEnsureTopLeft();
-        const tb = document.getElementById('wb-tools');
-        sl = parseFloat(tb.style.left);
-        st = parseFloat(tb.style.top);
-        h.classList.add('grabbing');
-        if (navigator.vibrate) navigator.vibrate(12);
-      }, 400);
+      const sl = parseFloat(tb.style.left) || 0;
+      const st = parseFloat(tb.style.top)  || 0;
+      h.classList.add('grabbing');
       function onTM(ev) {
-        const tb = document.getElementById('wb-tools');
-        const tt = ev.touches[0];
-        if (!tdrag) {
-          if (Math.hypot(tt.clientX - stx, tt.clientY - sty) > 10) { clearTimeout(timer); done(); }
-          return;
-        }
         ev.preventDefault();
-        tb.style.left = (sl + tt.clientX - stx) + 'px';
-        tb.style.top  = (st + tt.clientY - sty) + 'px';
+        const tt = ev.touches[0];
+        const c = wbSetToolbarPos(tb, sl + tt.clientX - stx, st + tt.clientY - sty);
+        wbToolPos = c;
       }
       function done() {
-        const tb = document.getElementById('wb-tools');
-        if (tdrag && tb) wbToolPos = { left: parseFloat(tb.style.left), top: parseFloat(tb.style.top) };
-        tdrag = false;
-        clearTimeout(timer);
         h.classList.remove('grabbing');
         document.removeEventListener('touchmove', onTM);
         document.removeEventListener('touchend', done);
@@ -6506,7 +6500,7 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       document.addEventListener('touchmove', onTM, { passive: false });
       document.addEventListener('touchend', done);
       document.addEventListener('touchcancel', done);
-    }, { passive: true });
+    }, { passive: false });
   }
 
   async function wbChangeEdgeColour(edgeId, colour) {
@@ -6763,14 +6757,14 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     // Default pan: center of viewport
     wbPan.x = (wbViewport.clientWidth  || 800) / 2 - WB_NODE_W / 2;
     wbPan.y = (wbViewport.clientHeight || 500) / 2 - WB_NODE_H / 2;
-    // Apply remembered or default toolbar position
+    // Set toolbar position (position:fixed, top/left only)
     const tb = document.getElementById('wb-tools');
+    tb.style.bottom = '';
     if (wbToolPos) {
-      tb.style.left = wbToolPos.left + 'px';
-      tb.style.top  = wbToolPos.top  + 'px';
-      tb.style.bottom = '';
+      wbSetToolbarPos(tb, wbToolPos.left, wbToolPos.top);
     } else {
-      tb.style.left = ''; tb.style.top = ''; tb.style.bottom = '';
+      const tbH = tb.offsetHeight || 180;
+      wbSetToolbarPos(tb, 16, window.innerHeight - tbH - 16);
     }
     wbApply();
     await wbLoad();
