@@ -1322,17 +1322,17 @@
     .wb-body.wb-panes-hidden .wb-pick-pane {
       width: 0 !important; min-width: 0 !important; opacity: 0; overflow: hidden;
     }
-    /* Panel restore tab */
+    /* Panel toggle tab — always visible at left edge of canvas */
     .wb-panel-tab {
       position: absolute; left: 0; top: 50%; transform: translateY(-50%);
       z-index: 20; background: var(--bg2); border: 1px solid var(--gold-bd);
-      border-left: none; border-radius: 0 6px 6px 0;
-      width: 18px; height: 44px; display: none; align-items: center; justify-content: center;
-      cursor: pointer; color: var(--text2); font-size: 11px;
-      transition: background 0.1s; user-select: none;
+      border-left: none; border-radius: 0 8px 8px 0;
+      width: 22px; height: 52px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--gold); font-size: 16px; font-weight: 600;
+      transition: background 0.15s, color 0.15s; user-select: none;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.3);
     }
-    .wb-panel-tab:hover { background: var(--gold-bg); color: var(--gold); }
-    .wb-body.wb-panes-hidden .wb-panel-tab { display: flex; }
+    .wb-panel-tab:hover { background: var(--gold-bg); color: var(--gold-lt); }
     @media (pointer: coarse) {
       .wb-cr-drag { opacity: 0.6; font-size: 13px; }
     }
@@ -2466,8 +2466,8 @@
       <!-- Right: canvas area -->
       <div class="wb-canvas-area">
 
-        <!-- Panel restore tab (visible only when panels are hidden) -->
-        <div class="wb-panel-tab" id="wb-panel-tab" title="Show sidebar">›</div>
+        <!-- Panel toggle tab -->
+        <div class="wb-panel-tab" id="wb-panel-tab" title="Show/hide sidebar">+</div>
 
         <!-- Left floating tools -->
         <div class="wb-tools" id="wb-tools">
@@ -6713,7 +6713,8 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     document.getElementById('view-grid-btn').classList.remove('active');
     document.getElementById('view-list-btn').classList.remove('active');
     document.getElementById('wb-setup-sql').textContent = WB_SETUP_SQL;
-    document.querySelector('.wb-body')?.classList.remove('wb-panes-hidden');
+    document.querySelector('.wb-body')?.classList.add('wb-panes-hidden');
+    wbSetPanelTabIcon();
     wbPickCat = 'All';
     wbSelections.clear();
     wbBuildPickSidebar();
@@ -6740,6 +6741,15 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
 
   function wbSlidePickPaneAway() {
     document.querySelector('.wb-body')?.classList.add('wb-panes-hidden');
+    wbSetPanelTabIcon();
+  }
+
+  function wbSetPanelTabIcon() {
+    const tab = document.getElementById('wb-panel-tab');
+    if (!tab) return;
+    const hidden = document.querySelector('.wb-body')?.classList.contains('wb-panes-hidden');
+    tab.textContent = hidden ? '+' : '−';
+    tab.title = hidden ? 'Show sidebar' : 'Hide sidebar';
   }
 
   async function wbLoad() {
@@ -6779,7 +6789,8 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   });
 
   document.getElementById('wb-panel-tab').addEventListener('click', () => {
-    document.querySelector('.wb-body')?.classList.remove('wb-panes-hidden');
+    document.querySelector('.wb-body')?.classList.toggle('wb-panes-hidden');
+    wbSetPanelTabIcon();
   });
 
   // ── Zoom buttons ────────────────────────────────────────────
