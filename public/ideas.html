@@ -1108,9 +1108,9 @@
     #wb-edge-hits { position: absolute; top: 0; left: 0; pointer-events: none; }
 
     .wb-card {
-      position: absolute; width: 220px;
+      position: absolute; width: 160px;
       background: var(--card); border: 1.5px solid var(--gold-bd);
-      border-radius: var(--radius); padding: 12px 14px 12px;
+      border-radius: var(--radius); padding: 10px 12px;
       cursor: grab; user-select: none;
       box-shadow: 0 2px 12px rgba(0,0,0,0.4);
       transition: border-color 0.15s, box-shadow 0.15s;
@@ -1118,9 +1118,9 @@
     .wb-card:hover { border-color: var(--gold-bdh); box-shadow: 0 6px 24px rgba(0,0,0,0.55); }
     .wb-card.wb-selected { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,168,76,0.25); }
     .wb-card-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
-    .wb-card-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .wb-card-dot { display: block; width: 7px; height: 7px; border-radius: 50%; margin-bottom: 6px; flex-shrink: 0; }
     .wb-card-cat { font-size: 10px; color: var(--text3); letter-spacing: 0.07em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-    .wb-card-title { font-family: 'Playfair Display', serif; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 5px; line-height: 1.35; }
+    .wb-card-title { font-family: 'Playfair Display', serif; font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.35; }
     .wb-card-preview { font-size: 11px; color: var(--text2); line-height: 1.5; }
     .wb-card-del {
       position: absolute; top: 6px; right: 6px;
@@ -1139,12 +1139,21 @@
       width: 18px; height: 18px; border-radius: 50%;
       border: none; cursor: pointer; font-size: 10px; font-weight: 700;
       display: flex; align-items: center; justify-content: center;
-      opacity: 0; transition: opacity 0.15s;
+      opacity: 0; transition: opacity 0.15s; pointer-events: auto;
       color: #fff; line-height: 1;
     }
+    .wb-edge-del.selected { opacity: 1; background: var(--err) !important; }
     #wb-edge-hits:hover .wb-edge-del,
     .wb-edge-del:hover { opacity: 1; }
     .wb-edge-del:hover { transform: translate(-50%, -50%) scale(1.2); }
+
+    /* Floating tooltip on canvas */
+    .wb-tooltip {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.78); border-radius: 20px; padding: 5px 14px;
+      font-size: 12px; color: #fff; z-index: 200; pointer-events: none;
+      opacity: 0; transition: opacity 0.15s; white-space: nowrap;
+    }
 
     /* Left floating tool panel */
     .wb-tools {
@@ -4026,6 +4035,14 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   }
 
   function closeView() {
+    if (wbViewingFrom) {
+      wbViewingFrom = false;
+      viewOverlay.setAttribute('hidden', '');
+      viewingId = null;
+      document.getElementById('whiteboard-view').removeAttribute('hidden');
+      document.getElementById('view-close').textContent = '← Back';
+      return;
+    }
     viewOverlay.setAttribute('hidden', '');
     viewingId = null;
   }
@@ -6145,8 +6162,8 @@ CREATE POLICY "allow all" ON ideas FOR ALL
   });
 
   // ── Whiteboard ────────────────────────────────────────────
-  const WB_NODE_W  = 220;
-  const WB_NODE_H  = 92;  // approximate card height
+  const WB_NODE_W  = 160;
+  const WB_NODE_H  = 62;  // approximate card height
   const WB_GRID    = 30;
   const WB_COLOURS = { gold: '#c9a84c', blue: '#4a90d9', red: '#e17055', grey: '#9b9baa' };
   const WB_SETUP_SQL = `CREATE TABLE IF NOT EXISTS whiteboard_nodes (
@@ -6180,6 +6197,8 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   let wbPanStart     = { x: 0, y: 0 };
   let wbDragging     = null; // { nodeId, startX, startY, mouseX, mouseY }
   let wbConnecting   = null; // { fromId } — click-to-connect first selection
+  let wbSelectedEdge = null; // edge id currently selected
+  let wbViewingFrom  = false; // viewing full idea from whiteboard
   let wbSelections   = new Set(); // idea IDs selected in pick panel
   let wbPickCat      = 'All';    // current category filter in pick sidebar
   let wbSaveTimers   = {};
@@ -6225,21 +6244,18 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       const idea = ideas.find(i => i.id === node.idea_id);
       if (!idea) continue;
       const col = catColor(idea.category);
-      const prev = stripHtml(idea.notes || '').slice(0, 55);
+      const titleWords = idea.title.split(' ');
+      const titleShort = titleWords.length > 6 ? titleWords.slice(0, 6).join(' ') + '…' : idea.title;
       const card = document.createElement('div');
       card.className = 'wb-card';
       card.dataset.nid = node.id;
       card.style.cssText = `left:${node.x_pos}px;top:${node.y_pos}px`;
       card.innerHTML = `
         <button class="wb-card-del" tabindex="-1">✕</button>
-        <div class="wb-card-head">
-          <div class="wb-card-dot" style="background:${col}"></div>
-          <div class="wb-card-cat">${esc(idea.category)}</div>
-        </div>
-        <div class="wb-card-title">${esc(idea.title)}</div>
-        ${prev ? `<div class="wb-card-preview">${esc(prev)}…</div>` : ''}`;
+        <div class="wb-card-dot" style="background:${col}"></div>
+        <div class="wb-card-title">${esc(titleShort)}</div>`;
       card.addEventListener('mousedown', wbOnCardDown);
-      card.addEventListener('dblclick', e => { e.stopPropagation(); if (wbTool !== 'arrow') wbShowDetail(node.idea_id); });
+      card.addEventListener('dblclick', e => { e.stopPropagation(); if (wbTool !== 'arrow') wbOpenIdeaView(node.idea_id); });
       card.querySelector('.wb-card-del').addEventListener('click', async e => {
         e.stopPropagation();
         if (!confirm('Remove from whiteboard?')) return;
@@ -6258,7 +6274,6 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   }
 
   function wbRenderEdges() {
-    // Clear SVG paths (keep defs)
     [...wbSvgEl.children].filter(c => c.tagName.toLowerCase() !== 'defs').forEach(c => c.remove());
     wbHitsEl.innerHTML = '';
 
@@ -6266,33 +6281,82 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       const fn = wbNodes.find(n => n.id === edge.from_node);
       const tn = wbNodes.find(n => n.id === edge.to_node);
       if (!fn || !tn) continue;
-      const col = WB_COLOURS[edge.colour] || WB_COLOURS.gold;
+      const isSelected = wbSelectedEdge === edge.id;
+      const col = isSelected ? '#e17055' : (WB_COLOURS[edge.colour] || WB_COLOURS.gold);
+      const markerKey = isSelected ? 'red' : (edge.colour || 'gold');
       const { d, cx, cy } = wbEdgePath(fn, tn);
 
+      // Visual path (no pointer events — hit path handles clicks)
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('d', d);
       path.setAttribute('stroke', col);
-      path.setAttribute('stroke-width', '2.5');
+      path.setAttribute('stroke-width', isSelected ? '3.5' : '2.5');
       path.setAttribute('fill', 'none');
-      path.setAttribute('marker-end', `url(#wbm-${edge.colour || 'gold'})`);
+      path.setAttribute('marker-end', `url(#wbm-${markerKey})`);
+      path.style.pointerEvents = 'none';
       wbSvgEl.appendChild(path);
 
-      // Clickable delete dot at midpoint (HTML over SVG)
+      // Wide transparent hit path — receives click events despite SVG pointer-events:none
+      const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      hit.setAttribute('d', d);
+      hit.setAttribute('stroke', 'transparent');
+      hit.setAttribute('stroke-width', '18');
+      hit.setAttribute('fill', 'none');
+      hit.style.pointerEvents = 'stroke';
+      hit.style.cursor = 'pointer';
+      hit.addEventListener('click', e => {
+        e.stopPropagation();
+        if (wbTool === 'arrow') {
+          wbDeleteEdge(edge.id);
+        } else {
+          wbSelectedEdge = wbSelectedEdge === edge.id ? null : edge.id;
+          wbRenderEdges();
+        }
+      });
+      wbSvgEl.appendChild(hit);
+
+      // Midpoint delete button (always visible when selected; hover-visible otherwise)
       const btn = document.createElement('button');
-      btn.className = 'wb-edge-del';
+      btn.className = 'wb-edge-del' + (isSelected ? ' selected' : '');
       btn.style.cssText = `left:${cx}px;top:${cy}px;background:${col}`;
       btn.title = 'Delete connection';
       btn.textContent = '✕';
-      btn.addEventListener('click', async e => {
-        e.stopPropagation();
-        try {
-          await apiFetch(`/api/whiteboard/edges/${edge.id}`, { method: 'DELETE' });
-          wbEdges = wbEdges.filter(ed => ed.id !== edge.id);
-          wbRenderEdges();
-        } catch (err) { toast(err.message, true); }
-      });
+      btn.addEventListener('click', e => { e.stopPropagation(); wbDeleteEdge(edge.id); });
       wbHitsEl.appendChild(btn);
     }
+  }
+
+  // ── Delete an edge ──────────────────────────────────────────
+  async function wbDeleteEdge(id) {
+    try {
+      await apiFetch(`/api/whiteboard/edges/${id}`, { method: 'DELETE' });
+      wbEdges = wbEdges.filter(ed => ed.id !== id);
+      if (wbSelectedEdge === id) wbSelectedEdge = null;
+      wbRenderEdges();
+    } catch (err) { toast(err.message, true); }
+  }
+
+  // ── Floating canvas tooltip ─────────────────────────────────
+  function wbTooltip(msg) {
+    let el = document.getElementById('wb-tooltip');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'wb-tooltip';
+      el.className = 'wb-tooltip';
+      wbRootEl.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.opacity = '1';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.opacity = '0'; }, 900);
+  }
+
+  // ── Open full idea view from whiteboard ─────────────────────
+  function wbOpenIdeaView(ideaId) {
+    wbViewingFrom = true;
+    wbRootEl.setAttribute('hidden', '');
+    document.getElementById('view-close').textContent = '← Whiteboard';
+    openView(ideaId);
   }
 
   // ── Cancel a pending connection ─────────────────────────────
@@ -6303,8 +6367,13 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     wbConnecting = null;
   }
 
-  // ── Create a new edge ───────────────────────────────────────
+  // ── Create a new edge (with duplicate guard) ────────────────
   async function wbCreateEdge(fromId, toId) {
+    const dupe = wbEdges.find(e =>
+      (e.from_node === fromId && e.to_node === toId) ||
+      (e.from_node === toId   && e.to_node === fromId)
+    );
+    if (dupe) { wbTooltip('Already connected'); return; }
     try {
       const data = await apiFetch('/api/whiteboard/edges', {
         method: 'POST',
@@ -6349,6 +6418,7 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   wbViewport.addEventListener('mousedown', e => {
     const onBg = e.target === wbViewport || e.target === wbWorldEl || e.target === wbSvgEl;
     if (!onBg) return;
+    if (wbSelectedEdge) { wbSelectedEdge = null; wbRenderEdges(); }
     if (wbTool === 'arrow') {
       if (wbConnecting) wbCancelConnect();
       return;
@@ -6501,12 +6571,14 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     document.getElementById('wb-tool-select').classList.add('active');
     document.getElementById('wb-tool-arrow').classList.remove('active');
     wbViewport.classList.remove('wb-arrow-tool');
+    wbCancelConnect();
   });
   document.getElementById('wb-tool-arrow').addEventListener('click', () => {
     wbTool = 'arrow';
     document.getElementById('wb-tool-select').classList.remove('active');
     document.getElementById('wb-tool-arrow').classList.add('active');
     wbViewport.classList.add('wb-arrow-tool');
+    if (wbSelectedEdge) { wbSelectedEdge = null; wbRenderEdges(); }
   });
   document.querySelectorAll('.wb-color-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -6662,7 +6734,11 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   // ── Keyboard shortcuts ────────────────────────────────────
   document.addEventListener('keydown', e => {
     if (!wbActive) return;
-    if (e.key === 'Escape') wbCancelConnect();
+    if (e.key === 'Escape') { wbCancelConnect(); if (wbSelectedEdge) { wbSelectedEdge = null; wbRenderEdges(); } }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && wbSelectedEdge && !e.target.matches('input,textarea,[contenteditable]')) {
+      e.preventDefault();
+      wbDeleteEdge(wbSelectedEdge);
+    }
     if (e.key === 'v' || e.key === 'V') document.getElementById('wb-tool-select').click();
     if (e.key === 'a' || e.key === 'A') document.getElementById('wb-tool-arrow').click();
   });
