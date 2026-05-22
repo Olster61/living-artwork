@@ -1258,7 +1258,7 @@
     }
 
     /* Whiteboard 3-column body layout */
-    .wb-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+    .wb-body { display: flex; flex: 1; overflow: hidden; min-height: 0; position: relative; }
 
     /* Left pick sidebar */
     .wb-pick-sidebar {
@@ -1330,17 +1330,19 @@
     .wb-body.wb-panes-hidden .wb-pick-pane {
       width: 0 !important; min-width: 0 !important; opacity: 0; overflow: hidden;
     }
-    /* Panel toggle tab — always visible at left edge of canvas */
+    /* Panel toggle tab — rides the right edge of the panels */
     .wb-panel-tab {
-      position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-      z-index: 20; background: var(--bg2); border: 1px solid var(--gold-bd);
+      position: absolute; left: 450px; top: 50%;
+      transform: translateY(-50%);
+      z-index: 100; background: var(--bg2); border: 1px solid var(--gold-bd);
       border-left: none; border-radius: 0 8px 8px 0;
       width: 22px; height: 52px; display: flex; align-items: center; justify-content: center;
       cursor: pointer; color: var(--gold); font-size: 16px; font-weight: 600;
-      transition: background 0.15s, color 0.15s; user-select: none;
-      box-shadow: 2px 0 8px rgba(0,0,0,0.3);
+      user-select: none; box-shadow: 2px 0 8px rgba(0,0,0,0.3);
+      transition: left 0.32s ease, background 0.15s, color 0.15s;
     }
     .wb-panel-tab:hover { background: var(--gold-bg); color: var(--gold-lt); }
+    .wb-body.wb-panes-hidden .wb-panel-tab { left: 0; }
     @media (pointer: coarse) {
       .wb-cr-drag { opacity: 0.6; font-size: 13px; }
     }
@@ -2454,11 +2456,11 @@
         </div>
       </div>
 
+      <!-- Panel toggle tab — direct child of wb-body so it slides with panels -->
+      <div class="wb-panel-tab" id="wb-panel-tab" title="Show/hide sidebar">+</div>
+
       <!-- Right: canvas area -->
       <div class="wb-canvas-area">
-
-        <!-- Panel toggle tab -->
-        <div class="wb-panel-tab" id="wb-panel-tab" title="Show/hide sidebar">+</div>
 
         <!-- Left floating tools -->
         <div class="wb-tools" id="wb-tools">
@@ -6430,10 +6432,13 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
 
   function wbToolEnsureTopLeft() {
     const tb = document.getElementById('wb-tools');
-    if (!tb || !tb.style.bottom) return;
+    if (!tb) return;
+    if (tb.style.top) return; // already using inline top/left
     const ca = document.querySelector('.wb-canvas-area');
-    tb.style.top    = (ca.offsetHeight - tb.offsetHeight - (parseFloat(tb.style.bottom) || 16)) + 'px';
-    tb.style.left   = (parseFloat(tb.style.left) || 16) + 'px';
+    const caR = ca.getBoundingClientRect();
+    const tbR = tb.getBoundingClientRect();
+    tb.style.top    = Math.round(tbR.top  - caR.top)  + 'px';
+    tb.style.left   = Math.round(tbR.left - caR.left) + 'px';
     tb.style.bottom = '';
   }
 
