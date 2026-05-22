@@ -1239,6 +1239,68 @@
       font-family: monospace; color: var(--text2); line-height: 1.6;
     }
 
+    /* Whiteboard 3-column body layout */
+    .wb-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+    /* Left pick sidebar */
+    .wb-pick-sidebar {
+      width: 200px; flex-shrink: 0;
+      background: var(--bg2); border-right: 1px solid var(--gold-bd);
+      overflow-y: auto; display: flex; flex-direction: column;
+      padding: 8px 0 60px;
+      scrollbar-width: thin; scrollbar-color: var(--gold-bd) transparent;
+    }
+    .wb-ps-label {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text3); padding: 10px 14px 4px;
+    }
+    .wb-ps-divider { height: 1px; background: var(--gold-bd); margin: 6px 14px; }
+    .wb-ps-item {
+      display: flex; align-items: center; gap: 7px; padding: 6px 14px;
+      font-size: 12px; color: var(--text2); cursor: pointer;
+      border: none; background: none; width: 100%; text-align: left;
+      font-family: 'Inter', sans-serif; transition: background 0.12s, color 0.12s;
+    }
+    .wb-ps-item:hover { background: var(--bg3); color: var(--text); }
+    .wb-ps-item.active { background: var(--gold-bg); color: var(--gold-lt); }
+    .wb-ps-sub { padding-left: 26px; font-size: 11px; }
+    .wb-ps-icon { font-size: 12px; flex-shrink: 0; width: 16px; text-align: center; }
+    .wb-ps-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Middle compact idea list */
+    .wb-pick-pane {
+      width: 250px; flex-shrink: 0;
+      background: var(--bg); border-right: 1px solid var(--gold-bd);
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+    }
+    .wb-pick-list {
+      flex: 1; overflow-y: auto; padding: 4px 0;
+      scrollbar-width: thin; scrollbar-color: var(--gold-bd) transparent;
+    }
+    .wb-compact-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 12px; cursor: pointer; transition: background 0.1s;
+    }
+    .wb-compact-row:hover { background: var(--bg2); }
+    .wb-compact-row.wb-cr-on { opacity: 0.5; }
+    .wb-cr-check { accent-color: var(--gold); flex-shrink: 0; width: 14px; height: 14px; cursor: pointer; }
+    .wb-cr-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .wb-cr-title { font-size: 12px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wb-cr-badge { font-size: 11px; color: var(--gold); flex-shrink: 0; font-weight: 700; }
+    .wb-pick-empty { padding: 16px 12px; font-size: 12px; color: var(--text3); }
+    .wb-pick-foot { padding: 10px 12px; border-top: 1px solid var(--gold-bd); flex-shrink: 0; }
+
+    /* Right canvas area */
+    .wb-canvas-area { flex: 1; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+    .wb-canvas-area .wb-viewport { flex: 1; }
+    .wb-canvas-area .wb-tools { top: 50%; left: 12px; }
+
+    /* Connecting-from glow */
+    .wb-card.wb-connecting-from {
+      border-color: var(--gold) !important;
+      box-shadow: 0 0 0 3px rgba(201,168,76,0.45), 0 0 28px rgba(201,168,76,0.2) !important;
+    }
+
     /* ── Context menu ─────────────────────────────────────── */
     .ctx-menu {
       position: fixed;
@@ -2312,7 +2374,6 @@
     <!-- Top control bar -->
     <div class="wb-ctrl">
       <span class="wb-ctrl-title">Whiteboard</span>
-      <button class="btn btn-outline" id="wb-add-ideas-btn" style="padding:5px 12px;font-size:12px">+ Add Ideas</button>
       <button class="btn btn-outline" id="wb-setup-btn" style="padding:5px 10px;font-size:12px" title="Show database setup SQL">⚙</button>
       <div class="wb-zoom-group">
         <button class="wb-zoom-btn" id="wb-zoom-out" title="Zoom out">−</button>
@@ -2322,59 +2383,63 @@
       </div>
     </div>
 
-    <!-- Canvas viewport -->
-    <div id="wb-viewport" class="wb-viewport">
-      <div id="wb-world" class="wb-world">
-        <!-- SVG arrows (pointer-events:none — rendering only) -->
-        <svg id="wb-svg">
-          <defs>
-            <marker id="wbm-gold" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#c9a84c"/></marker>
-            <marker id="wbm-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4a90d9"/></marker>
-            <marker id="wbm-red"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#e17055"/></marker>
-            <marker id="wbm-grey" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#9b9baa"/></marker>
-          </defs>
-        </svg>
-        <!-- Edge delete buttons (HTML, positioned at bezier midpoints) -->
-        <div id="wb-edge-hits"></div>
-        <!-- Node cards -->
-        <div id="wb-nodes"></div>
-      </div>
-    </div>
+    <!-- Body: category sidebar + compact list + canvas -->
+    <div class="wb-body">
 
-    <!-- Left floating tools -->
-    <div class="wb-tools" id="wb-tools">
-      <button class="wb-tool-btn active" id="wb-tool-select" title="Select / Pan (V)">
-        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3.5 2 L3.5 12.5 L6.5 9.5 L8.5 13.5 L10 12.8 L8 8.8 L12 8.8 Z" fill="currentColor" stroke="none" opacity="0.7"/>
-        </svg>
-      </button>
-      <button class="wb-tool-btn" id="wb-tool-arrow" title="Connect (A)">
-        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 12 Q7.5 7.5 12 3"/><path d="M8 3 L12 3 L12 7"/>
-        </svg>
-      </button>
-      <div class="wb-tool-sep"></div>
-      <button class="wb-color-btn active" data-colour="gold" style="background:#c9a84c" title="Gold"></button>
-      <button class="wb-color-btn" data-colour="blue" style="background:#4a90d9" title="Blue"></button>
-      <button class="wb-color-btn" data-colour="red"  style="background:#e17055" title="Red"></button>
-      <button class="wb-color-btn" data-colour="grey" style="background:#9b9baa" title="Grey"></button>
-    </div>
+      <!-- Left: category pick sidebar -->
+      <div class="wb-pick-sidebar" id="wb-pick-sidebar"></div>
 
-    <!-- Add ideas panel (right) -->
-    <div id="wb-add-panel" class="wb-panel" hidden>
-      <div class="wb-panel-head">
-        <h3>Add Ideas</h3>
-        <button class="btn btn-outline" id="wb-add-close" style="padding:4px 9px;font-size:12px">✕</button>
+      <!-- Middle: compact idea list + floating add button -->
+      <div class="wb-pick-pane">
+        <div class="wb-pick-list" id="wb-pick-list"></div>
+        <div class="wb-pick-foot" id="wb-pick-foot" hidden>
+          <button class="btn btn-gold" id="wb-pick-confirm" style="width:100%;padding:9px 14px;font-size:13px">Add to Whiteboard</button>
+        </div>
       </div>
-      <input type="search" class="wb-search" id="wb-add-search" placeholder="Filter…" autocomplete="off">
-      <div class="wb-idea-list" id="wb-idea-list"></div>
-      <div class="wb-panel-foot">
-        <button class="btn btn-outline" id="wb-add-cancel">Cancel</button>
-        <button class="btn btn-gold" id="wb-add-confirm">Add to Board</button>
-      </div>
-    </div>
 
-    <!-- Idea detail panel (right) -->
+      <!-- Right: canvas area -->
+      <div class="wb-canvas-area">
+
+        <!-- Left floating tools -->
+        <div class="wb-tools" id="wb-tools">
+          <button class="wb-tool-btn active" id="wb-tool-select" title="Select / Pan (V)">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3.5 2 L3.5 12.5 L6.5 9.5 L8.5 13.5 L10 12.8 L8 8.8 L12 8.8 Z" fill="currentColor" stroke="none" opacity="0.7"/>
+            </svg>
+          </button>
+          <button class="wb-tool-btn" id="wb-tool-arrow" title="Connect (A)">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12 Q7.5 7.5 12 3"/><path d="M8 3 L12 3 L12 7"/>
+            </svg>
+          </button>
+          <div class="wb-tool-sep"></div>
+          <button class="wb-color-btn active" data-colour="gold" style="background:#c9a84c" title="Gold"></button>
+          <button class="wb-color-btn" data-colour="blue" style="background:#4a90d9" title="Blue"></button>
+          <button class="wb-color-btn" data-colour="red"  style="background:#e17055" title="Red"></button>
+          <button class="wb-color-btn" data-colour="grey" style="background:#9b9baa" title="Grey"></button>
+        </div>
+
+        <!-- Canvas viewport -->
+        <div id="wb-viewport" class="wb-viewport">
+          <div id="wb-world" class="wb-world">
+            <svg id="wb-svg">
+              <defs>
+                <marker id="wbm-gold" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#c9a84c"/></marker>
+                <marker id="wbm-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#4a90d9"/></marker>
+                <marker id="wbm-red"  markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#e17055"/></marker>
+                <marker id="wbm-grey" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L0,7 L10,3.5 z" fill="#9b9baa"/></marker>
+              </defs>
+            </svg>
+            <div id="wb-edge-hits"></div>
+            <div id="wb-nodes"></div>
+          </div>
+        </div>
+
+      </div><!-- /wb-canvas-area -->
+
+    </div><!-- /wb-body -->
+
+    <!-- Idea detail panel (right overlay) -->
     <div id="wb-detail" class="wb-panel wb-detail-panel" hidden>
       <div class="wb-panel-head">
         <button class="btn btn-outline" id="wb-detail-close" style="padding:4px 9px;font-size:12px">← Back</button>
@@ -2386,7 +2451,7 @@
       </div>
     </div>
 
-    <!-- Setup SQL panel (right) -->
+    <!-- Setup SQL panel (right overlay) -->
     <div id="wb-setup-panel" class="wb-panel" hidden>
       <div class="wb-panel-head">
         <h3>Database Setup</h3>
@@ -6114,7 +6179,9 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   let wbPanning      = false;
   let wbPanStart     = { x: 0, y: 0 };
   let wbDragging     = null; // { nodeId, startX, startY, mouseX, mouseY }
-  let wbDrawing      = null; // { fromId, fromX, fromY }
+  let wbConnecting   = null; // { fromId } — click-to-connect first selection
+  let wbSelections   = new Set(); // idea IDs selected in pick panel
+  let wbPickCat      = 'All';    // current category filter in pick sidebar
   let wbSaveTimers   = {};
   let wbPinchDist    = 0;
 
@@ -6125,7 +6192,6 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   const wbNodesEl    = document.getElementById('wb-nodes');
   const wbHitsEl     = document.getElementById('wb-edge-hits');
   const wbZoomLabel  = document.getElementById('wb-zoom-label');
-  const wbAddPanel   = document.getElementById('wb-add-panel');
   const wbDetailEl   = document.getElementById('wb-detail');
   const wbSetupEl    = document.getElementById('wb-setup-panel');
 
@@ -6151,7 +6217,7 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   }
 
   // ── Render ─────────────────────────────────────────────────
-  function wbRender() { wbRenderNodes(); wbRenderEdges(); }
+  function wbRender() { wbRenderNodes(); wbRenderEdges(); wbRenderPickList(); }
 
   function wbRenderNodes() {
     wbNodesEl.innerHTML = '';
@@ -6184,6 +6250,9 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
           wbRender();
         } catch (err) { toast(err.message, true); }
       });
+      if (wbConnecting && wbConnecting.fromId === node.id) {
+        card.classList.add('wb-connecting-from');
+      }
       wbNodesEl.appendChild(card);
     }
   }
@@ -6226,24 +6295,26 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     }
   }
 
-  // ── Temp arrow while drawing ────────────────────────────────
-  function wbSetTemp(fx, fy, tx, ty) {
-    let el = document.getElementById('wb-temp');
-    if (!el) {
-      el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      el.id = 'wb-temp';
-      el.setAttribute('fill', 'none');
-      el.setAttribute('stroke-dasharray', '7 4');
-      el.setAttribute('stroke-width', '2');
-      el.setAttribute('stroke-linecap', 'round');
-      wbSvgEl.appendChild(el);
-    }
-    const dx = tx - fx, curve = Math.min(Math.abs(dx) * 0.5, 160);
-    el.setAttribute('d', `M${fx},${fy} C${fx+curve},${fy} ${tx-curve},${ty} ${tx},${ty}`);
-    el.setAttribute('stroke', WB_COLOURS[wbColour] || WB_COLOURS.gold);
-    el.setAttribute('stroke-opacity', '0.65');
+  // ── Cancel a pending connection ─────────────────────────────
+  function wbCancelConnect() {
+    if (!wbConnecting) return;
+    const fc = wbNodesEl.querySelector(`[data-nid="${wbConnecting.fromId}"]`);
+    if (fc) fc.classList.remove('wb-connecting-from');
+    wbConnecting = null;
   }
-  function wbClearTemp() { const el = document.getElementById('wb-temp'); if (el) el.remove(); }
+
+  // ── Create a new edge ───────────────────────────────────────
+  async function wbCreateEdge(fromId, toId) {
+    try {
+      const data = await apiFetch('/api/whiteboard/edges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_node: fromId, to_node: toId, colour: wbColour })
+      });
+      wbEdges.push(data.edge);
+      wbRenderEdges();
+    } catch (err) { toast(err.message, true); }
+  }
 
   // ── Card interaction ────────────────────────────────────────
   function wbOnCardDown(e) {
@@ -6255,19 +6326,33 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     if (!node) return;
 
     if (wbTool === 'arrow') {
-      wbDrawing = { fromId: nid, fromX: node.x_pos + WB_NODE_W/2, fromY: node.y_pos + WB_NODE_H/2 };
-      card.classList.add('wb-selected');
-    } else {
-      wbDragging = { nodeId: nid, startX: node.x_pos, startY: node.y_pos, mouseX: e.clientX, mouseY: e.clientY };
-      card.style.cursor = 'grabbing';
-      card.classList.add('wb-selected');
+      if (!wbConnecting) {
+        wbConnecting = { fromId: nid };
+        card.classList.add('wb-connecting-from');
+      } else if (wbConnecting.fromId === nid) {
+        wbCancelConnect();
+      } else {
+        const fromId = wbConnecting.fromId;
+        wbCancelConnect();
+        wbCreateEdge(fromId, nid);
+      }
+      return;
     }
+
+    // Select tool — drag
+    wbDragging = { nodeId: nid, startX: node.x_pos, startY: node.y_pos, mouseX: e.clientX, mouseY: e.clientY };
+    card.style.cursor = 'grabbing';
+    card.classList.add('wb-selected');
   }
 
   // ── Viewport mouse events ────────────────────────────────────
   wbViewport.addEventListener('mousedown', e => {
     const onBg = e.target === wbViewport || e.target === wbWorldEl || e.target === wbSvgEl;
     if (!onBg) return;
+    if (wbTool === 'arrow') {
+      if (wbConnecting) wbCancelConnect();
+      return;
+    }
     if (e.button !== 0 && e.button !== 1) return;
     wbPanning = true;
     wbPanStart = { x: e.clientX - wbPan.x, y: e.clientY - wbPan.y };
@@ -6287,15 +6372,11 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
       node.y_pos = wbDragging.startY + (e.clientY - wbDragging.mouseY) / wbScale;
       const card = wbNodesEl.querySelector(`[data-nid="${wbDragging.nodeId}"]`);
       if (card) { card.style.left = node.x_pos + 'px'; card.style.top = node.y_pos + 'px'; }
-      wbRenderEdges(); return;
-    }
-    if (wbDrawing) {
-      const w = wbToWorld(e.clientX, e.clientY);
-      wbSetTemp(wbDrawing.fromX, wbDrawing.fromY, w.x, w.y);
+      wbRenderEdges();
     }
   });
 
-  wbViewport.addEventListener('mouseup', async e => {
+  wbViewport.addEventListener('mouseup', e => {
     wbViewport.classList.remove('wb-panning');
     if (wbPanning) { wbPanning = false; return; }
 
@@ -6309,30 +6390,13 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
           try { await apiFetch(`/api/whiteboard/nodes/${node.id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ x_pos: Math.round(node.x_pos), y_pos: Math.round(node.y_pos) }) }); } catch {}
         }, 600);
       }
-      wbDragging = null; return;
-    }
-
-    if (wbDrawing) {
-      wbClearTemp();
-      const w = wbToWorld(e.clientX, e.clientY);
-      const snap = wbNearestNode(w.x, w.y, wbDrawing.fromId, 130);
-      if (snap) {
-        try {
-          const data = await apiFetch('/api/whiteboard/edges', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ from_node: wbDrawing.fromId, to_node: snap.id, colour: wbColour }) });
-          wbEdges.push(data.edge);
-          wbRenderEdges();
-        } catch (err) { toast(err.message, true); }
-      }
-      const fc = wbNodesEl.querySelector(`[data-nid="${wbDrawing.fromId}"]`);
-      if (fc) fc.classList.remove('wb-selected');
-      wbDrawing = null;
+      wbDragging = null;
     }
   });
 
   wbViewport.addEventListener('mouseleave', () => {
     wbPanning = false;
     wbViewport.classList.remove('wb-panning');
-    if (wbDrawing) { wbClearTemp(); const fc = wbNodesEl.querySelector(`[data-nid="${wbDrawing.fromId}"]`); if (fc) fc.classList.remove('wb-selected'); wbDrawing = null; }
   });
 
   wbViewport.addEventListener('wheel', e => {
@@ -6397,6 +6461,10 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     wbRootEl.removeAttribute('hidden');
     document.getElementById('wb-mode-btn').classList.add('active');
     document.getElementById('wb-setup-sql').textContent = WB_SETUP_SQL;
+    wbPickCat = 'All';
+    wbSelections.clear();
+    wbBuildPickSidebar();
+    wbRenderPickList();
     // Default pan: center of viewport
     wbPan.x = (wbViewport.clientWidth  || 800) / 2 - WB_NODE_W / 2;
     wbPan.y = (wbViewport.clientHeight || 500) / 2 - WB_NODE_H / 2;
@@ -6408,9 +6476,10 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     wbActive = false;
     wbRootEl.setAttribute('hidden', '');
     document.getElementById('wb-mode-btn').classList.remove('active');
-    wbAddPanel.setAttribute('hidden', '');
     wbDetailEl.setAttribute('hidden', '');
     wbSetupEl.setAttribute('hidden', '');
+    wbCancelConnect();
+    wbSelections.clear();
   }
 
   async function wbLoad() {
@@ -6473,39 +6542,78 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     if (wbActive) exitWhiteboard(); else enterWhiteboard();
   });
 
-  // ── Add ideas panel ─────────────────────────────────────────
-  function wbPopulateList(q) {
-    const onIds = new Set(wbNodes.map(n => n.idea_id));
-    const sq = (q || '').toLowerCase();
-    const filtered = ideas.filter(i => !i.deleted_at && (!sq || i.title.toLowerCase().includes(sq) || (i.category || '').toLowerCase().includes(sq)));
-    const el = document.getElementById('wb-idea-list');
-    if (!filtered.length) { el.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:13px">No ideas match</div>'; return; }
-    el.innerHTML = filtered.map(idea => {
-      const on = onIds.has(idea.id);
-      const col = catColor(idea.category);
-      return `<label class="wb-idea-row">
-        <input type="checkbox" value="${esc(idea.id)}" ${on ? 'checked disabled' : ''}>
-        <div class="wb-idea-dot2" style="background:${col}"></div>
-        <span class="wb-idea-name">${esc(idea.title)}</span>
-        ${on ? '<span class="wb-on-badge">on board</span>' : ''}
-      </label>`;
-    }).join('');
+  // ── Pick sidebar & compact list ──────────────────────────────
+  function wbBuildPickSidebar() {
+    const el = document.getElementById('wb-pick-sidebar');
+    let html = '<div class="wb-ps-label">Library</div>';
+    html += `<button class="wb-ps-item${wbPickCat === 'All' ? ' active' : ''}" data-filter="All"><span class="wb-ps-icon">💡</span><span>All Ideas</span></button>`;
+    html += `<button class="wb-ps-item${wbPickCat === 'Favourites' ? ' active' : ''}" data-filter="Favourites"><span class="wb-ps-icon">★</span><span>Favourites</span></button>`;
+    const roots = categories.filter(c => !c.parent_id);
+    if (roots.length) {
+      html += '<div class="wb-ps-divider"></div><div class="wb-ps-label">Categories</div>';
+      for (const cat of roots) {
+        const col = catColor(cat.name);
+        html += `<button class="wb-ps-item${wbPickCat === cat.name ? ' active' : ''}" data-filter="${esc(cat.name)}"><span class="wb-ps-dot" style="background:${col}"></span><span>${esc(cat.name)}</span></button>`;
+        for (const sub of categories.filter(c => c.parent_id === cat.id)) {
+          const scol = catColor(sub.name);
+          html += `<button class="wb-ps-item wb-ps-sub${wbPickCat === sub.name ? ' active' : ''}" data-filter="${esc(sub.name)}"><span class="wb-ps-dot" style="background:${scol}"></span><span>${esc(sub.name)}</span></button>`;
+        }
+      }
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('.wb-ps-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        wbPickCat = btn.dataset.filter;
+        wbBuildPickSidebar();
+        wbRenderPickList();
+      });
+    });
   }
 
-  document.getElementById('wb-add-ideas-btn').addEventListener('click', () => {
-    wbDetailEl.setAttribute('hidden', ''); wbSetupEl.setAttribute('hidden', '');
-    wbPopulateList('');
-    document.getElementById('wb-add-search').value = '';
-    wbAddPanel.removeAttribute('hidden');
-    document.getElementById('wb-add-search').focus();
-  });
-  document.getElementById('wb-add-close').addEventListener('click',  () => wbAddPanel.setAttribute('hidden', ''));
-  document.getElementById('wb-add-cancel').addEventListener('click', () => wbAddPanel.setAttribute('hidden', ''));
-  document.getElementById('wb-add-search').addEventListener('input', e => wbPopulateList(e.target.value));
+  function wbRenderPickList() {
+    const onIds = new Set(wbNodes.map(n => n.idea_id));
+    const el = document.getElementById('wb-pick-list');
+    let filtered = ideas.filter(i => !i.deleted_at);
+    if (wbPickCat === 'Favourites') filtered = filtered.filter(i => i.is_favourite);
+    else if (wbPickCat !== 'All') filtered = filtered.filter(i => i.category === wbPickCat);
+    if (!filtered.length) { el.innerHTML = '<div class="wb-pick-empty">No ideas here</div>'; return; }
+    el.innerHTML = filtered.map(idea => {
+      const col = catColor(idea.category);
+      const words = idea.title.split(' ');
+      const title = words.length > 7 ? words.slice(0, 7).join(' ') + '…' : idea.title;
+      const onBoard = onIds.has(idea.id);
+      const checked = wbSelections.has(idea.id);
+      return `<label class="wb-compact-row${onBoard ? ' wb-cr-on' : ''}">
+        <input type="checkbox" class="wb-cr-check" data-id="${esc(idea.id)}" ${checked ? 'checked' : ''} ${onBoard ? 'disabled' : ''}>
+        <span class="wb-cr-dot" style="background:${col}"></span>
+        <span class="wb-cr-title">${esc(title)}</span>
+        ${onBoard ? '<span class="wb-cr-badge">✓</span>' : ''}
+      </label>`;
+    }).join('');
+    el.querySelectorAll('.wb-cr-check').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) wbSelections.add(cb.dataset.id);
+        else wbSelections.delete(cb.dataset.id);
+        wbUpdatePickFoot();
+      });
+    });
+  }
 
-  document.getElementById('wb-add-confirm').addEventListener('click', async () => {
-    const checked = [...document.querySelectorAll('#wb-idea-list input:checked:not(:disabled)')].map(i => i.value);
-    if (!checked.length) { wbAddPanel.setAttribute('hidden', ''); return; }
+  function wbUpdatePickFoot() {
+    const foot = document.getElementById('wb-pick-foot');
+    const btn  = document.getElementById('wb-pick-confirm');
+    const n = wbSelections.size;
+    if (n > 0) {
+      btn.textContent = `Add ${n} idea${n > 1 ? 's' : ''} to Whiteboard`;
+      foot.removeAttribute('hidden');
+    } else {
+      foot.setAttribute('hidden', '');
+    }
+  }
+
+  document.getElementById('wb-pick-confirm').addEventListener('click', async () => {
+    const checked = [...wbSelections];
+    if (!checked.length) return;
     const cx = (wbViewport.clientWidth/2  - wbPan.x) / wbScale;
     const cy = (wbViewport.clientHeight/2 - wbPan.y) / wbScale;
     try {
@@ -6517,12 +6625,16 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
         const data = await apiFetch('/api/whiteboard/nodes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ idea_id: checked[i], x_pos: x, y_pos: y }) });
         wbNodes.push(data.node);
       }
-      wbRender(); wbAddPanel.setAttribute('hidden', '');
-      toast(`Added ${checked.length} idea${checked.length > 1 ? 's' : ''} to whiteboard`);
+      const n = checked.length;
+      wbSelections.clear();
+      wbUpdatePickFoot();
+      wbRenderPickList();
+      wbRender();
+      toast(`Added ${n} idea${n > 1 ? 's' : ''} to whiteboard`);
     } catch (err) {
       toast(err.message, true);
       if (err.message.toLowerCase().includes('exist') || err.message.includes('42P01')) {
-        wbAddPanel.setAttribute('hidden', ''); wbSetupEl.removeAttribute('hidden');
+        wbSetupEl.removeAttribute('hidden');
       }
     }
   });
@@ -6531,7 +6643,7 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   function wbShowDetail(ideaId) {
     const idea = ideas.find(i => i.id === ideaId);
     if (!idea) return;
-    wbAddPanel.setAttribute('hidden', ''); wbSetupEl.setAttribute('hidden', '');
+    wbSetupEl.setAttribute('hidden', '');
     const col = catColor(idea.category);
     document.getElementById('wb-detail-meta').innerHTML = `<span class="cat-badge" style="color:${col};border-color:${col}60;background:${col}18">${esc(idea.category)}</span>`;
     document.getElementById('wb-detail-title').textContent = idea.title;
@@ -6542,10 +6654,18 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
 
   // ── Setup panel ─────────────────────────────────────────────
   document.getElementById('wb-setup-btn').addEventListener('click', () => {
-    wbAddPanel.setAttribute('hidden', ''); wbDetailEl.setAttribute('hidden', '');
+    wbDetailEl.setAttribute('hidden', '');
     wbSetupEl.removeAttribute('hidden');
   });
   document.getElementById('wb-setup-close').addEventListener('click', () => wbSetupEl.setAttribute('hidden', ''));
+
+  // ── Keyboard shortcuts ────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (!wbActive) return;
+    if (e.key === 'Escape') wbCancelConnect();
+    if (e.key === 'v' || e.key === 'V') document.getElementById('wb-tool-select').click();
+    if (e.key === 'a' || e.key === 'A') document.getElementById('wb-tool-arrow').click();
+  });
 
   // ── Boot ─────────────────────────────────────────────────
   async function init() {
