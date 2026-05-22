@@ -1337,22 +1337,35 @@
       .wb-cr-drag { opacity: 0.6; font-size: 13px; }
     }
 
-    /* Edge colour picker popup */
+    /* Floating colour picker panel */
     .wb-colour-picker {
       position: absolute; z-index: 150;
-      display: flex; gap: 6px; align-items: center;
       background: var(--bg2); border: 1px solid var(--gold-bd);
-      border-radius: 24px; padding: 7px 10px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
-      transform: translateX(-50%);
+      border-radius: 12px; box-shadow: 0 6px 28px rgba(0,0,0,0.55);
+      display: flex; flex-direction: column; align-items: stretch;
+      cursor: default; min-width: 0;
     }
+    .wb-cp-handle {
+      padding: 6px 12px 5px; text-align: center;
+      cursor: grab; color: var(--text3); font-size: 14px; line-height: 1;
+      border-bottom: 1px solid var(--gold-bd); border-radius: 12px 12px 0 0;
+      transition: background 0.12s, color 0.12s;
+      user-select: none; -webkit-user-select: none;
+    }
+    .wb-cp-handle:hover { background: rgba(255,255,255,0.04); color: var(--text2); }
+    .wb-cp-handle.grabbing { cursor: grabbing; }
+    .wb-cp-body { display: flex; gap: 7px; padding: 9px 11px; align-items: center; }
     .wb-cp-swatch {
-      width: 18px; height: 18px; border-radius: 50%;
+      width: 20px; height: 20px; border-radius: 50%;
       border: 2px solid transparent; cursor: pointer;
-      transition: transform 0.12s, border-color 0.12s;
+      transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
       flex-shrink: 0;
     }
-    .wb-cp-swatch:hover { transform: scale(1.3); border-color: rgba(255,255,255,0.5); }
+    .wb-cp-swatch:hover { transform: scale(1.25); }
+    .wb-cp-swatch.active {
+      border-color: rgba(255,255,255,0.85); transform: scale(1.12);
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.45);
+    }
     .wb-pick-empty { padding: 16px 12px; font-size: 12px; color: var(--text3); }
     .wb-pick-foot { padding: 10px 12px; border-top: 1px solid var(--gold-bd); flex-shrink: 0; }
 
@@ -6341,7 +6354,6 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   }
 
   function wbRenderEdges() {
-    wbDismissColourPicker();
     [...wbSvgEl.children].filter(c => c.tagName.toLowerCase() !== 'defs').forEach(c => c.remove());
     wbHitsEl.innerHTML = '';
 
@@ -6391,10 +6403,11 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
         } else if (wbSelectedEdge === edge.id) {
           wbSelectedEdge = null;
           wbRenderEdges();
+          wbSyncColourPicker();
         } else {
           wbSelectedEdge = edge.id;
           wbRenderEdges();
-          wbShowColourPicker(edge.id, cx, cy);
+          wbSyncColourPicker();
         }
       });
       wbSvgEl.appendChild(hit);
@@ -6430,40 +6443,130 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     { key: 'purple', hex: '#8e44ad' },
   ];
 
-  function wbShowColourPicker(edgeId, worldCx, worldCy) {
-    wbDismissColourPicker();
-    const vpRect   = wbViewport.getBoundingClientRect();
-    const rootRect = wbRootEl.getBoundingClientRect();
-    const screenX  = vpRect.left - rootRect.left + worldCx * wbScale + wbPan.x;
-    const screenY  = vpRect.top  - rootRect.top  + worldCy * wbScale + wbPan.y;
+  let wbPickerPos = null; // remembered position after dragging
 
+  function wbCreateColourPicker() {
+    if (document.getElementById('wb-colour-picker')) { wbSyncColourPicker(); return; }
     const picker = document.createElement('div');
     picker.id = 'wb-colour-picker';
     picker.className = 'wb-colour-picker';
-    picker.style.left = screenX + 'px';
-    picker.style.top  = (screenY + 18) + 'px';
+    picker.innerHTML =
+      `<div class="wb-cp-handle" title="Drag to move">⠿</div>` +
+      `<div class="wb-cp-body">` +
+      WB_COLOUR_OPTIONS.map(c =>
+        `<button class="wb-cp-swatch" data-key="${c.key}" style="background:${c.hex}" title="${c.key}"></button>`
+      ).join('') +
+      `</div>`;
 
-    picker.innerHTML = WB_COLOUR_OPTIONS.map(c =>
-      `<button class="wb-cp-swatch" data-key="${c.key}" style="background:${c.hex}" title="${c.key}"></button>`
-    ).join('');
+    if (wbPickerPos) {
+      picker.style.left = wbPickerPos.left + 'px';
+      picker.style.top  = wbPickerPos.top  + 'px';
+    } else {
+      picker.style.left   = '16px';
+      picker.style.bottom = '16px';
+    }
 
     picker.querySelectorAll('.wb-cp-swatch').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        wbChangeEdgeColour(edgeId, btn.dataset.key);
+        const key = btn.dataset.key;
+        wbSetWbColour(key);
+        if (wbSelectedEdge) wbChangeEdgeColour(wbSelectedEdge, key);
       });
     });
 
-    wbRootEl.appendChild(picker);
-
-    setTimeout(() => {
-      document.addEventListener('click', wbDismissColourPicker, { once: true });
-    }, 0);
+    wbInitPickerDrag(picker);
+    document.querySelector('.wb-canvas-area').appendChild(picker);
+    wbSyncColourPicker();
   }
 
-  function wbDismissColourPicker() {
+  function wbRemoveColourPicker() {
     const el = document.getElementById('wb-colour-picker');
     if (el) el.remove();
+  }
+
+  function wbSyncColourPicker() {
+    const picker = document.getElementById('wb-colour-picker');
+    if (!picker) return;
+    const edge = wbSelectedEdge ? wbEdges.find(e => e.id === wbSelectedEdge) : null;
+    const activeKey = edge ? (edge.colour || 'gold') : wbColour;
+    picker.querySelectorAll('.wb-cp-swatch').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.key === activeKey);
+    });
+  }
+
+  function wbSetWbColour(key) {
+    wbColour = key;
+    document.querySelectorAll('.wb-color-btn').forEach(b => b.classList.toggle('active', b.dataset.colour === key));
+    wbSyncColourPicker();
+  }
+
+  function wbPickerEnsureTopLeft(picker) {
+    if (!picker.style.bottom) return;
+    const ca = document.querySelector('.wb-canvas-area');
+    picker.style.top    = (ca.offsetHeight - picker.offsetHeight - (parseFloat(picker.style.bottom) || 16)) + 'px';
+    picker.style.bottom = '';
+  }
+
+  function wbInitPickerDrag(picker) {
+    const h = picker.querySelector('.wb-cp-handle');
+
+    h.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      wbPickerEnsureTopLeft(picker);
+      const sx = e.clientX, sy = e.clientY;
+      const sl = parseFloat(picker.style.left), st = parseFloat(picker.style.top);
+      h.classList.add('grabbing');
+      function onMove(ev) {
+        picker.style.left = (sl + ev.clientX - sx) + 'px';
+        picker.style.top  = (st + ev.clientY - sy) + 'px';
+      }
+      function onUp() {
+        h.classList.remove('grabbing');
+        wbPickerPos = { left: parseFloat(picker.style.left), top: parseFloat(picker.style.top) };
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    h.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const stx = t.clientX, sty = t.clientY;
+      let tdrag = false, sl, st;
+      const timer = setTimeout(() => {
+        tdrag = true;
+        wbPickerEnsureTopLeft(picker);
+        sl = parseFloat(picker.style.left);
+        st = parseFloat(picker.style.top);
+        h.classList.add('grabbing');
+        if (navigator.vibrate) navigator.vibrate(12);
+      }, 400);
+      function onTM(ev) {
+        const tt = ev.touches[0];
+        if (!tdrag) {
+          if (Math.hypot(tt.clientX - stx, tt.clientY - sty) > 10) { clearTimeout(timer); done(); }
+          return;
+        }
+        ev.preventDefault();
+        picker.style.left = (sl + tt.clientX - stx) + 'px';
+        picker.style.top  = (st + tt.clientY - sty) + 'px';
+      }
+      function done() {
+        if (tdrag) wbPickerPos = { left: parseFloat(picker.style.left), top: parseFloat(picker.style.top) };
+        tdrag = false;
+        h.classList.remove('grabbing');
+        document.removeEventListener('touchmove', onTM);
+        document.removeEventListener('touchend', done);
+        document.removeEventListener('touchcancel', done);
+      }
+      document.addEventListener('touchmove', onTM, { passive: false });
+      document.addEventListener('touchend', done);
+      document.addEventListener('touchcancel', done);
+    }, { passive: true });
   }
 
   async function wbChangeEdgeColour(edgeId, colour) {
@@ -6471,8 +6574,6 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     if (!edge) return;
     const prev = edge.colour;
     edge.colour = colour;
-    wbSelectedEdge = null;
-    wbDismissColourPicker();
     wbRenderEdges();
     try {
       await apiFetch(`/api/whiteboard/edges/${edgeId}`, {
@@ -6723,6 +6824,7 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     wbPan.x = (wbViewport.clientWidth  || 800) / 2 - WB_NODE_W / 2;
     wbPan.y = (wbViewport.clientHeight || 500) / 2 - WB_NODE_H / 2;
     wbApply();
+    wbCreateColourPicker();
     await wbLoad();
   }
 
@@ -6736,6 +6838,8 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
     wbSetupEl.setAttribute('hidden', '');
     wbCancelConnect();
     wbSelections.clear();
+    wbRemoveColourPicker();
+    wbPickerPos = null;
     document.querySelector('.wb-body')?.classList.remove('wb-panes-hidden');
   }
 
@@ -6782,9 +6886,7 @@ CREATE POLICY "allow all" ON whiteboard_edges FOR ALL USING (true) WITH CHECK (t
   });
   document.querySelectorAll('.wb-color-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      wbColour = btn.dataset.colour;
-      document.querySelectorAll('.wb-color-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      wbSetWbColour(btn.dataset.colour);
     });
   });
 
