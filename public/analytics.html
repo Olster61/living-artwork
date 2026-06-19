@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics — Living Artwork</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gold:   #c9a84c;
+      --bg:     #0d0d0d;
+      --bg2:    #141414;
+      --bg3:    #1c1c1c;
+      --border: rgba(255,255,255,0.07);
+      --text1:  #e8e8e8;
+      --text2:  #999;
+      --text3:  #555;
+      --mobile: #4ecdc4;
+      --tablet: #c9a84c;
+      --desktop:#7c6fcd;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text1);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 13px;
+      min-height: 100vh;
+    }
+
+    /* ── Nav ── */
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      height: 52px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .nav-logo { font-weight: 600; font-size: 14px; color: var(--text1); }
+    .nav-sep  { flex: 1; }
+    .back-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text2);
+      font-size: 12px;
+      font-family: 'Inter', system-ui, sans-serif;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .back-btn:hover { border-color: rgba(255,255,255,0.2); color: var(--text1); }
+
+    /* ── Layout ── */
+    .page { max-width: 1000px; margin: 0 auto; padding: 28px 20px 60px; }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+    .subtitle { color: var(--text2); font-size: 12px; margin-bottom: 28px; }
+
+    /* ── Summary cards ── */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 32px; }
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .card-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    .card-value { font-size: 28px; font-weight: 600; color: var(--text1); line-height: 1; }
+    .card-sub   { font-size: 11px; color: var(--text3); margin-top: 4px; }
+    .card-value.gold   { color: var(--gold); }
+    .card-value.teal   { color: var(--mobile); }
+
+    /* ── Section ── */
+    .section { margin-bottom: 32px; }
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+    .panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    /* ── Bar rows ── */
+    .bar-row {
+      display: grid;
+      grid-template-columns: 120px 1fr 50px;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .bar-row:last-child { border-bottom: none; }
+    .bar-label { font-size: 12px; color: var(--text1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-track { background: rgba(255,255,255,0.05); border-radius: 3px; height: 6px; overflow: hidden; }
+    .bar-fill  { height: 100%; border-radius: 3px; background: var(--gold); transition: width 0.4s ease; }
+    .bar-fill.mobile  { background: var(--mobile); }
+    .bar-fill.tablet  { background: var(--tablet); }
+    .bar-fill.desktop { background: var(--desktop); }
+    .bar-count { font-size: 12px; color: var(--text2); text-align: right; }
+
+    /* ── Recent table ── */
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 9px 14px;
+      font-size: 12px;
+      color: var(--text2);
+      border-bottom: 1px solid var(--border);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .badge-mobile  { background: rgba(78,205,196,0.15); color: var(--mobile); }
+    .badge-tablet  { background: rgba(201,168,76,0.15); color: var(--tablet); }
+    .badge-desktop { background: rgba(124,111,205,0.15); color: var(--desktop); }
+    .badge-yes     { background: rgba(78,205,196,0.15); color: var(--mobile); }
+    .badge-no      { background: rgba(255,255,255,0.05); color: var(--text3); }
+    .badge-warn    { background: rgba(240,192,96,0.15); color: var(--gold); }
+
+    /* ── Two-col layout ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid rgba(255,255,255,0.1);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 40px auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">Living Artwork</div>
+  <span style="font-size:11px;color:var(--text3);letter-spacing:0.12em;text-transform:uppercase;">Visitor Analytics</span>
+  <div class="nav-sep"></div>
+  <a href="/olly/admin" class="back-btn">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15,18 9,12 15,6"/></svg>
+    Admin
+  </a>
+</nav>
+
+<div class="page">
+  <h1>Analytics</h1>
+  <div class="subtitle" id="subtitle">Loading…</div>
+
+  <div id="root"><div class="spinner"></div></div>
+</div>
+
+<script>
+async function load() {
+  const res = await fetch('/api/analytics/summary')
+  if (!res.ok) {
+    document.getElementById('root').innerHTML =
+      `<p style="color:#f87171">Failed to load analytics: HTTP ${res.status}</p>`
+    return
+  }
+  const { totals, devices, browsers, oses, recent } = await res.json()
+
+  document.getElementById('subtitle').textContent =
+    `Last ${Math.min(totals.visits, 1000)} visits · updates on refresh`
+
+  const arPct   = totals.visits ? Math.round(totals.ar_loaded    / totals.visits * 100) : 0
+  const warnPct = totals.visits ? Math.round(totals.compat_warnings / totals.visits * 100) : 0
+  const maxDev  = devices[0]?.count || 1
+  const maxBrow = browsers[0]?.count || 1
+  const maxOs   = oses[0]?.count || 1
+
+  function barFillClass(label) {
+    const l = (label || '').toLowerCase()
+    if (l === 'mobile')  return 'mobile'
+    if (l === 'tablet')  return 'tablet'
+    if (l === 'desktop') return 'desktop'
+    return ''
+  }
+
+  function barRows(items, maxCount, colorFn) {
+    return items.map(({ label, count }) => `
+      <div class="bar-row">
+        <div class="bar-label" title="${label}">${label}</div>
+        <div class="bar-track">
+          <div class="bar-fill ${colorFn ? colorFn(label) : ''}"
+               style="width:${Math.round(count/maxCount*100)}%"></div>
+        </div>
+        <div class="bar-count">${count}</div>
+      </div>`).join('')
+  }
+
+  function devBadge(d) {
+    const c = (d||'').toLowerCase()
+    return `<span class="badge badge-${c}">${d||'?'}</span>`
+  }
+
+  function yesNo(val, warnClass) {
+    if (val === true  || val === 'true')  return `<span class="badge ${warnClass || 'badge-yes'}">Yes</span>`
+    if (val === false || val === 'false') return `<span class="badge badge-no">No</span>`
+    return `<span class="badge badge-no">—</span>`
+  }
+
+  function fmtDate(ts) {
+    if (!ts) return '—'
+    const d = new Date(ts)
+    return d.toLocaleDateString('en-GB', { day:'numeric', month:'short' }) + ' ' +
+           d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })
+  }
+
+  const recentRows = recent.map(r => `
+    <tr>
+      <td>${fmtDate(r.created_at)}</td>
+      <td>${devBadge(r.device_type)}</td>
+      <td>${r.browser_name || '—'} ${r.browser_version ? r.browser_version : ''}</td>
+      <td>${r.os_name || '—'} ${r.os_version || ''}</td>
+      <td>${yesNo(r.ar_loaded)}</td>
+      <td>${yesNo(r.compat_warning_shown, 'badge-warn')}</td>
+    </tr>`).join('')
+
+  document.getElementById('root').innerHTML = `
+    <div class="cards">
+      <div class="card">
+        <div class="card-label">Total Visits</div>
+        <div class="card-value">${totals.visits.toLocaleString()}</div>
+        <div class="card-sub">last 1,000 recorded</div>
+      </div>
+      <div class="card">
+        <div class="card-label">AR Launched</div>
+        <div class="card-value gold">${arPct}%</div>
+        <div class="card-sub">${totals.ar_loaded.toLocaleString()} of ${totals.visits.toLocaleString()}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Compat Warning</div>
+        <div class="card-value teal">${warnPct}%</div>
+        <div class="card-sub">${totals.compat_warnings.toLocaleString()} devices warned</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="section">
+        <div class="section-title">Device Type</div>
+        <div class="panel">${barRows(devices, maxDev, barFillClass)}</div>
+      </div>
+      <div class="section">
+        <div class="section-title">Operating System</div>
+        <div class="panel">${barRows(oses, maxOs)}</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Browser</div>
+      <div class="panel">${barRows(browsers, maxBrow)}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Recent Visits (last 30)</div>
+      <div class="panel" style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th><th>Device</th><th>Browser</th>
+              <th>OS</th><th>AR Loaded</th><th>Compat Warning</th>
+            </tr>
+          </thead>
+          <tbody>${recentRows || '<tr><td colspan="6" style="color:var(--text3);text-align:center;padding:20px">No data yet</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+  `
+}
+
+load().catch(err => {
+  document.getElementById('root').innerHTML =
+    `<p style="color:#f87171">${err.message}</p>`
+})
+</script>
+</body>
+</html>

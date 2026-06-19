@@ -526,6 +526,7 @@
         aframeLoaded = true;
       }
       launchAR();
+      trackArLoaded();
     } catch (err) {
       startBtn.disabled = false;
       showError('Could not start AR: ' + (err.message || err));
@@ -712,8 +713,28 @@
     startBtn.disabled     = false;
   });
 
+  // ── Analytics (fire-and-forget, non-blocking) ───────────────
+  let _compatWarnShown = false
+
+  function trackVisit (compatWarnShown) {
+    fetch('/api/analytics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ar_loaded: false, compat_warning_shown: Boolean(compatWarnShown) }),
+    }).catch(() => {})
+  }
+
+  function trackArLoaded () {
+    fetch('/api/analytics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ar_loaded: true, compat_warning_shown: _compatWarnShown }),
+    }).catch(() => {})
+  }
+
   // ── Boot ─────────────────────────────────────────────────────
-  checkCompatibility();
+  _compatWarnShown = !checkCompatibility()
+  trackVisit(_compatWarnShown);
   prepare();
 </script>
 </body>

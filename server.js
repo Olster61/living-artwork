@@ -1217,12 +1217,109 @@ app.delete('/api/whiteboard/edges/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
+// ── Visitor analytics ─────────────────────────────────────────────────────────
+
+function parseUserAgent (ua = '') {
+  let device_type = 'desktop'
+  let browser_name = 'Other', browser_version = null
+  let os_name = 'Other', os_version = null
+
+  // Device type
+  if (/iPhone|iPod/.test(ua))       device_type = 'mobile'
+  else if (/iPad/.test(ua))         device_type = 'tablet'
+  else if (/Android/.test(ua))      device_type = /Mobile/.test(ua) ? 'mobile' : 'tablet'
+
+  // OS
+  const iosM  = ua.match(/iPhone OS ([\d_]+)/)
+  const ipadM = ua.match(/iPad.*?OS ([\d_]+)/)
+  const andM  = ua.match(/Android ([\d.]+)/)
+  const winM  = ua.match(/Windows NT ([\d.]+)/)
+  const macM  = ua.match(/Mac OS X ([\d_]+)/)
+
+  if (iosM)       { os_name = 'iOS';     os_version = iosM[1].replace(/_/g, '.') }
+  else if (ipadM) { os_name = 'iPadOS';  os_version = ipadM[1].replace(/_/g, '.') }
+  else if (andM)  { os_name = 'Android'; os_version = andM[1] }
+  else if (winM)  {
+    os_name = 'Windows'
+    os_version = { '10.0': '10/11', '6.3': '8.1', '6.2': '8', '6.1': '7' }[winM[1]] || winM[1]
+  }
+  else if (macM)  { os_name = 'macOS';   os_version = macM[1].replace(/_/g, '.') }
+  else if (/Linux/.test(ua)) { os_name = 'Linux' }
+
+  // Browser (most-specific first to avoid CriOS/FxiOS being caught by Chrome/Firefox)
+  const bMap = [
+    [/CriOS\/([\d]+)/,         'Chrome iOS'],
+    [/FxiOS\/([\d]+)/,         'Firefox iOS'],
+    [/EdgiOS\/([\d]+)/,        'Edge iOS'],
+    [/EdgA?\/([\d]+)/,         'Edge'],
+    [/OPR\/([\d]+)/,           'Opera'],
+    [/SamsungBrowser\/([\d]+)/,'Samsung Internet'],
+    [/Chrome\/([\d]+)/,        'Chrome'],
+    [/Firefox\/([\d]+)/,       'Firefox'],
+    [/Version\/([\d]+).*Safari/,'Safari'],
+  ]
+  for (const [re, name] of bMap) {
+    const m = ua.match(re)
+    if (m) { browser_name = name; browser_version = m[1]; break }
+  }
+
+  return { device_type, browser_name, browser_version, os_name, os_version }
+}
+
+// POST /api/analytics/track  { ar_loaded, compat_warning_shown }
+app.post('/api/analytics/track', express.json(), async (req, res) => {
+  const { ar_loaded = false, compat_warning_shown = false } = req.body || {}
+  const ua = req.headers['user-agent'] || ''
+  const parsed = parseUserAgent(ua)
+  await supabase.from('visitor_analytics').insert({
+    ...parsed,
+    ar_loaded: Boolean(ar_loaded),
+    compat_warning_shown: Boolean(compat_warning_shown),
+  })
+  res.json({ ok: true })
+})
+
+// GET /api/analytics/summary
+app.get('/api/analytics/summary', async (req, res) => {
+  const { data, error } = await supabase
+    .from('visitor_analytics')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1000)
+  if (error) return res.status(500).json({ error: error.message })
+
+  const rows = data || []
+  const totals = { visits: rows.length, ar_loaded: 0, compat_warnings: 0 }
+  const devices = {}, browsers = {}, oses = {}
+
+  for (const r of rows) {
+    if (r.ar_loaded)            totals.ar_loaded++
+    if (r.compat_warning_shown) totals.compat_warnings++
+    const dk = r.device_type  || 'unknown'
+    const bk = `${r.browser_name || 'Other'} ${r.browser_version || ''}`.trim()
+    const ok = `${r.os_name || 'Other'} ${r.os_version || ''}`.trim()
+    devices[dk] = (devices[dk] || 0) + 1
+    browsers[bk] = (browsers[bk] || 0) + 1
+    oses[ok]     = (oses[ok]     || 0) + 1
+  }
+
+  const toArr = obj =>
+    Object.entries(obj).map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count)
+
+  res.json({ totals, devices: toArr(devices), browsers: toArr(browsers), oses: toArr(oses), recent: rows.slice(0, 30) })
+})
+
 // ── Static / Admin page ───────────────────────────────────────────────────────
 
 app.use('/public', express.static(path.join(__dirname, 'public')))
 
 app.get('/olly/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'))
+})
+
+app.get('/olly/admin/analytics', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'analytics.html'))
 })
 
 // ── Ideas password protection ─────────────────────────────────────────────────
