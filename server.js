@@ -285,9 +285,10 @@ app.post('/api/artwork/upload',
     }
     console.log('Video uploaded OK:', vData?.path)
 
-    const triggerUrl = publicUrl('artworks', `${basePath}/trigger.png`)
-    const videoUrl   = publicUrl('artworks', `${basePath}/video.mp4`)
-    console.log('Public URLs:', { triggerUrl, videoUrl })
+    const version    = Date.now()
+    const triggerUrl = publicUrl('artworks', `${basePath}/trigger.png`) + `?v=${version}`
+    const videoUrl   = publicUrl('artworks', `${basePath}/video.mp4`) + `?v=${version}`
+    console.log('Public URLs (cache-busted):', { triggerUrl, videoUrl })
 
     // Analyse trackability scores from trigger image
     let scores = {}
@@ -351,24 +352,47 @@ app.get('/api/customer/:slug/artworks', async (req, res) => {
 
 // DELETE /api/artwork/:id
 app.delete('/api/artwork/:id', async (req, res) => {
+  console.log(`\n━━━ DELETE /api/artwork/${req.params.id} ━━━`)
+
   const { data: artwork, error: fetchErr } = await supabase
     .from('artworks')
     .select('slug, customers(slug)')
     .eq('id', req.params.id)
     .single()
 
-  if (fetchErr || !artwork) return res.status(404).json({ error: 'Artwork not found' })
+  if (fetchErr || !artwork) {
+    console.log('ERROR: artwork lookup failed:', fetchErr?.message)
+    return res.status(404).json({ error: 'Artwork not found' })
+  }
 
   const customerSlug = artwork.customers.slug
   const base = `customers/${customerSlug}/artworks/${artwork.slug}`
+  const filePaths = [`${base}/trigger.png`, `${base}/video.mp4`]
+  console.log('Artwork:', artwork.slug, '| Customer:', customerSlug)
+  console.log('Deleting storage files:', filePaths)
 
-  await supabase.storage.from('artworks').remove([
-    `${base}/trigger.png`,
-    `${base}/video.mp4`
-  ])
+  const { data: removed, error: removeErr } = await supabase.storage
+    .from('artworks')
+    .remove(filePaths)
 
+  if (removeErr) {
+    console.log('WARN: storage removal error:', removeErr.message)
+  } else {
+    const count = removed?.length ?? 0
+    console.log(`Storage removal OK — ${count} file(s) removed:`,
+      (removed || []).map(f => f.name || f.id || JSON.stringify(f)))
+    if (count < filePaths.length) {
+      console.log('WARN: fewer files removed than expected — some may not have existed in storage')
+    }
+  }
+
+  console.log('Deleting DB row...')
   const { error } = await supabase.from('artworks').delete().eq('id', req.params.id)
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) {
+    console.log('ERROR: DB delete failed:', error.message)
+    return res.status(500).json({ error: error.message })
+  }
+  console.log('DB row deleted OK')
   res.json({ success: true })
 })
 
