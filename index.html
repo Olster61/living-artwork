@@ -86,6 +86,24 @@
       border-radius: 8px;
     }
 
+    /* Compatibility warning — amber, shown above error-msg */
+    #compat-msg {
+      position: absolute;
+      bottom: 22%;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #f0c060;
+      font-size: 0.75rem;
+      text-align: center;
+      max-width: 82%;
+      display: none;
+      z-index: 61;
+      background: rgba(0,0,0,0.75);
+      padding: 8px 14px;
+      border-radius: 8px;
+      line-height: 1.45;
+    }
+
     /* ── MindAR scene (off-screen, detection only) ──────────── */
     #ar-container {
       position: fixed;
@@ -263,6 +281,7 @@
       onpointercancel="document.getElementById('btn-img').src = _BTN_NORMAL"
     ></button>
   </div>
+  <div id="compat-msg"></div>
   <div id="error-msg"></div>
 </div>
 
@@ -323,6 +342,7 @@
   const welcome      = document.getElementById('welcome');
   const startBtn     = document.getElementById('start-btn');
   const errorMsg     = document.getElementById('error-msg');
+  const compatMsg    = document.getElementById('compat-msg');
   const arContainer  = document.getElementById('ar-container');
   const cameraFeedEl = document.getElementById('camera-feed');
   const scanOverlay  = document.getElementById('scan-overlay');
@@ -330,6 +350,50 @@
   const videoSpinner = document.getElementById('video-spinner');
   const ringOverlay  = document.getElementById('ring-overlay');
   const closeBtn     = document.getElementById('close-btn');
+
+  // ── Feature detection ───────────────────────────────────────
+  function checkCompatibility() {
+    const issues = [];
+
+    // WebGL required by MindAR / A-Frame
+    try {
+      const canvas = document.createElement('canvas');
+      if (!canvas.getContext('webgl') && !canvas.getContext('webgl2')) {
+        issues.push('WebGL is not supported');
+      }
+    } catch (_) {
+      issues.push('WebGL check failed');
+    }
+
+    // Camera access required
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      issues.push('camera access is not available');
+    }
+
+    // Blob URLs required for .mind file
+    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+      issues.push('Blob URLs are not supported');
+    }
+
+    if (issues.length) {
+      compatMsg.textContent =
+        'Your device may not be fully compatible (' + issues.join('; ') +
+        '). Please try updating iOS or using a newer device.';
+      compatMsg.style.display = 'block';
+      return false;
+    }
+
+    // iOS < 15 warning — video autoplay policy is particularly restrictive
+    const iosMatch = navigator.userAgent.match(/OS (\d+)_/);
+    const iosVersion = iosMatch ? parseInt(iosMatch[1], 10) : null;
+    if (iosVersion !== null && iosVersion < 15) {
+      compatMsg.textContent =
+        'Your device may not be fully compatible. Please try updating iOS or using a newer device.';
+      compatMsg.style.display = 'block';
+    }
+
+    return true;
+  }
 
   // ── Utilities ───────────────────────────────────────────────
   function loadScript(url) {
@@ -373,7 +437,7 @@
         const vid = document.createElement('video');
         vid.id = 'video-' + art.id;
         vid.loop = true;
-        vid.muted = false;
+        vid.muted = true;   // must start muted so iOS warm-up play() is allowed
         vid.playsInline = true;
         vid.setAttribute('playsinline', '');
         vid.setAttribute('webkit-playsinline', '');
@@ -447,6 +511,14 @@
 
     startBtn.disabled = true;
 
+    // Warm up all video elements with a muted play/pause inside this user gesture.
+    // iOS requires play() to be initiated (or unlocked) during a direct gesture;
+    // without this, any async play() call later will be rejected with NotAllowedError.
+    document.querySelectorAll('#video-screen video').forEach(v => {
+      v.muted = true;
+      v.play().then(() => v.pause()).catch(() => {});
+    });
+
     try {
       if (!aframeLoaded) {
         await loadScriptWithFallback(AFRAME_URLS, 'A-Frame');
@@ -488,9 +560,9 @@
           // Pre-initialise every video into a clean ready state,
           // mirroring the reset the close button applies before a rescan.
           document.querySelectorAll('#video-screen video').forEach(v => {
-            v.src  = '';
+            v.src   = '';
             v.load();
-            v.muted = false;
+            v.muted = true;   // keep muted until play() is confirmed running
             v.loop  = true;
           });
         };
@@ -553,20 +625,33 @@
           fireRings();
 
           if (vid) {
-            vid.loop = true;
-            vid.src  = art.video_url;
+            vid.loop  = true;
+            vid.muted = true;   // stay muted for initial play — iOS allows muted autoplay
+            vid.src   = art.video_url;
             vid.load();
-            vid.addEventListener('loadeddata', function onLoaded() {
-              vid.removeEventListener('loadeddata', onLoaded);
-              console.log('[AR] loadeddata → play() on video-' + art.id);
-              vid.muted = false;
+
+            // Use both canplay and loadeddata: canplay is more reliable on iOS 16,
+            // loadeddata fires first on most other browsers. Whichever arrives first wins.
+            let playStarted = false;
+            const tryPlay = function () {
+              if (playStarted) return;
+              playStarted = true;
+              console.log('[AR] video ready → play() on video-' + art.id);
               vid.play()
-                .then(() => { videoSpinner.style.display = 'none'; })
+                .then(() => {
+                  videoSpinner.style.display = 'none';
+                  // Attempt to unmute after playback is confirmed running.
+                  // Fails silently on iOS if no user gesture is active — muted video
+                  // is still preferable to a frozen first frame.
+                  vid.muted = false;
+                })
                 .catch(err => {
-                  console.warn('[AR] play() rejected:', err);
+                  console.warn('[AR] play() rejected:', err.name, err.message);
                   videoSpinner.style.display = 'none';
                 });
-            });
+            };
+            vid.addEventListener('canplay',    tryPlay, { once: true });
+            vid.addEventListener('loadeddata', tryPlay, { once: true });
           }
         }));
       });
@@ -628,6 +713,7 @@
   });
 
   // ── Boot ─────────────────────────────────────────────────────
+  checkCompatibility();
   prepare();
 </script>
 </body>
