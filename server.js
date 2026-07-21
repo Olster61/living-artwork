@@ -1426,11 +1426,33 @@ app.get('/olly/ideas', requireIdeasAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'ideas.html'))
 })
 
-app.get('/olly/ar', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'))
+// ── Slug-based AR routes ──────────────────────────────────────────────────────
+
+async function serveArForSlug (slug, res) {
+  if (!/^[a-z0-9_-]+$/i.test(slug)) return res.status(400).send('Invalid slug')
+  const html = await fsp.readFile(path.join(__dirname, 'index.html'), 'utf8')
+  const patched = html.replace(
+    /const CUSTOMER_SLUG\s*=\s*'[^']*'/,
+    `const CUSTOMER_SLUG   = '${slug.replace(/'/g, "\\'")}'`
+  )
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.send(patched)
+}
+
+// Generic slug routes — registered after specific /olly/* routes above so they don't shadow them
+app.get('/:slug/ar', async (req, res) => {
+  await serveArForSlug(req.params.slug, res)
 })
 
-app.get('/', (req, res) => res.redirect('/olly/admin'))
+app.get('/:slug/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'))
+})
+
+app.get('/:slug', async (req, res) => {
+  await serveArForSlug(req.params.slug, res)
+})
+
+app.get('/', (req, res) => res.redirect('/olly/ar'))
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
