@@ -23,7 +23,7 @@
     "express-session": "^1.19.0",
     "mind-ar": "^1.2.5",
     "multer": "^1.4.5-lts.1",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.3",
     "ws": "^8.18.0"
   },
   "devDependencies": {
