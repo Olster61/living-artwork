@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Living Artworks — Where imagination meets your walls</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold:       #c9a84c;
+      --gold-light: #f0c060;
+      --gold-dark:  #8a6820;
+    }
+
+    html, body {
+      height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: 'Nunito', 'Segoe UI', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    /* Subtle radial glow behind the content */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 50%, rgba(201,168,76,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .logo-mark {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 2rem;
+      opacity: 0.9;
+    }
+
+    h1 {
+      font-size: clamp(2.4rem, 8vw, 4rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 50%, var(--gold-dark) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 1rem;
+    }
+
+    .tagline {
+      font-size: clamp(1.1rem, 3.5vw, 1.4rem);
+      font-weight: 300;
+      color: rgba(255,255,255,0.75);
+      letter-spacing: 0.01em;
+      margin-bottom: 1.5rem;
+    }
+
+    .divider {
+      width: 60px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      margin: 0 auto 1.5rem;
+    }
+
+    .description {
+      font-size: clamp(0.95rem, 2.8vw, 1.1rem);
+      font-weight: 400;
+      color: rgba(255,255,255,0.5);
+      max-width: 320px;
+      line-height: 1.6;
+      margin-bottom: 3rem;
+    }
+
+    .cta {
+      display: inline-block;
+      padding: 1rem 2.4rem;
+      border-radius: 50px;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+      color: #000;
+      font-family: inherit;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+      box-shadow: 0 4px 24px rgba(201,168,76,0.35);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(201,168,76,0.5);
+    }
+
+    .cta:active {
+      transform: translateY(0);
+      opacity: 0.85;
+    }
+
+    /* Gold corner accent rings — purely decorative */
+    .ring {
+      position: fixed;
+      border-radius: 50%;
+      border: 1px solid rgba(201,168,76,0.12);
+      pointer-events: none;
+    }
+    .ring-1 { width: 420px; height: 420px; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+    .ring-2 { width: 640px; height: 640px; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+    .ring-3 { width: 900px; height: 900px; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+  </style>
+</head>
+<body>
+  <div class="ring ring-1"></div>
+  <div class="ring ring-2"></div>
+  <div class="ring ring-3"></div>
+
+  <!-- Simple frame icon built from CSS/SVG to match brand -->
+  <svg class="logo-mark" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="8"  y="8"  width="12" height="3" fill="#c9a84c"/>
+    <rect x="8"  y="8"  width="3"  height="12" fill="#c9a84c"/>
+    <rect x="44" y="8"  width="12" height="3" fill="#c9a84c"/>
+    <rect x="53" y="8"  width="3"  height="12" fill="#c9a84c"/>
+    <rect x="8"  y="53" width="12" height="3" fill="#c9a84c"/>
+    <rect x="8"  y="44" width="3"  height="12" fill="#c9a84c"/>
+    <rect x="44" y="53" width="12" height="3" fill="#c9a84c"/>
+    <rect x="53" y="44" width="3"  height="12" fill="#c9a84c"/>
+    <circle cx="32" cy="32" r="7" stroke="#c9a84c" stroke-width="1.5" fill="none"/>
+    <circle cx="32" cy="32" r="2.5" fill="#c9a84c"/>
+  </svg>
+
+  <h1>Living Artworks</h1>
+  <p class="tagline">Where imagination meets your walls</p>
+  <div class="divider"></div>
+  <p class="description">Point your phone at your poster and watch it come alive</p>
+  <a class="cta" href="/scan">Bring Your Artwork to Life</a>
+</body>
+</html>

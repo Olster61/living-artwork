@@ -1439,7 +1439,12 @@ async function serveArForSlug (slug, res) {
   res.send(patched)
 }
 
-// Generic slug routes — registered after specific /olly/* routes above so they don't shadow them
+// /scan — public AR demo (same experience as /olly/ar)
+app.get('/scan', async (req, res) => {
+  await serveArForSlug('olly', res)
+})
+
+// Generic slug routes — registered after specific /olly/* and /scan routes so they don't shadow them
 app.get('/:slug/ar', async (req, res) => {
   await serveArForSlug(req.params.slug, res)
 })
@@ -1452,7 +1457,9 @@ app.get('/:slug', async (req, res) => {
   await serveArForSlug(req.params.slug, res)
 })
 
-app.get('/', (req, res) => res.redirect('/olly/ar'))
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'home.html'))
+})
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
