@@ -1439,6 +1439,11 @@ async function serveArForSlug (slug, res) {
   res.send(patched)
 }
 
+// Root homepage — registered before /:slug so intent is unambiguous (/:slug doesn't match / anyway)
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'homepage.html'))
+})
+
 // /scan — public AR demo (same experience as /olly/ar)
 app.get('/scan', async (req, res) => {
   await serveArForSlug('olly', res)
@@ -1455,10 +1460,6 @@ app.get('/:slug/admin', (req, res) => {
 
 app.get('/:slug', async (req, res) => {
   await serveArForSlug(req.params.slug, res)
-})
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'home.html'))
 })
 
 // ── Start ─────────────────────────────────────────────────────────────────────
