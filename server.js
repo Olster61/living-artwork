@@ -1266,16 +1266,19 @@ function parseUserAgent (ua = '') {
   return { device_type, browser_name, browser_version, os_name, os_version }
 }
 
-// POST /api/analytics/track  { ar_loaded, compat_warning_shown }
+// POST /api/analytics/track  { ar_loaded, compat_warning_shown, failure_reason?, failure_error? }
 app.post('/api/analytics/track', express.json(), async (req, res) => {
-  const { ar_loaded = false, compat_warning_shown = false } = req.body || {}
+  const { ar_loaded = false, compat_warning_shown = false, failure_reason, failure_error } = req.body || {}
   const ua = req.headers['user-agent'] || ''
   const parsed = parseUserAgent(ua)
-  await supabase.from('visitor_analytics').insert({
+  const row = {
     ...parsed,
     ar_loaded: Boolean(ar_loaded),
     compat_warning_shown: Boolean(compat_warning_shown),
-  })
+  }
+  if (failure_reason) row.failure_reason = String(failure_reason).slice(0, 200)
+  if (failure_error)  row.failure_error  = String(failure_error).slice(0, 500)
+  await supabase.from('visitor_analytics').insert(row)
   res.json({ ok: true })
 })
 
@@ -1290,7 +1293,7 @@ app.get('/api/analytics/summary', async (req, res) => {
 
   const rows = data || []
   const totals = { visits: rows.length, ar_loaded: 0, compat_warnings: 0 }
-  const devices = {}, browsers = {}, oses = {}
+  const devices = {}, browsers = {}, oses = {}, failureReasons = {}
 
   for (const r of rows) {
     if (r.ar_loaded)            totals.ar_loaded++
@@ -1301,13 +1304,23 @@ app.get('/api/analytics/summary', async (req, res) => {
     devices[dk] = (devices[dk] || 0) + 1
     browsers[bk] = (browsers[bk] || 0) + 1
     oses[ok]     = (oses[ok]     || 0) + 1
+    if (r.failure_reason) {
+      failureReasons[r.failure_reason] = (failureReasons[r.failure_reason] || 0) + 1
+    }
   }
 
   const toArr = obj =>
     Object.entries(obj).map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count)
 
-  res.json({ totals, devices: toArr(devices), browsers: toArr(browsers), oses: toArr(oses), recent: rows.slice(0, 30) })
+  res.json({
+    totals,
+    devices: toArr(devices),
+    browsers: toArr(browsers),
+    oses: toArr(oses),
+    failureReasons: toArr(failureReasons),
+    recent: rows.slice(0, 30),
+  })
 })
 
 // ── Static / Admin page ───────────────────────────────────────────────────────

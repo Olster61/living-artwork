@@ -510,6 +510,8 @@
     }
 
     startBtn.disabled = true;
+    _arStarted    = false;
+    _arFullyReady = false;
 
     // Warm up all video elements with a muted play/pause inside this user gesture.
     // iOS requires play() to be initiated (or unlocked) during a direct gesture;
@@ -526,9 +528,17 @@
         aframeLoaded = true;
       }
       launchAR();
-      trackArLoaded();
+      // trackArLoaded() fires inside showScan() after camera stream confirms
     } catch (err) {
       startBtn.disabled = false;
+      _arStarted = false;
+      let failReason = 'script_render_error';
+      if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+        failReason = 'getUserMedia_unsupported';
+      } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        failReason = 'camera_permission_denied';
+      }
+      trackArFailed(failReason, err.message || String(err));
       showError('Could not start AR: ' + (err.message || err));
     }
   });
@@ -545,17 +555,34 @@
   // ── Launch AR ───────────────────────────────────────────────
   function launchAR() {
     closeBtn.style.display = 'flex';
+    _arStarted = true;
 
     // Intercept getUserMedia so we can pipe the camera into our own feed element
     gumOriginal = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = async function(constraints) {
-      const stream = await gumOriginal(constraints);
+      let stream;
+      try {
+        stream = await gumOriginal(constraints);
+      } catch (err) {
+        navigator.mediaDevices.getUserMedia = gumOriginal;
+        gumOriginal = null;
+        let failReason = 'script_render_error';
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          failReason = 'camera_permission_denied';
+        } else if (err.name === 'NotFoundError' || err.name === 'NotSupportedError' || err.name === 'OverconstrainedError') {
+          failReason = 'getUserMedia_unsupported';
+        }
+        trackArFailed(failReason, err.message || String(err));
+        throw err;
+      }
       navigator.mediaDevices.getUserMedia = gumOriginal;
       gumOriginal = null;
       if (constraints && constraints.video) {
         cameraFeedEl.srcObject = stream;
         cameraFeedEl.style.display = 'block';
         const showScan = () => {
+          _arFullyReady = true;
+          trackArLoaded();
           welcome.style.display     = 'none';
           scanOverlay.style.display = 'block';
           // Pre-initialise every video into a clean ready state,
@@ -690,6 +717,9 @@
       return;
     }
     // Exit AR entirely
+    if (_arStarted && !_arFullyReady) trackArFailed('user_closed_before_load', null);
+    _arStarted    = false;
+    _arFullyReady = false;
     if (gumOriginal) { navigator.mediaDevices.getUserMedia = gumOriginal; gumOriginal = null; }
     if (cameraFeedEl.srcObject) {
       cameraFeedEl.srcObject.getTracks().forEach(t => t.stop());
@@ -715,6 +745,8 @@
 
   // ── Analytics (fire-and-forget, non-blocking) ───────────────
   let _compatWarnShown = false
+  let _arStarted       = false
+  let _arFullyReady    = false
 
   function trackVisit (compatWarnShown) {
     fetch('/api/analytics/track', {
@@ -729,6 +761,19 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ar_loaded: true, compat_warning_shown: _compatWarnShown }),
+    }).catch(() => {})
+  }
+
+  function trackArFailed (reason, rawError) {
+    fetch('/api/analytics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ar_loaded: false,
+        compat_warning_shown: _compatWarnShown,
+        failure_reason: reason,
+        failure_error: rawError || null,
+      }),
     }).catch(() => {})
   }
 

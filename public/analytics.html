@@ -108,9 +108,13 @@
     .bar-label { font-size: 12px; color: var(--text1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .bar-track { background: rgba(255,255,255,0.05); border-radius: 3px; height: 6px; overflow: hidden; }
     .bar-fill  { height: 100%; border-radius: 3px; background: var(--gold); transition: width 0.4s ease; }
-    .bar-fill.mobile  { background: var(--mobile); }
-    .bar-fill.tablet  { background: var(--tablet); }
-    .bar-fill.desktop { background: var(--desktop); }
+    .bar-fill.mobile      { background: var(--mobile); }
+    .bar-fill.tablet      { background: var(--tablet); }
+    .bar-fill.desktop     { background: var(--desktop); }
+    .bar-fill.fail-cam    { background: #f87171; }
+    .bar-fill.fail-gum    { background: #fb923c; }
+    .bar-fill.fail-script { background: #f87171; }
+    .bar-fill.fail-closed { background: var(--text3); }
     .bar-count { font-size: 12px; color: var(--text2); text-align: right; }
 
     /* ── Recent table ── */
@@ -147,6 +151,10 @@
     .badge-yes     { background: rgba(78,205,196,0.15); color: var(--mobile); }
     .badge-no      { background: rgba(255,255,255,0.05); color: var(--text3); }
     .badge-warn    { background: rgba(240,192,96,0.15); color: var(--gold); }
+    .badge-fail-cam    { background: rgba(248,113,113,0.15); color: #f87171; }
+    .badge-fail-gum    { background: rgba(251,146,60,0.15);  color: #fb923c; }
+    .badge-fail-script { background: rgba(248,113,113,0.15); color: #f87171; }
+    .badge-fail-closed { background: rgba(255,255,255,0.05); color: var(--text3); }
 
     /* ── Two-col layout ── */
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -190,7 +198,7 @@ async function load() {
       `<p style="color:#f87171">Failed to load analytics: HTTP ${res.status}</p>`
     return
   }
-  const { totals, devices, browsers, oses, recent } = await res.json()
+  const { totals, devices, browsers, oses, failureReasons, recent } = await res.json()
 
   document.getElementById('subtitle').textContent =
     `Last ${Math.min(totals.visits, 1000)} visits · updates on refresh`
@@ -200,6 +208,7 @@ async function load() {
   const maxDev  = devices[0]?.count || 1
   const maxBrow = browsers[0]?.count || 1
   const maxOs   = oses[0]?.count || 1
+  const maxFail = (failureReasons && failureReasons[0]?.count) || 1
 
   function barFillClass(label) {
     const l = (label || '').toLowerCase()
@@ -232,6 +241,26 @@ async function load() {
     return `<span class="badge badge-no">—</span>`
   }
 
+  function failureReasonLabel(reason) {
+    const map = {
+      camera_permission_denied: { cls: 'badge-fail-cam',    text: 'Cam Denied' },
+      getUserMedia_unsupported:  { cls: 'badge-fail-gum',    text: 'No Camera API' },
+      script_render_error:       { cls: 'badge-fail-script', text: 'Script Error' },
+      user_closed_before_load:   { cls: 'badge-fail-closed', text: 'Closed Early' },
+    }
+    const m = map[reason]
+    if (m) return `<span class="badge ${m.cls}" title="${reason}">${m.text}</span>`
+    if (reason) return `<span class="badge badge-fail-script" title="${reason}">${reason}</span>`
+    return ''
+  }
+
+  function failureReasonBarClass(reason) {
+    if (reason === 'camera_permission_denied') return 'fail-cam'
+    if (reason === 'getUserMedia_unsupported')  return 'fail-gum'
+    if (reason === 'user_closed_before_load')   return 'fail-closed'
+    return 'fail-script'
+  }
+
   function fmtDate(ts) {
     if (!ts) return '—'
     const d = new Date(ts)
@@ -247,6 +276,7 @@ async function load() {
       <td>${r.os_name || '—'} ${r.os_version || ''}</td>
       <td>${yesNo(r.ar_loaded)}</td>
       <td>${yesNo(r.compat_warning_shown, 'badge-warn')}</td>
+      <td>${!r.ar_loaded && r.failure_reason ? failureReasonLabel(r.failure_reason) : '—'}</td>
     </tr>`).join('')
 
   document.getElementById('root').innerHTML = `
@@ -284,6 +314,21 @@ async function load() {
       <div class="panel">${barRows(browsers, maxBrow)}</div>
     </div>
 
+    ${failureReasons && failureReasons.length ? `
+    <div class="section">
+      <div class="section-title">AR Failure Reasons</div>
+      <div class="panel">${failureReasons.map(({ label, count }) => `
+        <div class="bar-row">
+          <div class="bar-label" title="${label}">${label.replace(/_/g, ' ')}</div>
+          <div class="bar-track">
+            <div class="bar-fill ${failureReasonBarClass(label)}"
+                 style="width:${Math.round(count/maxFail*100)}%"></div>
+          </div>
+          <div class="bar-count">${count}</div>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+
     <div class="section">
       <div class="section-title">Recent Visits (last 30)</div>
       <div class="panel" style="overflow-x:auto">
@@ -291,10 +336,10 @@ async function load() {
           <thead>
             <tr>
               <th>Time</th><th>Device</th><th>Browser</th>
-              <th>OS</th><th>AR Loaded</th><th>Compat Warning</th>
+              <th>OS</th><th>AR Loaded</th><th>Compat Warning</th><th>Failure</th>
             </tr>
           </thead>
-          <tbody>${recentRows || '<tr><td colspan="6" style="color:var(--text3);text-align:center;padding:20px">No data yet</td></tr>'}</tbody>
+          <tbody>${recentRows || '<tr><td colspan="7" style="color:var(--text3);text-align:center;padding:20px">No data yet</td></tr>'}</tbody>
         </table>
       </div>
     </div>
