@@ -767,8 +767,38 @@
   let _sessionId       = null
   let _sessionReady    = Promise.resolve()
 
+  // ── Debug overlay (visible on-screen when ?debug=1) ──────────
+  const _debug = new URLSearchParams(location.search).has('debug')
+  let _debugEl = null
+  if (_debug) {
+    _debugEl = document.createElement('div')
+    _debugEl.style.cssText = [
+      'position:fixed', 'bottom:12px', 'left:12px', 'right:12px',
+      'max-height:220px', 'overflow-y:auto',
+      'background:rgba(0,0,0,0.75)', 'color:#7fff7f',
+      'font:12px/1.5 monospace', 'padding:8px 10px',
+      'border-radius:8px', 'z-index:99999',
+      'pointer-events:none', 'word-break:break-all',
+    ].join(';')
+    const hdr = document.createElement('div')
+    hdr.style.cssText = 'color:#fff;font-weight:bold;margin-bottom:4px'
+    hdr.textContent = '▶ analytics debug'
+    _debugEl.appendChild(hdr)
+    document.body.appendChild(_debugEl)
+  }
+  function _dbg (line, ok) {
+    if (!_debugEl) return
+    const ts  = new Date().toTimeString().slice(0, 8)
+    const row = document.createElement('div')
+    row.style.color = ok === false ? '#ff6b6b' : ok === true ? '#7fff7f' : '#ffe082'
+    row.textContent = ts + '  ' + line
+    _debugEl.appendChild(row)
+    _debugEl.scrollTop = _debugEl.scrollHeight
+  }
+
   function trackVisit (compatWarnShown) {
     console.log('[analytics] trackVisit called, compat_warning_shown=' + compatWarnShown)
+    _dbg('trackVisit calling…')
     _sessionReady = fetch('/api/analytics/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -781,14 +811,20 @@
     .then(d => {
       _sessionId = d.id || null
       console.log('[analytics] session ID:', _sessionId)
+      if (_sessionId) _dbg('session: ' + _sessionId.slice(0, 8) + '…', true)
+      else            _dbg('session: null — POST failed or migration not run', false)
     })
-    .catch(err => { console.error('[analytics] trackVisit error:', err) })
+    .catch(err => {
+      console.error('[analytics] trackVisit error:', err)
+      _dbg('trackVisit ✗ ' + (err.message || String(err)), false)
+    })
   }
 
-  function _patch (fields) {
+  function _patch (fields, _label) {
     _sessionReady.then(() => {
       if (!_sessionId) {
         console.warn('[analytics] _patch: no session ID, skipping', JSON.stringify(fields))
+        _dbg((_label || 'patch') + ' ✗ no session ID', false)
         return
       }
       fetch('/api/analytics/track/' + _sessionId, {
@@ -796,15 +832,25 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields),
       })
-      .then(r => { if (!r.ok) console.error('[analytics] PATCH failed:', r.status, r.statusText, JSON.stringify(fields)) })
-      .catch(err => { console.error('[analytics] _patch error:', err) })
+      .then(r => {
+        if (!r.ok) {
+          console.error('[analytics] PATCH failed:', r.status, r.statusText, JSON.stringify(fields))
+          _dbg((_label || 'patch') + ' ✗ ' + r.status + ' ' + r.statusText, false)
+        } else {
+          _dbg((_label || 'patch') + ' ✓', true)
+        }
+      })
+      .catch(err => {
+        console.error('[analytics] _patch error:', err)
+        _dbg((_label || 'patch') + ' ✗ ' + (err.message || String(err)), false)
+      })
     }).catch(() => {})
   }
 
-  function trackScannerLoaded ()            { _patch({ scanner_loaded: true }) }
-  function trackArtworkRecognized (slug)     { _patch({ artwork_recognized: true, artwork_slug: slug }) }
-  function trackAnimationPlayed (slug)       { _patch({ animation_played: true, artwork_slug: slug }) }
-  function trackArFailed (reason, rawError)  { _patch({ failure_reason: reason, failure_error: rawError || null }) }
+  function trackScannerLoaded ()            { _patch({ scanner_loaded: true },                              'scannerLoaded') }
+  function trackArtworkRecognized (slug)    { _patch({ artwork_recognized: true, artwork_slug: slug },      'artworkRecognized(' + slug + ')') }
+  function trackAnimationPlayed (slug)      { _patch({ animation_played: true, artwork_slug: slug },        'animationPlayed(' + slug + ')') }
+  function trackArFailed (reason, rawError) { _patch({ failure_reason: reason, failure_error: rawError || null }, 'arFailed(' + reason + ')') }
 
   // ── Boot ─────────────────────────────────────────────────────
   _compatWarnShown = !checkCompatibility()
