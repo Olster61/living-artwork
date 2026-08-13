@@ -581,6 +581,7 @@
         cameraFeedEl.style.display = 'block';
         const showScan = () => {
           _arFullyReady = true;
+          console.log('[analytics] showScan: about to call trackScannerLoaded');
           trackScannerLoaded();
           welcome.style.display     = 'none';
           scanOverlay.style.display = 'block';
@@ -630,10 +631,11 @@
           const art   = artId ? artworkById[artId] : null;
 
           if (!art) {
-            console.warn('[AR] No artwork for targetIndex ' + idx + ' — recompile may be needed');
+            console.warn('[AR] No artwork for targetIndex ' + idx + ' — recompile may be needed. manifest=' + JSON.stringify(targetManifest) + ' artworks=' + artworks.length);
             return;
           }
 
+          console.log('[analytics] targetFound: about to call trackArtworkRecognized for', art.slug);
           trackArtworkRecognized(art.slug);
 
           // Pause any previously-active video
@@ -667,6 +669,7 @@
               if (vid.currentTime >= 2 && !animTracked) {
                 animTracked = true;
                 vid.removeEventListener('timeupdate', checkTime);
+                console.log('[analytics] timeupdate: about to call trackAnimationPlayed for', art.slug);
                 trackAnimationPlayed(art.slug);
               }
             };
@@ -765,6 +768,7 @@
   let _sessionReady    = Promise.resolve()
 
   function trackVisit (compatWarnShown) {
+    console.log('[analytics] trackVisit called, compat_warning_shown=' + compatWarnShown)
     _sessionReady = fetch('/api/analytics/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -774,13 +778,19 @@
       if (!r.ok) console.error('[analytics] POST /api/analytics/track failed:', r.status, r.statusText)
       return r.json().catch(() => ({}))
     })
-    .then(d => { _sessionId = d.id || null })
+    .then(d => {
+      _sessionId = d.id || null
+      console.log('[analytics] session ID:', _sessionId)
+    })
     .catch(err => { console.error('[analytics] trackVisit error:', err) })
   }
 
   function _patch (fields) {
     _sessionReady.then(() => {
-      if (!_sessionId) return
+      if (!_sessionId) {
+        console.warn('[analytics] _patch: no session ID, skipping', JSON.stringify(fields))
+        return
+      }
       fetch('/api/analytics/track/' + _sessionId, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
