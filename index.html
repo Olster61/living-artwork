@@ -770,9 +770,12 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ compat_warning_shown: Boolean(compatWarnShown) }),
     })
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) console.error('[analytics] POST /api/analytics/track failed:', r.status, r.statusText)
+      return r.json().catch(() => ({}))
+    })
     .then(d => { _sessionId = d.id || null })
-    .catch(() => {})
+    .catch(err => { console.error('[analytics] trackVisit error:', err) })
   }
 
   function _patch (fields) {
@@ -782,7 +785,9 @@
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields),
-      }).catch(() => {})
+      })
+      .then(r => { if (!r.ok) console.error('[analytics] PATCH failed:', r.status, r.statusText, JSON.stringify(fields)) })
+      .catch(err => { console.error('[analytics] _patch error:', err) })
     }).catch(() => {})
   }
 

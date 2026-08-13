@@ -1267,35 +1267,45 @@ function parseUserAgent (ua = '') {
 }
 
 // POST /api/analytics/track  { compat_warning_shown }  → creates session row, returns id
-app.post('/api/analytics/track', express.json(), async (req, res) => {
-  const { compat_warning_shown = false } = req.body || {}
-  const ua = req.headers['user-agent'] || ''
-  const parsed = parseUserAgent(ua)
-  const { data, error } = await supabase.from('visitor_analytics').insert({
-    ...parsed,
-    compat_warning_shown: Boolean(compat_warning_shown),
-    scanner_loaded:     false,
-    artwork_recognized: false,
-    animation_played:   false,
-  }).select('id').single()
-  if (error) console.error('[analytics] insert:', error.message)
-  res.json({ ok: true, id: data?.id ?? null })
+app.post('/api/analytics/track', async (req, res) => {
+  try {
+    const { compat_warning_shown = false } = req.body || {}
+    const ua = req.headers['user-agent'] || ''
+    const parsed = parseUserAgent(ua)
+    const { data, error } = await supabase.from('visitor_analytics').insert({
+      ...parsed,
+      compat_warning_shown: Boolean(compat_warning_shown),
+      scanner_loaded:     false,
+      artwork_recognized: false,
+      animation_played:   false,
+    }).select('id').single()
+    if (error) console.error('[analytics] insert:', error.message)
+    res.json({ ok: true, id: data?.id ?? null })
+  } catch (err) {
+    console.error('[analytics] insert exception:', err.message)
+    res.json({ ok: false, id: null })
+  }
 })
 
 // PATCH /api/analytics/track/:id  { scanner_loaded?, artwork_recognized?, animation_played?, artwork_slug?, failure_reason?, failure_error? }
-app.patch('/api/analytics/track/:id', express.json(), async (req, res) => {
-  const { id } = req.params
-  const body    = req.body || {}
-  const boolKeys   = ['scanner_loaded', 'artwork_recognized', 'animation_played']
-  const stringKeys = ['artwork_slug', 'failure_reason', 'failure_error']
-  const update = {}
-  for (const k of boolKeys)   if (k in body) update[k] = Boolean(body[k])
-  for (const k of stringKeys) if (k in body) update[k] = body[k] ? String(body[k]).slice(0, 200) : null
-  if (Object.keys(update).length) {
-    const { error } = await supabase.from('visitor_analytics').update(update).eq('id', id)
-    if (error) console.error('[analytics] patch:', error.message)
+app.patch('/api/analytics/track/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const body    = req.body || {}
+    const boolKeys   = ['scanner_loaded', 'artwork_recognized', 'animation_played']
+    const stringKeys = ['artwork_slug', 'failure_reason', 'failure_error']
+    const update = {}
+    for (const k of boolKeys)   if (k in body) update[k] = Boolean(body[k])
+    for (const k of stringKeys) if (k in body) update[k] = body[k] ? String(body[k]).slice(0, 200) : null
+    if (Object.keys(update).length) {
+      const { error } = await supabase.from('visitor_analytics').update(update).eq('id', id)
+      if (error) console.error('[analytics] patch:', error.message)
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('[analytics] patch exception:', err.message)
+    res.json({ ok: false })
   }
-  res.json({ ok: true })
 })
 
 // GET /api/analytics/summary — returns raw rows; dashboard aggregates client-side
