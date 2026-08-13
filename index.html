@@ -528,7 +528,6 @@
         aframeLoaded = true;
       }
       launchAR();
-      // trackArLoaded() fires inside showScan() after camera stream confirms
     } catch (err) {
       startBtn.disabled = false;
       _arStarted = false;
@@ -582,7 +581,7 @@
         cameraFeedEl.style.display = 'block';
         const showScan = () => {
           _arFullyReady = true;
-          trackArLoaded();
+          trackScannerLoaded();
           welcome.style.display     = 'none';
           scanOverlay.style.display = 'block';
           // Pre-initialise every video into a clean ready state,
@@ -635,6 +634,8 @@
             return;
           }
 
+          trackArtworkRecognized(art.slug);
+
           // Pause any previously-active video
           document.querySelectorAll('#video-screen video').forEach(v => {
             if (!v.paused) v.pause();
@@ -657,6 +658,19 @@
             vid.muted = true;   // stay muted for initial play — iOS allows muted autoplay
             vid.src   = art.video_url;
             vid.load();
+
+            // Fire trackAnimationPlayed once the video reaches 2 s of real playback.
+            // Each targetFound invocation gets its own animTracked flag in the closure,
+            // preventing double-fires; vid.removeEventListener cleans up on trigger.
+            let animTracked = false;
+            const checkTime = () => {
+              if (vid.currentTime >= 2 && !animTracked) {
+                animTracked = true;
+                vid.removeEventListener('timeupdate', checkTime);
+                trackAnimationPlayed(art.slug);
+              }
+            };
+            vid.addEventListener('timeupdate', checkTime);
 
             // Use both canplay and loadeddata: canplay is more reliable on iOS 16,
             // loadeddata fires first on most other browsers. Whichever arrives first wins.
@@ -747,35 +761,35 @@
   let _compatWarnShown = false
   let _arStarted       = false
   let _arFullyReady    = false
+  let _sessionId       = null
+  let _sessionReady    = Promise.resolve()
 
   function trackVisit (compatWarnShown) {
-    fetch('/api/analytics/track', {
+    _sessionReady = fetch('/api/analytics/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ar_loaded: false, compat_warning_shown: Boolean(compatWarnShown) }),
+      body: JSON.stringify({ compat_warning_shown: Boolean(compatWarnShown) }),
+    })
+    .then(r => r.json())
+    .then(d => { _sessionId = d.id || null })
+    .catch(() => {})
+  }
+
+  function _patch (fields) {
+    _sessionReady.then(() => {
+      if (!_sessionId) return
+      fetch('/api/analytics/track/' + _sessionId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      }).catch(() => {})
     }).catch(() => {})
   }
 
-  function trackArLoaded () {
-    fetch('/api/analytics/track', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ar_loaded: true, compat_warning_shown: _compatWarnShown }),
-    }).catch(() => {})
-  }
-
-  function trackArFailed (reason, rawError) {
-    fetch('/api/analytics/track', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ar_loaded: false,
-        compat_warning_shown: _compatWarnShown,
-        failure_reason: reason,
-        failure_error: rawError || null,
-      }),
-    }).catch(() => {})
-  }
+  function trackScannerLoaded ()            { _patch({ scanner_loaded: true }) }
+  function trackArtworkRecognized (slug)     { _patch({ artwork_recognized: true, artwork_slug: slug }) }
+  function trackAnimationPlayed (slug)       { _patch({ animation_played: true, artwork_slug: slug }) }
+  function trackArFailed (reason, rawError)  { _patch({ failure_reason: reason, failure_error: rawError || null }) }
 
   // ── Boot ─────────────────────────────────────────────────────
   _compatWarnShown = !checkCompatibility()

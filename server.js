@@ -1266,23 +1266,39 @@ function parseUserAgent (ua = '') {
   return { device_type, browser_name, browser_version, os_name, os_version }
 }
 
-// POST /api/analytics/track  { ar_loaded, compat_warning_shown, failure_reason?, failure_error? }
+// POST /api/analytics/track  { compat_warning_shown }  → creates session row, returns id
 app.post('/api/analytics/track', express.json(), async (req, res) => {
-  const { ar_loaded = false, compat_warning_shown = false, failure_reason, failure_error } = req.body || {}
+  const { compat_warning_shown = false } = req.body || {}
   const ua = req.headers['user-agent'] || ''
   const parsed = parseUserAgent(ua)
-  const row = {
+  const { data, error } = await supabase.from('visitor_analytics').insert({
     ...parsed,
-    ar_loaded: Boolean(ar_loaded),
     compat_warning_shown: Boolean(compat_warning_shown),
+    scanner_loaded:     false,
+    artwork_recognized: false,
+    animation_played:   false,
+  }).select('id').single()
+  if (error) console.error('[analytics] insert:', error.message)
+  res.json({ ok: true, id: data?.id ?? null })
+})
+
+// PATCH /api/analytics/track/:id  { scanner_loaded?, artwork_recognized?, animation_played?, artwork_slug?, failure_reason?, failure_error? }
+app.patch('/api/analytics/track/:id', express.json(), async (req, res) => {
+  const { id } = req.params
+  const body    = req.body || {}
+  const boolKeys   = ['scanner_loaded', 'artwork_recognized', 'animation_played']
+  const stringKeys = ['artwork_slug', 'failure_reason', 'failure_error']
+  const update = {}
+  for (const k of boolKeys)   if (k in body) update[k] = Boolean(body[k])
+  for (const k of stringKeys) if (k in body) update[k] = body[k] ? String(body[k]).slice(0, 200) : null
+  if (Object.keys(update).length) {
+    const { error } = await supabase.from('visitor_analytics').update(update).eq('id', id)
+    if (error) console.error('[analytics] patch:', error.message)
   }
-  if (failure_reason) row.failure_reason = String(failure_reason).slice(0, 200)
-  if (failure_error)  row.failure_error  = String(failure_error).slice(0, 500)
-  await supabase.from('visitor_analytics').insert(row)
   res.json({ ok: true })
 })
 
-// GET /api/analytics/summary
+// GET /api/analytics/summary — returns raw rows; dashboard aggregates client-side
 app.get('/api/analytics/summary', async (req, res) => {
   const { data, error } = await supabase
     .from('visitor_analytics')
@@ -1290,37 +1306,7 @@ app.get('/api/analytics/summary', async (req, res) => {
     .order('created_at', { ascending: false })
     .limit(1000)
   if (error) return res.status(500).json({ error: error.message })
-
-  const rows = data || []
-  const totals = { visits: rows.length, ar_loaded: 0, compat_warnings: 0 }
-  const devices = {}, browsers = {}, oses = {}, failureReasons = {}
-
-  for (const r of rows) {
-    if (r.ar_loaded)            totals.ar_loaded++
-    if (r.compat_warning_shown) totals.compat_warnings++
-    const dk = r.device_type  || 'unknown'
-    const bk = `${r.browser_name || 'Other'} ${r.browser_version || ''}`.trim()
-    const ok = `${r.os_name || 'Other'} ${r.os_version || ''}`.trim()
-    devices[dk] = (devices[dk] || 0) + 1
-    browsers[bk] = (browsers[bk] || 0) + 1
-    oses[ok]     = (oses[ok]     || 0) + 1
-    if (r.failure_reason) {
-      failureReasons[r.failure_reason] = (failureReasons[r.failure_reason] || 0) + 1
-    }
-  }
-
-  const toArr = obj =>
-    Object.entries(obj).map(([label, count]) => ({ label, count }))
-      .sort((a, b) => b.count - a.count)
-
-  res.json({
-    totals,
-    devices: toArr(devices),
-    browsers: toArr(browsers),
-    oses: toArr(oses),
-    failureReasons: toArr(failureReasons),
-    recent: rows.slice(0, 30),
-  })
+  res.json({ rows: data || [] })
 })
 
 // ── Static / Admin page ───────────────────────────────────────────────────────
