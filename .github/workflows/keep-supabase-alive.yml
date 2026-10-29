@@ -1,0 +1,17 @@
+name: Keep Supabase alive
+
+on:
+  schedule:
+    - cron: '0 9 * * 1,4'   # Mondays and Thursdays, 9am UTC
+  workflow_dispatch:         # lets you run it by hand
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping database
+        run: |
+          curl --fail -s \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/visitor_analytics?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
