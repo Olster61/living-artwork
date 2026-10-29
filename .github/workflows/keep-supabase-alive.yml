@@ -2,8 +2,8 @@ name: Keep Supabase alive
 
 on:
   schedule:
-    - cron: '0 9 * * 1,4'   # Mondays and Thursdays, 9am UTC
-  workflow_dispatch:         # lets you run it by hand
+    - cron: '0 9 * * 1,4'
+  workflow_dispatch:
 
 jobs:
   ping:
@@ -11,7 +11,9 @@ jobs:
     steps:
       - name: Ping database
         run: |
-          curl --fail -s \
+          status=$(curl -s -o response.txt -w "%{http_code}" \
             "${{ secrets.SUPABASE_URL }}/rest/v1/visitor_analytics?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}")
+          echo "Supabase replied with status $status"
+          cat response.txt
+          [ "$status" = "200" ]
